@@ -11,6 +11,22 @@ Pi loads prompt templates from:
 - Global: `~/.pi/agent/prompts/*.md`
 - Project: `.pi/prompts/*.md` (only after the project is trusted)
 - Packages: `prompts/` directories or `pi.prompts` entries in `package.json`
+
+### Package Namespaces
+
+A package declaring `pi.namespace` exposes its templates under the composed
+name `<namespace>:<name>`: `prompts/arm-tools.md` in a package with
+`"namespace": "solidforge"` is invoked as `/solidforge:arm-tools`. When a
+namespaced skill (not a template) owns that exact name, the bare form
+resolves the template first — a same-named template always keeps precedence
+over the skill fallback. The bare
+invocation `/arm-tools` still resolves when that template is the unique
+owner of the base name and no bare template shadows it; colon-bearing
+requests always resolve by exact match only. Legacy colon-filenames
+(`prompts/solidforge:arm-tools.md`) still work via exact match, but with a
+namespace declared they compose to `<ns>:<ns>:<name>` — prefer plain
+filenames. See
+[packages.md](packages.md#namespace).
 - Settings: `prompts` array with files or directories
 - CLI: `--prompt-template <path>` (repeatable)
 
