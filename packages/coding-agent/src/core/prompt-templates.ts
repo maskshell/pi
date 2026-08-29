@@ -3,6 +3,7 @@ import { basename, dirname, join, resolve, sep } from "path";
 import { CONFIG_DIR_NAME } from "../config.ts";
 import { parseFrontmatter } from "../utils/frontmatter.ts";
 import { resolvePath } from "../utils/paths.ts";
+import { findNamespaceForPath, type ResourceNamespace } from "./skills.ts";
 import { createSyntheticSourceInfo, type SourceInfo } from "./source-info.ts";
 
 /**
@@ -15,6 +16,10 @@ export interface PromptTemplate {
 	content: string;
 	sourceInfo: SourceInfo;
 	filePath: string; // Absolute path to the template file
+	/** Package namespace this template is exposed under (set when namespaced). */
+	namespace?: string;
+	/** Original name before namespace composition (equals name when not namespaced). */
+	baseName?: string;
 }
 
 /**
@@ -183,6 +188,8 @@ export interface LoadPromptTemplatesOptions {
 	promptPaths: string[];
 	/** Include default prompt directories. */
 	includeDefaults: boolean;
+	/** Pre-validated path-to-namespace associations (package-origin). */
+	namespaces?: ResourceNamespace[];
 }
 
 /**
@@ -196,8 +203,22 @@ export function loadPromptTemplates(options: LoadPromptTemplatesOptions): Prompt
 	const resolvedAgentDir = resolvePath(options.agentDir);
 	const promptPaths = options.promptPaths;
 	const includeDefaults = options.includeDefaults;
+	const namespaces = options.namespaces ?? [];
 
 	const templates: PromptTemplate[] = [];
+
+	/** Compose the exposed name when the template's path has a namespace association. */
+	const applyNamespace = (template: PromptTemplate): PromptTemplate => {
+		if (namespaces.length === 0) return template;
+		const namespace = findNamespaceForPath(template.filePath, namespaces);
+		if (namespace === undefined) return template;
+		return {
+			...template,
+			name: `${namespace}:${template.name}`,
+			namespace,
+			baseName: template.name,
+		};
+	};
 
 	const globalPromptsDir = join(resolvedAgentDir, "prompts");
 	const projectPromptsDir = resolve(resolvedCwd, CONFIG_DIR_NAME, "prompts");
@@ -233,8 +254,8 @@ export function loadPromptTemplates(options: LoadPromptTemplatesOptions): Prompt
 	};
 
 	if (includeDefaults) {
-		templates.push(...loadTemplatesFromDir(globalPromptsDir, getSourceInfo));
-		templates.push(...loadTemplatesFromDir(projectPromptsDir, getSourceInfo));
+		templates.push(...loadTemplatesFromDir(globalPromptsDir, getSourceInfo).map(applyNamespace));
+		templates.push(...loadTemplatesFromDir(projectPromptsDir, getSourceInfo).map(applyNamespace));
 	}
 
 	// 3. Load explicit prompt paths
@@ -247,11 +268,11 @@ export function loadPromptTemplates(options: LoadPromptTemplatesOptions): Prompt
 		try {
 			const stats = statSync(resolvedPath);
 			if (stats.isDirectory()) {
-				templates.push(...loadTemplatesFromDir(resolvedPath, getSourceInfo));
+				templates.push(...loadTemplatesFromDir(resolvedPath, getSourceInfo).map(applyNamespace));
 			} else if (stats.isFile() && resolvedPath.endsWith(".md")) {
 				const template = loadTemplateFromFile(resolvedPath, getSourceInfo(resolvedPath));
 				if (template) {
-					templates.push(template);
+					templates.push(applyNamespace(template));
 				}
 			}
 		} catch {
@@ -275,10 +296,21 @@ export function expandPromptTemplate(text: string, templates: PromptTemplate[]):
 	const templateName = match[1];
 	const argsString = match[2] ?? "";
 
+	// Exact match first; then a fallback to the unique namespaced template
+	// whose baseName matches. The fallback never applies to colon-bearing
+	// requests and never resolves an ambiguous base name.
 	const template = templates.find((t) => t.name === templateName);
-	if (template) {
+	const fallback =
+		templateName.includes(":") || template
+			? undefined
+			: (() => {
+					const candidates = templates.filter((t) => t.namespace !== undefined && t.baseName === templateName);
+					return candidates.length === 1 ? candidates[0] : undefined;
+				})();
+	const resolved = template ?? fallback;
+	if (resolved) {
 		const args = parseCommandArgs(argsString);
-		return substituteArgs(template.content, args);
+		return substituteArgs(resolved.content, args);
 	}
 
 	return text;
