@@ -23,7 +23,7 @@ import type { PromptTemplate } from "./prompt-templates.ts";
 import { loadPromptTemplates } from "./prompt-templates.ts";
 import { SettingsManager } from "./settings-manager.ts";
 import type { Skill } from "./skills.ts";
-import { loadSkills } from "./skills.ts";
+import { loadSkills, type ResourceNamespace, validateNamespaceValue } from "./skills.ts";
 import { createSourceInfo, type SourceInfo } from "./source-info.ts";
 import { resetTimings } from "./timings.ts";
 
@@ -669,17 +669,51 @@ export class DefaultResourceLoader implements ResourceLoader {
 		});
 	}
 
+	/**
+	 * Build pre-validated path-to-namespace associations from package-origin
+	 * metadata. Invalid namespace values warn into the caller's diagnostics
+	 * channel and are dropped (resources load bare).
+	 */
+	private buildNamespaceAssociations(
+		metadataByPath: Map<string, PathMetadata> | undefined,
+		diagnostics: ResourceDiagnostic[],
+	): ResourceNamespace[] {
+		if (!metadataByPath) return [];
+		const associations: ResourceNamespace[] = [];
+		const warned = new Set<string>();
+		for (const [path, metadata] of metadataByPath) {
+			if (metadata.namespace === undefined) continue;
+			const errors = validateNamespaceValue(metadata.namespace);
+			if (errors.length > 0) {
+				if (!warned.has(metadata.namespace)) {
+					warned.add(metadata.namespace);
+					diagnostics.push({
+						type: "warning",
+						message: `invalid package namespace "${metadata.namespace}": ${errors.join("; ")} — resources load un-namespaced`,
+						path,
+					});
+				}
+				continue;
+			}
+			associations.push({ path, namespace: metadata.namespace });
+		}
+		return associations;
+	}
+
 	private updateSkillsFromPaths(skillPaths: string[], metadataByPath?: Map<string, PathMetadata>): void {
 		let skillsResult: { skills: Skill[]; diagnostics: ResourceDiagnostic[] };
 		if (this.noSkills && skillPaths.length === 0) {
 			skillsResult = { skills: [], diagnostics: [] };
 		} else {
+			const namespaceDiagnostics: ResourceDiagnostic[] = [];
 			skillsResult = loadSkills({
 				cwd: this.cwd,
 				agentDir: this.agentDir,
 				skillPaths,
 				includeDefaults: false,
+				namespaces: this.buildNamespaceAssociations(metadataByPath, namespaceDiagnostics),
 			});
+			skillsResult.diagnostics.push(...namespaceDiagnostics);
 		}
 		const resolvedSkills = this.skillsOverride ? this.skillsOverride(skillsResult) : skillsResult;
 		this.skills = resolvedSkills.skills.map((skill) => ({
@@ -697,13 +731,16 @@ export class DefaultResourceLoader implements ResourceLoader {
 		if (this.noPromptTemplates && promptPaths.length === 0) {
 			promptsResult = { prompts: [], diagnostics: [] };
 		} else {
+			const namespaceDiagnostics: ResourceDiagnostic[] = [];
 			const allPrompts = loadPromptTemplates({
 				cwd: this.cwd,
 				agentDir: this.agentDir,
 				promptPaths,
 				includeDefaults: false,
+				namespaces: this.buildNamespaceAssociations(metadataByPath, namespaceDiagnostics),
 			});
 			promptsResult = this.dedupePrompts(allPrompts);
+			promptsResult.diagnostics.push(...namespaceDiagnostics);
 		}
 		const resolvedPrompts = this.promptsOverride ? this.promptsOverride(promptsResult) : promptsResult;
 		this.prompts = resolvedPrompts.prompts.map((prompt) => ({

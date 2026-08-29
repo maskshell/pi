@@ -188,6 +188,40 @@ Declared skills with missing descriptions are not loaded. Malformed `SKILL.md` f
 
 Name collisions (same name from different locations) warn and keep the first skill found.
 
+### Package Namespaces
+
+A package can namespace its skills by declaring `pi.namespace` in `package.json`:
+
+```json
+{ "pi": { "namespace": "solidforge", "skills": ["./skills"] } }
+```
+
+Skills from that package are exposed, listed, and invoked under the composed
+name `<namespace>:<name>`:
+
+```
+/skill:solidforge:cross-source-review    # canonical explicit form
+/solidforge:cross-source-review          # bare form: also triggers the skill
+```
+
+The bare form makes `/<namespace>:<name>` the package's unified surface:
+input resolves the prompt template first when one owns the name, then a
+skill whose exposed name matches exactly. `/skill:<ns>:<name>` remains the
+unambiguous explicit form.
+
+The colon never enters `SKILL.md` frontmatter — the Agent Skills `name` stays
+spec-compliant; the prefix is applied by pi at load time. A namespaced skill no longer occupies
+its bare name, so a user or project skill with the same base name loads
+cleanly beside it. `/skill:<base-name>` still resolves when the namespaced
+skill is the unique owner of that base name and no bare skill shadows it;
+colon-bearing requests always resolve by exact match only.
+
+The namespace value must be lowercase `a-z`, `0-9`, hyphens (≤64 chars, no
+leading/trailing or consecutive hyphens). An invalid value warns and the
+skills load un-namespaced; a non-string `pi.namespace` is dropped silently. Namespace
+associations come from package resolution only: a raw settings or CLI path
+pointing into a package bypasses the namespace and loads bare.
+
 ## Example
 
 ```
