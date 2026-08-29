@@ -52,7 +52,7 @@ import {
 } from "../utils/paths.ts";
 import { stripBom } from "../utils/text.ts";
 import { isStdoutTakenOver } from "./output-guard.ts";
-import { type PiManifest, readPiManifest } from "./pi-manifest.ts";
+import { type PiManifest, type ResourceArrayKey, readPiManifest } from "./pi-manifest.ts";
 import type { PackageSource, SettingsManager } from "./settings-manager.ts";
 import { BUILTIN_PATH_PREFIX, getResourcePathKey } from "./source-info.ts";
 
@@ -81,6 +81,8 @@ export interface PathMetadata {
 	baseDir?: string;
 	changelogPath?: string;
 	packageRoot?: string;
+	/** Package namespace (pi.namespace) for name-keyed resources of this package. */
+	namespace?: string;
 }
 
 export interface ResolvedResource {
@@ -2363,7 +2365,11 @@ export class DefaultPackageManager implements PackageManager {
 		} else {
 			delete metadata.changelogPath;
 		}
-
+		// Namespace is carried additively on every resource this package
+		// registers (consumed by name-keyed loaders only).
+		if (manifest?.namespace !== undefined) {
+			metadata.namespace = manifest.namespace;
+		}
 		if (filter) {
 			for (const resourceType of RESOURCE_TYPES) {
 				const patterns = filter[resourceType];
@@ -2381,7 +2387,7 @@ export class DefaultPackageManager implements PackageManager {
 
 		if (manifest && hasManifestResourceFields(manifest)) {
 			for (const resourceType of RESOURCE_TYPES) {
-				const entries = manifest[resourceType];
+				const entries = manifest[resourceType as ResourceArrayKey];
 				this.addManifestEntries(
 					entries,
 					packageRoot,
@@ -2415,7 +2421,7 @@ export class DefaultPackageManager implements PackageManager {
 		metadata: PathMetadata,
 	): void {
 		const manifest = readPiManifest(join(packageRoot, "package.json"));
-		const entries = manifest?.[resourceType];
+		const entries = manifest?.[resourceType as ResourceArrayKey];
 		if (entries) {
 			this.addManifestEntries(entries, packageRoot, resourceType, target, metadata);
 			return;
@@ -2484,7 +2490,7 @@ export class DefaultPackageManager implements PackageManager {
 		resourceType: ResourceType,
 	): { allFiles: string[]; enabledByManifest: Set<string> } {
 		const manifest = readPiManifest(join(packageRoot, "package.json"));
-		const entries = manifest?.[resourceType];
+		const entries = manifest?.[resourceType as ResourceArrayKey];
 		if (entries && entries.length > 0) {
 			const allFiles = this.collectFilesFromManifestEntries(entries, packageRoot, resourceType);
 			const manifestPatterns = entries.filter(isOverridePattern);
