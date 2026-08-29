@@ -2683,4 +2683,71 @@ export default function(api) { api.registerTool({ name: "test", description: "te
 			await expect(capturePromise).resolves.toBe("abc123");
 		});
 	});
+
+	describe("pi.namespace metadata", () => {
+		it("should carry namespace on PathMetadata for skills, prompts, and themes of a declaring package", async () => {
+			const pkgDir = join(tempDir, "ns-pkg");
+			mkdirSync(join(pkgDir, "skills", "ns-one"), { recursive: true });
+			mkdirSync(join(pkgDir, "prompts"), { recursive: true });
+			mkdirSync(join(pkgDir, "themes"), { recursive: true });
+			writeFileSync(
+				join(pkgDir, "package.json"),
+				JSON.stringify({
+					name: "ns-pkg",
+					pi: { namespace: "solidforge", skills: ["./skills"], prompts: ["./prompts"], themes: ["./themes"] },
+				}),
+			);
+			writeFileSync(join(pkgDir, "skills", "ns-one", "SKILL.md"), "---\nname: ns-one\ndescription: one\n---\n");
+			writeFileSync(join(pkgDir, "prompts", "cmd.md"), "---\ndescription: cmd\n---\nbody");
+			writeFileSync(join(pkgDir, "themes", "t.json"), JSON.stringify({ name: "t", colors: {} }));
+
+			settingsManager.setPackages([pkgDir]);
+			const result = await packageManager.resolve();
+
+			const skill = result.skills.find((r) => r.path.includes("ns-one"));
+			expect(skill?.metadata.namespace).toBe("solidforge");
+			const prompt = result.prompts.find((r) => r.path.endsWith("cmd.md"));
+			expect(prompt?.metadata.namespace).toBe("solidforge");
+			const theme = result.themes.find((r) => r.path.endsWith("t.json"));
+			expect(theme?.metadata.namespace).toBe("solidforge");
+		});
+
+		it("should work with manifest skill entries and conventional dirs alike", async () => {
+			const pkgDir = join(tempDir, "ns-pkg-conv");
+			mkdirSync(join(pkgDir, "skills", "conv-skill"), { recursive: true });
+			writeFileSync(
+				join(pkgDir, "package.json"),
+				JSON.stringify({ name: "ns-pkg-conv", pi: { namespace: "convns", skills: ["./skills"] } }),
+			);
+			writeFileSync(
+				join(pkgDir, "skills", "conv-skill", "SKILL.md"),
+				"---\nname: conv-skill\ndescription: c\n---\n",
+			);
+
+			settingsManager.setPackages([pkgDir]);
+			const result = await packageManager.resolve();
+
+			const skill = result.skills.find((r) => r.path.includes("conv-skill"));
+			expect(skill?.metadata.namespace).toBe("convns");
+		});
+
+		it("should omit namespace when not declared", async () => {
+			const pkgDir = join(tempDir, "plain-pkg");
+			mkdirSync(join(pkgDir, "skills", "plain-skill"), { recursive: true });
+			writeFileSync(
+				join(pkgDir, "package.json"),
+				JSON.stringify({ name: "plain-pkg", pi: { skills: ["./skills"] } }),
+			);
+			writeFileSync(
+				join(pkgDir, "skills", "plain-skill", "SKILL.md"),
+				"---\nname: plain-skill\ndescription: p\n---\n",
+			);
+
+			settingsManager.setPackages([pkgDir]);
+			const result = await packageManager.resolve();
+
+			const skill = result.skills.find((r) => r.path.includes("plain-skill"));
+			expect(skill?.metadata.namespace).toBeUndefined();
+		});
+	});
 });
