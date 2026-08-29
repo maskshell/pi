@@ -136,6 +136,7 @@ import {
 	DEFAULT_TOOL_NAMES,
 	type SettingsManager,
 } from "./settings-manager.ts";
+import { findSkillByInvocationName, resolveBareNamespaceSkill } from "./skills.ts";
 import type { SlashCommandInfo } from "./slash-commands.ts";
 import { BUILTIN_PATH_PREFIX, createSyntheticSourceInfo, isSyntheticPath, type SourceInfo } from "./source-info.ts";
 import {
@@ -2006,6 +2007,7 @@ export class AgentSession {
 		let expandedText = currentText;
 		if (expandPromptTemplates) {
 			expandedText = this._expandSkillCommand(expandedText);
+			expandedText = this._expandBareNamespaceSkillCommand(expandedText);
 			expandedText = expandPromptTemplate(expandedText, [...this.promptTemplates]);
 		}
 
@@ -2149,11 +2151,41 @@ export class AgentSession {
 
 		const spaceIndex = text.indexOf(" ");
 		const skillName = spaceIndex === -1 ? text.slice(7) : text.slice(7, spaceIndex);
-		const args = spaceIndex === -1 ? "" : text.slice(spaceIndex + 1).trim();
 
-		const skill = this.resourceLoader.getSkills().skills.find((s) => s.name === skillName);
+		// Exact match on the exposed (possibly namespaced) name, then a
+		// fallback to the unique namespaced skill whose baseName matches.
+		const skill = findSkillByInvocationName(this.resourceLoader.getSkills().skills, skillName);
 		if (!skill) return text; // Unknown skill, pass through
 
+		const args = spaceIndex === -1 ? "" : text.slice(spaceIndex + 1).trim();
+		return this._buildSkillBlockOrOriginal(text, skill, args);
+	}
+
+	/**
+	 * Expand bare namespace-form commands (`/<ns>:<name>`) to a skill when no
+	 * prompt template owns the name (templates compose to the same shape and
+	 * keep precedence) and a skill's exposed name matches exactly. This makes
+	 * `/<ns>:<name>` the unified package surface: templates first, skills
+	 * second; `/skill:<ns>:<name>` stays the canonical explicit form.
+	 */
+	private _expandBareNamespaceSkillCommand(text: string): string {
+		if (!text.startsWith("/") || !text.slice(1).includes(":")) return text;
+
+		const resolved = resolveBareNamespaceSkill(
+			text,
+			this.resourceLoader.getSkills().skills,
+			this.promptTemplates.map((template) => template.name),
+		);
+		if (!resolved) return text;
+
+		return this._buildSkillBlockOrOriginal(text, resolved.skill, resolved.args);
+	}
+
+	private _buildSkillBlockOrOriginal(
+		text: string,
+		skill: { name: string; filePath: string; baseDir: string },
+		args: string,
+	): string {
 		try {
 			const content = readFileSync(skill.filePath, "utf-8");
 			const body = stripFrontmatter(content).trim();
@@ -2189,6 +2221,7 @@ export class AgentSession {
 		if (!processedInput) return "handled";
 
 		let expandedText = this._expandSkillCommand(processedInput.text);
+		expandedText = this._expandBareNamespaceSkillCommand(expandedText);
 		expandedText = expandPromptTemplate(expandedText, [...this.promptTemplates]);
 
 		if (behavior === "steer") {
