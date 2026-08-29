@@ -760,6 +760,7 @@ export class InteractiveMode {
 		this.skillCommands.clear();
 		const skillCommandList: SlashCommand[] = [];
 		if (this.settingsManager.getEnableSkillCommands()) {
+			const templateNames = new Set(this.session.promptTemplates.map((template) => template.name));
 			for (const skill of this.session.resourceLoader.getSkills().skills) {
 				const commandName = `skill:${skill.name}`;
 				this.skillCommands.set(commandName, skill.filePath);
@@ -767,6 +768,15 @@ export class InteractiveMode {
 					name: commandName,
 					description: this.prefixAutocompleteDescription(skill.description, skill.sourceInfo),
 				});
+				// Namespaced skills also surface via the unified bare form
+				// /<ns>:<name> — offered when no template owns the composed name
+				// (mirrors resolveBareNamespaceSkill's template-ownership guard).
+				if (skill.namespace !== undefined && !templateNames.has(skill.name)) {
+					skillCommandList.push({
+						name: skill.name,
+						description: this.prefixAutocompleteDescription(skill.description, skill.sourceInfo),
+					});
+				}
 			}
 		}
 

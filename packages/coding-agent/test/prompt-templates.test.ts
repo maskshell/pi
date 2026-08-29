@@ -622,3 +622,111 @@ Analyze GitHub issue(s): $ARGUMENTS`,
 		} catch {}
 	});
 });
+
+// ============================================================================
+// package namespaces
+// ============================================================================
+
+describe("package namespaces", () => {
+	const createdDirs: string[] = [];
+
+	const makeTemplates = () => {
+		const dir = join(tmpdir(), `pi-ns-prompts-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+		mkdirSync(join(dir, "pkg", "prompts"), { recursive: true });
+		writeFileSync(join(dir, "pkg", "prompts", "arm-tools.md"), "---\ndescription: Arm tools\n---\nArm the project.");
+		writeFileSync(
+			join(dir, "pkg", "prompts", "colon-named.md"),
+			"---\ndescription: Legacy colon filename\n---\nLegacy.",
+		);
+		createdDirs.push(dir);
+		return { dir, pkgPrompts: join(dir, "pkg", "prompts") };
+	};
+
+	afterAll(() => {
+		for (const dir of createdDirs) {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
+	test("should rename templates under an associated path", () => {
+		const { dir, pkgPrompts } = makeTemplates();
+		const templates = loadPromptTemplates({
+			cwd: dir,
+			agentDir: dir,
+			promptPaths: [pkgPrompts],
+			includeDefaults: false,
+			namespaces: [{ path: pkgPrompts, namespace: "solidforge" }],
+		});
+
+		const arm = templates.find((t) => t.baseName === "arm-tools");
+		expect(arm?.name).toBe("solidforge:arm-tools");
+		expect(arm?.namespace).toBe("solidforge");
+
+		const colon = templates.find((t) => t.baseName === "colon-named");
+		expect(colon?.name).toBe("solidforge:colon-named");
+	});
+
+	test("legacy colon filename composes to ns:colon-name (exact match still works)", () => {
+		const dir = join(tmpdir(), `pi-ns-colon-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+		mkdirSync(join(dir, "pkg", "prompts"), { recursive: true });
+		writeFileSync(
+			join(dir, "pkg", "prompts", "solidforge:arm-tools.md"),
+			"---\ndescription: Legacy\n---\nLegacy body.",
+		);
+		createdDirs.push(dir);
+		const pkgPrompts = join(dir, "pkg", "prompts");
+		const templates = loadPromptTemplates({
+			cwd: dir,
+			agentDir: dir,
+			promptPaths: [pkgPrompts],
+			includeDefaults: false,
+			namespaces: [{ path: pkgPrompts, namespace: "solidforge" }],
+		});
+
+		expect(templates.map((t) => t.name)).toContain("solidforge:solidforge:arm-tools");
+		const expanded = expandPromptTemplate("/solidforge:solidforge:arm-tools", templates);
+		expect(expanded).toContain("Legacy body.");
+	});
+
+	test("expandPromptTemplate falls back to a unique namespaced base name", () => {
+		const { dir, pkgPrompts } = makeTemplates();
+		const templates = loadPromptTemplates({
+			cwd: dir,
+			agentDir: dir,
+			promptPaths: [pkgPrompts],
+			includeDefaults: false,
+			namespaces: [{ path: pkgPrompts, namespace: "solidforge" }],
+		});
+
+		expect(expandPromptTemplate("/arm-tools", templates)).toContain("Arm the project.");
+		expect(expandPromptTemplate("/solidforge:arm-tools", templates)).toContain("Arm the project.");
+	});
+
+	test("expandPromptTemplate does not fall back on colon-bearing or ambiguous requests", () => {
+		const dir = join(tmpdir(), `pi-ns-amb-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+		for (const pkg of ["a", "b"]) {
+			mkdirSync(join(dir, pkg, "prompts"), { recursive: true });
+			writeFileSync(join(dir, pkg, "prompts", "shared.md"), `---\ndescription: ${pkg}\n---\nBody ${pkg}.`);
+		}
+		createdDirs.push(dir);
+		const templates = [
+			...loadPromptTemplates({
+				cwd: dir,
+				agentDir: dir,
+				promptPaths: [join(dir, "a", "prompts")],
+				includeDefaults: false,
+				namespaces: [{ path: join(dir, "a", "prompts"), namespace: "a" }],
+			}),
+			...loadPromptTemplates({
+				cwd: dir,
+				agentDir: dir,
+				promptPaths: [join(dir, "b", "prompts")],
+				includeDefaults: false,
+				namespaces: [{ path: join(dir, "b", "prompts"), namespace: "b" }],
+			}),
+		];
+
+		expect(expandPromptTemplate("/shared", templates)).toBe("/shared");
+		expect(expandPromptTemplate("/nope:x", templates)).toBe("/nope:x");
+	});
+});

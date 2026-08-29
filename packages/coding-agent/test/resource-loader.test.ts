@@ -1118,4 +1118,167 @@ export default function(pi: ExtensionAPI) {
 			expect(files.map((f) => f.content)).toEqual(["repo instructions", "src instructions"]);
 		});
 	});
+
+	describe("package namespace association", () => {
+		it("should expose namespaced skill and prompt names for a package declaring pi.namespace", async () => {
+			const pkgDir = join(tempDir, "ns-pkg");
+			mkdirSync(join(pkgDir, "skills", "cross-source-review"), { recursive: true });
+			mkdirSync(join(pkgDir, "prompts"), { recursive: true });
+			writeFileSync(
+				join(pkgDir, "package.json"),
+				JSON.stringify({
+					name: "ns-pkg",
+					pi: { namespace: "solidforge", skills: ["./skills"], prompts: ["./prompts"] },
+				}),
+			);
+			writeFileSync(
+				join(pkgDir, "skills", "cross-source-review", "SKILL.md"),
+				"---\nname: cross-source-review\ndescription: csr\n---\nBody.",
+			);
+			writeFileSync(join(pkgDir, "prompts", "arm-tools.md"), "---\ndescription: arm\n---\nArm body.");
+
+			const settingsManager = SettingsManager.inMemory();
+			settingsManager.setPackages([pkgDir]);
+			const loader = new DefaultResourceLoader({ cwd, agentDir, settingsManager });
+			await loader.reload();
+
+			const skillNames = loader.getSkills().skills.map((s) => s.name);
+			expect(skillNames).toContain("solidforge:cross-source-review");
+			expect(skillNames).not.toContain("cross-source-review");
+
+			const promptNames = loader.getPrompts().prompts.map((p) => p.name);
+			expect(promptNames).toContain("solidforge:arm-tools");
+		});
+
+		it("should coexist with a same-named bare user skill", async () => {
+			const pkgDir = join(tempDir, "ns-pkg2");
+			mkdirSync(join(pkgDir, "skills", "dupe"), { recursive: true });
+			mkdirSync(join(agentDir, "skills", "dupe"), { recursive: true });
+			writeFileSync(
+				join(pkgDir, "package.json"),
+				JSON.stringify({ name: "ns-pkg2", pi: { namespace: "nsx", skills: ["./skills"] } }),
+			);
+			writeFileSync(join(pkgDir, "skills", "dupe", "SKILL.md"), "---\nname: dupe\ndescription: pkg\n---\nPkg.");
+			writeFileSync(join(agentDir, "skills", "dupe", "SKILL.md"), "---\nname: dupe\ndescription: user\n---\nUser.");
+
+			const settingsManager = SettingsManager.inMemory();
+			settingsManager.setPackages([pkgDir]);
+			const loader = new DefaultResourceLoader({ cwd, agentDir, settingsManager });
+			await loader.reload();
+
+			const names = loader.getSkills().skills.map((s) => s.name);
+			expect(names).toContain("dupe");
+			expect(names).toContain("nsx:dupe");
+			expect(loader.getSkills().diagnostics.filter((d) => d.type === "collision")).toHaveLength(0);
+		});
+
+		it("should warn and load bare on an invalid namespace value (skills and prompts)", async () => {
+			const pkgDir = join(tempDir, "bad-ns-pkg");
+			mkdirSync(join(pkgDir, "skills", "badns"), { recursive: true });
+			mkdirSync(join(pkgDir, "prompts"), { recursive: true });
+			writeFileSync(
+				join(pkgDir, "package.json"),
+				JSON.stringify({
+					name: "bad-ns-pkg",
+					pi: { namespace: "Bad_NS", skills: ["./skills"], prompts: ["./prompts"] },
+				}),
+			);
+			writeFileSync(join(pkgDir, "skills", "badns", "SKILL.md"), "---\nname: badns\ndescription: b\n---\nB.");
+			writeFileSync(join(pkgDir, "prompts", "badcmd.md"), "---\ndescription: bc\n---\nBC.");
+
+			const settingsManager = SettingsManager.inMemory();
+			settingsManager.setPackages([pkgDir]);
+			const loader = new DefaultResourceLoader({ cwd, agentDir, settingsManager });
+			await loader.reload();
+
+			const names = loader
+				.getSkills()
+				.skills.map((s) => s.name)
+				.filter((n) => n.includes("badns"));
+			expect(names).toEqual(["badns"]);
+			expect(loader.getSkills().skills.some((s) => s.namespace === "Bad_NS")).toBe(false);
+			expect(
+				loader.getSkills().diagnostics.some((d) => d.type === "warning" && d.message.includes("namespace")),
+			).toBe(true);
+
+			// AC4: the owning diagnostics channel for prompts carries the warning too,
+			// and prompt resources load bare.
+			const promptNames = loader
+				.getPrompts()
+				.prompts.map((p) => p.name)
+				.filter((n) => n.includes("badcmd"));
+			expect(promptNames).toEqual(["badcmd"]);
+			expect(
+				loader.getPrompts().diagnostics.some((d) => d.type === "warning" && d.message.includes("namespace")),
+			).toBe(true);
+		});
+
+		it("should load bare via a raw settings path into a namespaced package (D6 boundary)", async () => {
+			const pkgDir = join(tempDir, "raw-ns-pkg");
+			mkdirSync(join(pkgDir, "skills", "rawns"), { recursive: true });
+			writeFileSync(
+				join(pkgDir, "package.json"),
+				JSON.stringify({ name: "raw-ns-pkg", pi: { namespace: "rns", skills: ["./skills"] } }),
+			);
+			writeFileSync(join(pkgDir, "skills", "rawns", "SKILL.md"), "---\nname: rawns\ndescription: r\n---\nR.");
+
+			// Raw settings skill path pointing INTO the package, package NOT resolved
+			// through package resolution (no packages entry).
+			const settingsManager = SettingsManager.inMemory();
+			settingsManager.setSkillPaths([join(pkgDir, "skills")]);
+			const loader = new DefaultResourceLoader({ cwd, agentDir, settingsManager });
+			await loader.reload();
+
+			// CLI-style additional path into the same package: also bare.
+			const loader2 = new DefaultResourceLoader({
+				cwd,
+				agentDir,
+				additionalSkillPaths: [join(pkgDir, "skills")],
+			});
+			await loader2.reload();
+
+			const names = loader
+				.getSkills()
+				.skills.map((s) => s.name)
+				.filter((n) => n.includes("rawns"));
+			expect(names).toEqual(["rawns"]);
+
+			const names2 = loader2
+				.getSkills()
+				.skills.map((s) => s.name)
+				.filter((n) => n.includes("rawns"));
+			expect(names2).toEqual(["rawns"]);
+		});
+
+		it("should namespace prompts (and bare-restamp skills) from a --extension package dir", async () => {
+			const pkgDir = join(tempDir, "ext-ns-pkg");
+			mkdirSync(join(pkgDir, "skills", "extns"), { recursive: true });
+			mkdirSync(join(pkgDir, "prompts"), { recursive: true });
+			writeFileSync(
+				join(pkgDir, "package.json"),
+				JSON.stringify({
+					name: "ext-ns-pkg",
+					pi: { namespace: "extns", skills: ["./skills"], prompts: ["./prompts"] },
+				}),
+			);
+			writeFileSync(join(pkgDir, "skills", "extns", "SKILL.md"), "---\nname: extns\ndescription: e\n---\nE.");
+			writeFileSync(join(pkgDir, "prompts", "extcmd.md"), "---\ndescription: ec\n---\nEC.");
+
+			const loader = new DefaultResourceLoader({ cwd, agentDir, additionalExtensionPaths: [pkgDir] });
+			await loader.reload();
+
+			// CLI --extension runs full package resolution: prompts keep package-origin
+			// metadata (no restamp loop) -> namespaced; skills are restamped cli -> bare.
+			const promptNames = loader
+				.getPrompts()
+				.prompts.map((p) => p.name)
+				.filter((n) => n.includes("extcmd"));
+			expect(promptNames).toEqual(["extns:extcmd"]);
+			const skillNames = loader
+				.getSkills()
+				.skills.map((s) => s.name)
+				.filter((n) => n.includes("extns"));
+			expect(skillNames).toEqual(["extns"]);
+		});
+	});
 });
