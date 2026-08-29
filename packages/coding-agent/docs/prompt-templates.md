@@ -48,6 +48,22 @@ Templates support these substitutions:
 
 Arguments follow shell-like quoting, so `/review "API compatibility"` supplies one argument containing a space.
 
+## Package Namespaces
+
+A package declaring `pi.namespace` exposes its templates under the composed
+name `<namespace>:<name>`: `prompts/arm-tools.md` in a package with
+`"namespace": "solidforge"` is invoked as `/solidforge:arm-tools`. When a
+namespaced skill (not a template) owns that exact name, the bare form
+resolves the template first — a same-named template always keeps precedence
+over the skill fallback. The bare
+invocation `/arm-tools` still resolves when that template is the unique
+owner of the base name and no bare template shadows it; colon-bearing
+requests always resolve by exact match only. Legacy colon-filenames
+(`prompts/solidforge:arm-tools.md`) still work via exact match, but with a
+namespace declared they compose to `<ns>:<ns>:<name>` — prefer plain
+filenames. See
+[packages.md](packages.md#namespace).
+
 <a id="choose-where-it-loads"></a>
 
 ## Add it to Pi

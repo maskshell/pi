@@ -43,7 +43,7 @@ import { type GitSource, parseGitUrl } from "../utils/git.ts";
 import { canonicalizePath, isLocalPath, markPathIgnoredByCloudSync, resolvePath } from "../utils/paths.ts";
 import { stripBom } from "../utils/text.ts";
 import { isStdoutTakenOver } from "./output-guard.ts";
-import { type PiManifest, readPiManifest } from "./pi-manifest.ts";
+import { type ResourceArrayKey, readPiManifest } from "./pi-manifest.ts";
 import type { PackageSource, SettingsManager } from "./settings-manager.ts";
 
 const NETWORK_TIMEOUT_MS = 10000;
@@ -69,6 +69,8 @@ export interface PathMetadata {
 	scope: SourceScope;
 	origin: "package" | "top-level";
 	baseDir?: string;
+	/** Package namespace (pi.namespace) for name-keyed resources of this package. */
+	namespace?: string;
 }
 
 export interface ResolvedResource {
@@ -2156,6 +2158,12 @@ export class DefaultPackageManager implements PackageManager {
 		filter: PackageFilter | undefined,
 		metadata: PathMetadata,
 	): boolean {
+		// One namespace read per package; carried additively on every resource
+		// this package registers (consumed by name-keyed loaders only).
+		const declaredNamespace = readPiManifest(join(packageRoot, "package.json"))?.namespace;
+		const nsMetadata: PathMetadata =
+			declaredNamespace !== undefined ? { ...metadata, namespace: declaredNamespace } : metadata;
+		metadata = nsMetadata;
 		if (filter) {
 			for (const resourceType of RESOURCE_TYPES) {
 				const patterns = filter[resourceType];
@@ -2174,7 +2182,7 @@ export class DefaultPackageManager implements PackageManager {
 		const manifest = readPiManifest(join(packageRoot, "package.json"));
 		if (manifest) {
 			for (const resourceType of RESOURCE_TYPES) {
-				const entries = manifest[resourceType as keyof PiManifest];
+				const entries = manifest[resourceType as ResourceArrayKey];
 				this.addManifestEntries(
 					entries,
 					packageRoot,
@@ -2208,7 +2216,7 @@ export class DefaultPackageManager implements PackageManager {
 		metadata: PathMetadata,
 	): void {
 		const manifest = readPiManifest(join(packageRoot, "package.json"));
-		const entries = manifest?.[resourceType as keyof PiManifest];
+		const entries = manifest?.[resourceType as ResourceArrayKey];
 		if (entries) {
 			this.addManifestEntries(entries, packageRoot, resourceType, target, metadata);
 			return;
@@ -2277,7 +2285,7 @@ export class DefaultPackageManager implements PackageManager {
 		resourceType: ResourceType,
 	): { allFiles: string[]; enabledByManifest: Set<string> } {
 		const manifest = readPiManifest(join(packageRoot, "package.json"));
-		const entries = manifest?.[resourceType as keyof PiManifest];
+		const entries = manifest?.[resourceType as ResourceArrayKey];
 		if (entries && entries.length > 0) {
 			const allFiles = this.collectFilesFromManifestEntries(entries, packageRoot, resourceType);
 			const manifestPatterns = entries.filter(isOverridePattern);
