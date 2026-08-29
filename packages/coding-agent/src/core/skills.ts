@@ -78,6 +78,16 @@ export interface Skill {
 	baseDir: string;
 	sourceInfo: SourceInfo;
 	disableModelInvocation: boolean;
+	/** Package namespace this skill is exposed under (set when namespaced). */
+	namespace?: string;
+	/** Original name before namespace composition (equals name when not namespaced). */
+	baseName?: string;
+}
+
+/** A path-to-namespace association for package resources. */
+export interface ResourceNamespace {
+	path: string;
+	namespace: string;
 }
 
 export interface LoadSkillsResult {
@@ -389,6 +399,96 @@ function escapeXml(str: string): string {
 		.replace(/'/g, "&apos;");
 }
 
+/**
+ * Validate a package namespace value (pi.namespace).
+ * Same charset as skill names: lowercase a-z, 0-9, hyphens; non-empty.
+ * Returns array of validation error messages (empty if valid).
+ */
+export function validateNamespaceValue(value: string): string[] {
+	const errors: string[] = [];
+
+	if (value.length === 0) {
+		errors.push("namespace must not be empty");
+	}
+	if (value.length > MAX_NAME_LENGTH) {
+		errors.push(`namespace exceeds ${MAX_NAME_LENGTH} characters (${value.length})`);
+	}
+	if (!/^[a-z0-9-]+$/.test(value)) {
+		errors.push("namespace contains invalid characters (must be lowercase a-z, 0-9, hyphens only)");
+	}
+	if (value.startsWith("-") || value.endsWith("-")) {
+		errors.push("namespace must not start or end with a hyphen");
+	}
+	if (value.includes("--")) {
+		errors.push("namespace must not contain consecutive hyphens");
+	}
+
+	return errors;
+}
+
+/**
+ * Find the namespace association for a resource path.
+ * Exact path match wins; otherwise the longest association path that is a
+ * prefix (directory containment) wins. Returns undefined when unassociated.
+ */
+export function findNamespaceForPath(filePath: string, namespaces: ResourceNamespace[]): string | undefined {
+	let best: string | undefined;
+	let bestLength = -1;
+	for (const association of namespaces) {
+		const root = resolvePath(association.path);
+		const contained = filePath === root || filePath.startsWith(root.endsWith(sep) ? root : `${root}${sep}`);
+		if (contained && root.length > bestLength) {
+			best = association.namespace;
+			bestLength = root.length;
+		}
+	}
+	return best;
+}
+
+/**
+ * Resolve a skill by its invocation name: exact name match first, then a
+ * fallback to the unique namespaced skill whose baseName matches. The
+ * fallback never applies to colon-bearing requests and never resolves an
+ * ambiguous base name (two namespaces claiming it).
+ */
+export function findSkillByInvocationName(skills: Skill[], invocationName: string): Skill | undefined {
+	const exact = skills.find((s) => s.name === invocationName);
+	if (exact) return exact;
+
+	if (invocationName.includes(":")) return undefined;
+
+	const candidates = skills.filter((s) => s.namespace !== undefined && s.baseName === invocationName);
+	if (candidates.length === 1) return candidates[0];
+	return undefined;
+}
+
+/**
+ * Resolve a bare namespace-form slash command (`/<ns>:<name> [args]`) to a
+ * skill. Fires only when the name is colon-bearing and NOT owned by a prompt
+ * template (templates compose to the same shape and keep precedence), and
+ * matches the skill by its exact exposed name (never a base-name fallback).
+ * Returns the skill and remaining args, or undefined to pass through.
+ */
+export function resolveBareNamespaceSkill(
+	text: string,
+	skills: Skill[],
+	templateNames: ReadonlyArray<string>,
+): { skill: Skill; args: string } | undefined {
+	if (!text.startsWith("/")) return undefined;
+
+	const match = text.match(/^\/([^\s]+)(?:\s+([\s\S]*))?$/);
+	if (!match) return undefined;
+
+	const name = match[1];
+	if (!name.includes(":") || name.startsWith("skill:")) return undefined;
+	if (templateNames.includes(name)) return undefined;
+
+	const skill = findSkillByInvocationName(skills, name);
+	if (!skill) return undefined;
+
+	return { skill, args: (match[2] ?? "").trim() };
+}
+
 export interface LoadSkillsOptions {
 	/** Working directory for project-local skills. */
 	cwd: string;
@@ -398,6 +498,21 @@ export interface LoadSkillsOptions {
 	skillPaths: string[];
 	/** Include default skills directories. */
 	includeDefaults: boolean;
+	/** Pre-validated path-to-namespace associations (package-origin). */
+	namespaces?: ResourceNamespace[];
+}
+
+/** Compose the exposed name when the skill's path has a namespace association. */
+function applyNamespaceToSkill(skill: Skill, namespaces: ResourceNamespace[]): Skill {
+	if (namespaces.length === 0) return skill;
+	const namespace = findNamespaceForPath(skill.filePath, namespaces);
+	if (namespace === undefined) return skill;
+	return {
+		...skill,
+		name: `${namespace}:${skill.name}`,
+		namespace,
+		baseName: skill.name,
+	};
 }
 
 /**
@@ -406,6 +521,7 @@ export interface LoadSkillsOptions {
  */
 export function loadSkills(options: LoadSkillsOptions): LoadSkillsResult {
 	const { agentDir, skillPaths, includeDefaults } = options;
+	const namespaces = options.namespaces ?? [];
 
 	// Resolve agentDir - if not provided, use default from config
 	const resolvedCwd = resolvePath(options.cwd);
@@ -418,14 +534,16 @@ export function loadSkills(options: LoadSkillsOptions): LoadSkillsResult {
 
 	function addSkills(result: LoadSkillsResult) {
 		allDiagnostics.push(...result.diagnostics);
-		for (const skill of result.skills) {
+		for (const loadedSkill of result.skills) {
 			// Resolve symlinks to detect duplicate files
-			const realPath = canonicalizePath(skill.filePath);
+			const realPath = canonicalizePath(loadedSkill.filePath);
 
 			// Skip silently if we've already loaded this exact file (via symlink)
 			if (realPathSet.has(realPath)) {
 				continue;
 			}
+
+			const skill = applyNamespaceToSkill(loadedSkill, namespaces);
 
 			const existing = skillMap.get(skill.name);
 			if (existing) {
