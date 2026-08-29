@@ -73,6 +73,45 @@ Paths are relative to the package root. Arrays accept glob patterns and exclusio
 
 The `pi-package` keyword makes an npm package eligible for discovery in the [Pi package gallery](https://pi.dev/packages). Optional `pi.image` and `pi.video` fields add gallery previews.
 
+### Namespace
+
+Declare `pi.namespace` to expose the package's name-keyed resources (skills,
+prompt templates) under one prefix, giving them globally unique invocation
+names without touching resource content:
+
+```json
+{
+  "name": "my-package",
+  "pi": {
+    "namespace": "myorg",
+    "skills": ["./skills"],
+    "prompts": ["./prompts"]
+  }
+}
+```
+
+- Skills are invoked as `/skill:myorg:<name>` (canonical) or the bare
+  `/myorg:<name>`; prompt templates as `/myorg:<name>`. `/<ns>:<name>` is the
+  package's unified surface: templates resolve first, then a skill whose
+  exposed name matches exactly.
+- The namespace never enters `SKILL.md` frontmatter or template filenames —
+  it is applied by pi at load time.
+- Same-named user/project resources coexist beside namespaced ones; the bare
+  invocation `/skill:<name>` still resolves when the namespaced resource is
+  the unique owner of that base name.
+- The value must be lowercase `a-z`, `0-9`, hyphens (≤64 chars, no
+  leading/trailing or consecutive hyphens). Invalid string values warn and
+  resources load un-namespaced; a non-string `pi.namespace` drops silently.
+- Themes and runtime-registered tools/commands are not renamed. Agent
+  definitions are not a core resource type — packages shipping subagents via
+  their own extension should read `pi.namespace` and prefix agent names with
+  it so agents share the package's namespace.
+- Associations come from package resolution only: a raw settings or CLI path
+  pointing into the package bypasses the namespace and loads bare.
+- Legacy colon-filenames (`prompts/myorg:cmd.md`) still work via exact match,
+  but with a namespace declared they compose to `<ns>:<ns>:<name>` — migrate
+  them to plain filenames to keep the single-prefixed invocation.
+
 ## Declare dependencies
 
 Put runtime packages imported by extensions in `dependencies`. Pi installs package dependencies when it installs an npm or git source.
