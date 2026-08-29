@@ -2,11 +2,21 @@ import { homedir } from "os";
 import { join, resolve } from "path";
 import { describe, expect, it } from "vitest";
 import type { ResourceDiagnostic } from "../src/core/diagnostics.ts";
-import { formatSkillsForPrompt, loadSkills, loadSkillsFromDir, type Skill } from "../src/core/skills.ts";
+import {
+	findSkillByInvocationName,
+	formatSkillsForPrompt,
+	loadSkills,
+	loadSkillsFromDir,
+	resolveBareNamespaceSkill,
+	type Skill,
+	validateNamespaceValue,
+} from "../src/core/skills.ts";
 import { createSyntheticSourceInfo } from "../src/core/source-info.ts";
 
 const fixturesDir = resolve(__dirname, "fixtures/skills");
 const collisionFixturesDir = resolve(__dirname, "fixtures/skills-collision");
+const nsPackageDir = join(fixturesDir, "ns-package");
+const nsUserDir = join(fixturesDir, "ns-user-dir");
 
 function createTestSkill(options: {
 	name: string;
@@ -428,5 +438,201 @@ describe("skills", () => {
 			expect(collisionWarnings).toHaveLength(1);
 			expect(collisionWarnings[0].message).toContain("name collision");
 		});
+	});
+});
+
+describe("package namespaces", () => {
+	it("should rename skills under an associated path to ns:name", () => {
+		const { skills, diagnostics } = loadSkills({
+			cwd: fixturesDir,
+			agentDir: fixturesDir,
+			skillPaths: [join(nsPackageDir, "ns-one")],
+			includeDefaults: false,
+			namespaces: [{ path: join(nsPackageDir, "ns-one"), namespace: "solidforge" }],
+		});
+
+		expect(skills).toHaveLength(1);
+		expect(skills[0].name).toBe("solidforge:cross-source-review");
+		expect(skills[0].namespace).toBe("solidforge");
+		expect(skills[0].baseName).toBe("cross-source-review");
+		expect(diagnostics).toHaveLength(0);
+	});
+
+	it("should associate by parent dir of a SKILL.md path", () => {
+		const { skills } = loadSkills({
+			cwd: fixturesDir,
+			agentDir: fixturesDir,
+			skillPaths: [join(nsPackageDir, "ns-one", "SKILL.md")],
+			includeDefaults: false,
+			namespaces: [{ path: join(nsPackageDir, "ns-one"), namespace: "solidforge" }],
+		});
+
+		expect(skills[0].name).toBe("solidforge:cross-source-review");
+	});
+
+	it("should let a namespaced skill coexist with a same-named bare user skill", () => {
+		const { skills, diagnostics } = loadSkills({
+			cwd: fixturesDir,
+			agentDir: fixturesDir,
+			skillPaths: [nsUserDir, join(nsPackageDir, "ns-one")],
+			includeDefaults: false,
+			namespaces: [{ path: join(nsPackageDir, "ns-one"), namespace: "solidforge" }],
+		});
+
+		const names = skills.map((s) => s.name).sort();
+		expect(names).toEqual(["cross-source-review", "solidforge:cross-source-review"]);
+		expect(diagnostics.filter((d: ResourceDiagnostic) => d.type === "collision")).toHaveLength(0);
+	});
+
+	it("should report a collision on the composed name for two same-ns same-base skills", () => {
+		const { skills, diagnostics } = loadSkills({
+			cwd: fixturesDir,
+			agentDir: fixturesDir,
+			skillPaths: [join(nsPackageDir, "ns-one"), join(nsPackageDir, "ns-two-dup")],
+			includeDefaults: false,
+			namespaces: [
+				{ path: join(nsPackageDir, "ns-one"), namespace: "solidforge" },
+				{ path: join(nsPackageDir, "ns-two-dup"), namespace: "solidforge" },
+			],
+		});
+
+		expect(skills.filter((s) => s.name === "solidforge:cross-source-review")).toHaveLength(1);
+		const collision = diagnostics.find((d: ResourceDiagnostic) => d.type === "collision");
+		expect(collision?.collision?.name).toBe("solidforge:cross-source-review");
+	});
+
+	it("should namespace skills loaded from a directory resource path", () => {
+		const { skills } = loadSkills({
+			cwd: fixturesDir,
+			agentDir: fixturesDir,
+			skillPaths: [nsPackageDir],
+			includeDefaults: false,
+			namespaces: [{ path: nsPackageDir, namespace: "solidforge" }],
+		});
+
+		const names = skills.map((s) => s.name).sort();
+		expect(names).toEqual(["solidforge:cross-source-review", "solidforge:other-skill"]);
+	});
+});
+
+describe("validateNamespaceValue", () => {
+	it("should accept valid namespace values", () => {
+		expect(validateNamespaceValue("solidforge")).toEqual([]);
+		expect(validateNamespaceValue("a")).toEqual([]);
+		expect(validateNamespaceValue("ns-2")).toEqual([]);
+	});
+
+	it("should reject invalid namespace values", () => {
+		expect(validateNamespaceValue("Solidforge").length).toBeGreaterThan(0);
+		expect(validateNamespaceValue("a:b").length).toBeGreaterThan(0);
+		expect(validateNamespaceValue("-x").length).toBeGreaterThan(0);
+		expect(validateNamespaceValue("x-").length).toBeGreaterThan(0);
+		expect(validateNamespaceValue("a--b").length).toBeGreaterThan(0);
+		expect(validateNamespaceValue("x".repeat(65)).length).toBeGreaterThan(0);
+		expect(validateNamespaceValue("").length).toBeGreaterThan(0);
+	});
+});
+
+describe("findSkillByInvocationName", () => {
+	const makeSkill = (name: string): Skill =>
+		createTestSkill({
+			name,
+			description: "d",
+			filePath: `/tmp/${name.replace(/[^a-z-]/g, "_")}/SKILL.md`,
+			baseDir: `/tmp/${name.replace(/[^a-z-]/g, "_")}`,
+		}) as Skill;
+
+	function namespaced(name: string, ns: string): Skill {
+		const skill = makeSkill(`${ns}:${name}`);
+		skill.namespace = ns;
+		skill.baseName = name;
+		return skill;
+	}
+
+	it("should resolve an exact composed name", () => {
+		const skills = [namespaced("cross-source-review", "solidforge")];
+		expect(findSkillByInvocationName(skills, "solidforge:cross-source-review")?.name).toBe(
+			"solidforge:cross-source-review",
+		);
+	});
+
+	it("should fall back to a unique namespaced base name", () => {
+		const skills = [namespaced("cross-source-review", "solidforge")];
+		expect(findSkillByInvocationName(skills, "cross-source-review")?.name).toBe("solidforge:cross-source-review");
+	});
+
+	it("should not fall back when the requested name contains a colon", () => {
+		const skills = [namespaced("arm-tools", "solidforge")];
+		// baseName arm-tools requested with a colon-bearing string that is not the composed name
+		expect(findSkillByInvocationName(skills, "other:arm-tools")).toBeUndefined();
+	});
+
+	it("should not fall back when two namespaces claim the base name", () => {
+		const skills = [namespaced("utils", "a"), namespaced("utils", "b")];
+		expect(findSkillByInvocationName(skills, "utils")).toBeUndefined();
+	});
+
+	it("should prefer an exact bare owner over a namespaced fallback", () => {
+		const skills = [makeSkill("utils"), namespaced("utils", "a")];
+		expect(findSkillByInvocationName(skills, "utils")?.namespace).toBeUndefined();
+	});
+
+	it("should resolve the exact composed name even when a bare twin exists", () => {
+		const skills = [makeSkill("utils"), namespaced("utils", "a")];
+		expect(findSkillByInvocationName(skills, "a:utils")?.namespace).toBe("a");
+	});
+});
+
+describe("resolveBareNamespaceSkill", () => {
+	function namespaced(name: string, ns: string): Skill {
+		const skill = createTestSkill({
+			name: `${ns}:${name}`,
+			description: "d",
+			filePath: `/tmp/${ns}-${name}/SKILL.md`,
+			baseDir: `/tmp/${ns}-${name}`,
+		});
+		skill.namespace = ns;
+		skill.baseName = name;
+		return skill;
+	}
+
+	const skills = [namespaced("cross-source-review", "myorg"), namespaced("arm-tools", "myorg")];
+
+	it("should resolve a namespaced skill via the bare /ns:name form", () => {
+		const resolved = resolveBareNamespaceSkill("/myorg:cross-source-review", skills, []);
+		expect(resolved?.skill.name).toBe("myorg:cross-source-review");
+		expect(resolved?.args).toBe("");
+	});
+
+	it("should carry args", () => {
+		const resolved = resolveBareNamespaceSkill("/myorg:arm-tools --with-tools", skills, []);
+		expect(resolved?.skill.name).toBe("myorg:arm-tools");
+		expect(resolved?.args).toBe("--with-tools");
+	});
+
+	it("should yield to a prompt template owning the same name", () => {
+		const resolved = resolveBareNamespaceSkill("/myorg:arm-tools", skills, ["myorg:arm-tools"]);
+		expect(resolved).toBeUndefined();
+	});
+
+	it("should pass through colon-bearing names with no exact skill match", () => {
+		expect(resolveBareNamespaceSkill("/myorg:unknown", skills, [])).toBeUndefined();
+		expect(resolveBareNamespaceSkill("/other:cross-source-review", skills, [])).toBeUndefined();
+	});
+
+	it("should ignore non-colon names and /skill: prefixed text", () => {
+		expect(resolveBareNamespaceSkill("/cross-source-review", skills, [])).toBeUndefined();
+		expect(resolveBareNamespaceSkill("/skill:myorg:cross-source-review", skills, [])).toBeUndefined();
+		expect(resolveBareNamespaceSkill("plain text", skills, [])).toBeUndefined();
+	});
+
+	it("should resolve a colon-bearing frontmatter name by exact match", () => {
+		const odd = createTestSkill({
+			name: "weird:name",
+			description: "d",
+			filePath: "/tmp/weird/SKILL.md",
+			baseDir: "/tmp/weird",
+		});
+		expect(resolveBareNamespaceSkill("/weird:name", [odd], [])?.skill.name).toBe("weird:name");
 	});
 });
