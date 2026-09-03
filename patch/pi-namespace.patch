@@ -1,0 +1,1396 @@
+From caafb4daebf9df611d6e0ebbf3fb1ae028e62661 Mon Sep 17 00:00:00 2001
+From: Analyser <analyser@gmail.com>
+Date: Sat, 29 Aug 2026 20:24:21 +0800
+Subject: [PATCH] feat(coding-agent): opt-in package namespace (pi.namespace)
+ for skills and prompt templates
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Problem: pi loads package skills and prompt templates into flat name-keyed
+maps; a package resource named foo collides with any same-named user/project
+resource (first-found-wins + warning). Package authors work around it by
+baking prefixes into SKILL.md frontmatter or naming template files with
+literal colons, forking resources from their upstream or cross-harness form.
+
+Solution: an opt-in per-package declaration, pi.namespace in package.json.
+Skills load as <ns>:<name> (invoked /skill:<ns>:<name>, or the bare
+/<ns>:<name> when no template owns the name — templates keep precedence);
+prompt templates as /<ns>:<name>. The colon never enters resource content:
+the prefix composes at load time, before collision dedupe, so namespaced and
+same-named bare resources coexist. Bare base-name invocations keep resolving
+via a unique-owner fallback (never for colon-bearing or ambiguous requests).
+
+- pi-manifest: parse pi.namespace; ResourceArrayKey narrows resource lookups
+- package-manager: carry namespace on PathMetadata (single manifest read)
+- skills/prompt-templates loaders: namespaces option, rename-at-load,
+  validateNamespaceValue, findNamespaceForPath, findSkillByInvocationName,
+  resolveBareNamespaceSkill
+- resource-loader: build validated associations from package-origin
+  metadata; invalid values warn into the owning diagnostics channel
+- agent-session: /skill: expansion via findSkillByInvocationName; bare
+  namespace-form resolution wired between skill and template expansion
+- interactive autocomplete: namespaced skills also surface under the bare
+  /<ns>:<name> form when no template owns the composed name
+- docs: skills.md, packages.md, prompt-templates.md
+
+Boundary semantics, all regression-tested: raw settings/CLI paths into a
+package load bare; --extension <pkg-dir> skills load bare (the cli restamp
+loop pre-empts package metadata) while prompts compose (no restamp loop
+exists for prompts); dual resolution keeps the package registration
+(composed). Themes are not namespaced (startup resolution bypasses the
+loader registry); runtime-registered tools/commands are untouched.
+
+Out of scope: themes, runtime registrations, settings-level overrides.
+---
+ packages/coding-agent/docs/packages.md        |  39 ++++
+ .../coding-agent/docs/prompt-templates.md     |  16 ++
+ packages/coding-agent/docs/skills.md          |  34 +++
+ .../coding-agent/src/core/agent-session.ts    |  38 +++-
+ .../coding-agent/src/core/package-manager.ts  |  16 +-
+ packages/coding-agent/src/core/pi-manifest.ts |   8 +
+ .../coding-agent/src/core/prompt-templates.ts |  44 +++-
+ .../coding-agent/src/core/resource-loader.ts  |  39 +++-
+ packages/coding-agent/src/core/skills.ts      | 122 +++++++++-
+ .../src/modes/interactive/interactive-mode.ts |  10 +
+ .../skills/ns-package/ns-one/SKILL.md         |   5 +
+ .../skills/ns-package/ns-two-dup/SKILL.md     |   5 +
+ .../skills/ns-package/ns-two/SKILL.md         |   5 +
+ .../fixtures/skills/ns-package/package.json   |   4 +
+ .../skills/ns-user-dir/user-skill/SKILL.md    |   5 +
+ .../coding-agent/test/package-manager.test.ts |  67 ++++++
+ .../test/prompt-templates.test.ts             | 108 +++++++++
+ .../coding-agent/test/resource-loader.test.ts | 163 ++++++++++++++
+ packages/coding-agent/test/skills.test.ts     | 208 +++++++++++++++++-
+ 19 files changed, 920 insertions(+), 16 deletions(-)
+ create mode 100644 packages/coding-agent/test/fixtures/skills/ns-package/ns-one/SKILL.md
+ create mode 100644 packages/coding-agent/test/fixtures/skills/ns-package/ns-two-dup/SKILL.md
+ create mode 100644 packages/coding-agent/test/fixtures/skills/ns-package/ns-two/SKILL.md
+ create mode 100644 packages/coding-agent/test/fixtures/skills/ns-package/package.json
+ create mode 100644 packages/coding-agent/test/fixtures/skills/ns-user-dir/user-skill/SKILL.md
+
+diff --git a/packages/coding-agent/docs/packages.md b/packages/coding-agent/docs/packages.md
+index cadeb1867..db2f385ff 100644
+--- a/packages/coding-agent/docs/packages.md
++++ b/packages/coding-agent/docs/packages.md
+@@ -132,6 +132,45 @@ Add a `pi` manifest to `package.json` or use conventional directories. Include t
+ 
+ Paths are relative to the package root. Arrays support glob patterns and `!exclusions`. Positive manifest globs discover visible paths in lexical order. List dot-prefixed paths directly. If a glob would need to continue through a symlink, list the symlinked resource root directly.
+ 
++### Namespace
++
++Declare `pi.namespace` to expose the package's name-keyed resources (skills,
++prompt templates) under one prefix, giving them globally unique invocation
++names without touching resource content:
++
++```json
++{
++  "name": "my-package",
++  "pi": {
++    "namespace": "myorg",
++    "skills": ["./skills"],
++    "prompts": ["./prompts"]
++  }
++}
++```
++
++- Skills are invoked as `/skill:myorg:<name>` (canonical) or the bare
++  `/myorg:<name>`; prompt templates as `/myorg:<name>`. `/<ns>:<name>` is the
++  package's unified surface: templates resolve first, then a skill whose
++  exposed name matches exactly.
++- The namespace never enters `SKILL.md` frontmatter or template filenames —
++  it is applied by pi at load time.
++- Same-named user/project resources coexist beside namespaced ones; the bare
++  invocation `/skill:<name>` still resolves when the namespaced resource is
++  the unique owner of that base name.
++- The value must be lowercase `a-z`, `0-9`, hyphens (≤64 chars, no
++  leading/trailing or consecutive hyphens). Invalid string values warn and
++  resources load un-namespaced; a non-string `pi.namespace` drops silently.
++- Themes and runtime-registered tools/commands are not renamed. Agent
++  definitions are not a core resource type — packages shipping subagents via
++  their own extension should read `pi.namespace` and prefix agent names with
++  it so agents share the package's namespace.
++- Associations come from package resolution only: a raw settings or CLI path
++  pointing into the package bypasses the namespace and loads bare.
++- Legacy colon-filenames (`prompts/myorg:cmd.md`) still work via exact match,
++  but with a namespace declared they compose to `<ns>:<ns>:<name>` — migrate
++  them to plain filenames to keep the single-prefixed invocation.
++
+ ### Gallery Metadata
+ 
+ The [package gallery](https://pi.dev/packages) displays packages tagged with `pi-package`. Add `video` or `image` fields to show a preview:
+diff --git a/packages/coding-agent/docs/prompt-templates.md b/packages/coding-agent/docs/prompt-templates.md
+index 073b9f00a..89f19190a 100644
+--- a/packages/coding-agent/docs/prompt-templates.md
++++ b/packages/coding-agent/docs/prompt-templates.md
+@@ -11,6 +11,22 @@ Pi loads prompt templates from:
+ - Global: `~/.pi/agent/prompts/*.md`
+ - Project: `.pi/prompts/*.md` (only after the project is trusted)
+ - Packages: `prompts/` directories or `pi.prompts` entries in `package.json`
++
++### Package Namespaces
++
++A package declaring `pi.namespace` exposes its templates under the composed
++name `<namespace>:<name>`: `prompts/arm-tools.md` in a package with
++`"namespace": "solidforge"` is invoked as `/solidforge:arm-tools`. When a
++namespaced skill (not a template) owns that exact name, the bare form
++resolves the template first — a same-named template always keeps precedence
++over the skill fallback. The bare
++invocation `/arm-tools` still resolves when that template is the unique
++owner of the base name and no bare template shadows it; colon-bearing
++requests always resolve by exact match only. Legacy colon-filenames
++(`prompts/solidforge:arm-tools.md`) still work via exact match, but with a
++namespace declared they compose to `<ns>:<ns>:<name>` — prefer plain
++filenames. See
++[packages.md](packages.md#namespace).
+ - Settings: `prompts` array with files or directories
+ - CLI: `--prompt-template <path>` (repeatable)
+ 
+diff --git a/packages/coding-agent/docs/skills.md b/packages/coding-agent/docs/skills.md
+index 8905b7ff9..bed6da7ef 100644
+--- a/packages/coding-agent/docs/skills.md
++++ b/packages/coding-agent/docs/skills.md
+@@ -188,6 +188,40 @@ Declared skills with missing descriptions are not loaded. Malformed `SKILL.md` f
+ 
+ Name collisions (same name from different locations) warn and keep the first skill found.
+ 
++### Package Namespaces
++
++A package can namespace its skills by declaring `pi.namespace` in `package.json`:
++
++```json
++{ "pi": { "namespace": "solidforge", "skills": ["./skills"] } }
++```
++
++Skills from that package are exposed, listed, and invoked under the composed
++name `<namespace>:<name>`:
++
++```
++/skill:solidforge:cross-source-review    # canonical explicit form
++/solidforge:cross-source-review          # bare form: also triggers the skill
++```
++
++The bare form makes `/<namespace>:<name>` the package's unified surface:
++input resolves the prompt template first when one owns the name, then a
++skill whose exposed name matches exactly. `/skill:<ns>:<name>` remains the
++unambiguous explicit form.
++
++The colon never enters `SKILL.md` frontmatter — the Agent Skills `name` stays
++spec-compliant; the prefix is applied by pi at load time. A namespaced skill no longer occupies
++its bare name, so a user or project skill with the same base name loads
++cleanly beside it. `/skill:<base-name>` still resolves when the namespaced
++skill is the unique owner of that base name and no bare skill shadows it;
++colon-bearing requests always resolve by exact match only.
++
++The namespace value must be lowercase `a-z`, `0-9`, hyphens (≤64 chars, no
++leading/trailing or consecutive hyphens). An invalid value warns and the
++skills load un-namespaced; a non-string `pi.namespace` is dropped silently. Namespace
++associations come from package resolution only: a raw settings or CLI path
++pointing into a package bypasses the namespace and loads bare.
++
+ ## Example
+ 
+ ```
+diff --git a/packages/coding-agent/src/core/agent-session.ts b/packages/coding-agent/src/core/agent-session.ts
+index 27b5ac13f..c7b1790c3 100644
+--- a/packages/coding-agent/src/core/agent-session.ts
++++ b/packages/coding-agent/src/core/agent-session.ts
+@@ -105,6 +105,7 @@ import { exportSessionToJsonl } from "./session-export.ts";
+ import type { BranchSummaryEntry, CompactionEntry, SessionEntry, SessionManager } from "./session-manager.ts";
+ import { getLatestCompactionEntry } from "./session-manager.ts";
+ import type { SettingsManager } from "./settings-manager.ts";
++import { findSkillByInvocationName, resolveBareNamespaceSkill } from "./skills.ts";
+ import type { SlashCommandInfo } from "./slash-commands.ts";
+ import { createSyntheticSourceInfo, type SourceInfo } from "./source-info.ts";
+ import { type BuildSystemPromptOptions, buildSystemPrompt } from "./system-prompt.ts";
+@@ -1204,6 +1205,7 @@ export class AgentSession {
+ 			let expandedText = currentText;
+ 			if (expandPromptTemplates) {
+ 				expandedText = this._expandSkillCommand(expandedText);
++				expandedText = this._expandBareNamespaceSkillCommand(expandedText);
+ 				expandedText = expandPromptTemplate(expandedText, [...this.promptTemplates]);
+ 			}
+ 
+@@ -1356,11 +1358,41 @@ export class AgentSession {
+ 
+ 		const spaceIndex = text.indexOf(" ");
+ 		const skillName = spaceIndex === -1 ? text.slice(7) : text.slice(7, spaceIndex);
+-		const args = spaceIndex === -1 ? "" : text.slice(spaceIndex + 1).trim();
+ 
+-		const skill = this.resourceLoader.getSkills().skills.find((s) => s.name === skillName);
++		// Exact match on the exposed (possibly namespaced) name, then a
++		// fallback to the unique namespaced skill whose baseName matches.
++		const skill = findSkillByInvocationName(this.resourceLoader.getSkills().skills, skillName);
+ 		if (!skill) return text; // Unknown skill, pass through
+ 
++		const args = spaceIndex === -1 ? "" : text.slice(spaceIndex + 1).trim();
++		return this._buildSkillBlockOrOriginal(text, skill, args);
++	}
++
++	/**
++	 * Expand bare namespace-form commands (`/<ns>:<name>`) to a skill when no
++	 * prompt template owns the name (templates compose to the same shape and
++	 * keep precedence) and a skill's exposed name matches exactly. This makes
++	 * `/<ns>:<name>` the unified package surface: templates first, skills
++	 * second; `/skill:<ns>:<name>` stays the canonical explicit form.
++	 */
++	private _expandBareNamespaceSkillCommand(text: string): string {
++		if (!text.startsWith("/") || !text.slice(1).includes(":")) return text;
++
++		const resolved = resolveBareNamespaceSkill(
++			text,
++			this.resourceLoader.getSkills().skills,
++			this.promptTemplates.map((template) => template.name),
++		);
++		if (!resolved) return text;
++
++		return this._buildSkillBlockOrOriginal(text, resolved.skill, resolved.args);
++	}
++
++	private _buildSkillBlockOrOriginal(
++		text: string,
++		skill: { name: string; filePath: string; baseDir: string },
++		args: string,
++	): string {
+ 		try {
+ 			const content = readFileSync(skill.filePath, "utf-8");
+ 			const body = stripFrontmatter(content).trim();
+@@ -1393,6 +1425,7 @@ export class AgentSession {
+ 
+ 		// Expand skill commands and prompt templates
+ 		let expandedText = this._expandSkillCommand(text);
++		expandedText = this._expandBareNamespaceSkillCommand(expandedText);
+ 		expandedText = expandPromptTemplate(expandedText, [...this.promptTemplates]);
+ 
+ 		await this._queueSteer(expandedText, images);
+@@ -1413,6 +1446,7 @@ export class AgentSession {
+ 
+ 		// Expand skill commands and prompt templates
+ 		let expandedText = this._expandSkillCommand(text);
++		expandedText = this._expandBareNamespaceSkillCommand(expandedText);
+ 		expandedText = expandPromptTemplate(expandedText, [...this.promptTemplates]);
+ 
+ 		await this._queueFollowUp(expandedText, images);
+diff --git a/packages/coding-agent/src/core/package-manager.ts b/packages/coding-agent/src/core/package-manager.ts
+index d65386c62..21a88b31f 100644
+--- a/packages/coding-agent/src/core/package-manager.ts
++++ b/packages/coding-agent/src/core/package-manager.ts
+@@ -43,7 +43,7 @@ import { type GitSource, parseGitUrl } from "../utils/git.ts";
+ import { canonicalizePath, isLocalPath, markPathIgnoredByCloudSync, resolvePath } from "../utils/paths.ts";
+ import { stripBom } from "../utils/text.ts";
+ import { isStdoutTakenOver } from "./output-guard.ts";
+-import { type PiManifest, readPiManifest } from "./pi-manifest.ts";
++import { type ResourceArrayKey, readPiManifest } from "./pi-manifest.ts";
+ import type { PackageSource, SettingsManager } from "./settings-manager.ts";
+ 
+ const NETWORK_TIMEOUT_MS = 10000;
+@@ -69,6 +69,8 @@ export interface PathMetadata {
+ 	scope: SourceScope;
+ 	origin: "package" | "top-level";
+ 	baseDir?: string;
++	/** Package namespace (pi.namespace) for name-keyed resources of this package. */
++	namespace?: string;
+ }
+ 
+ export interface ResolvedResource {
+@@ -2156,6 +2158,12 @@ export class DefaultPackageManager implements PackageManager {
+ 		filter: PackageFilter | undefined,
+ 		metadata: PathMetadata,
+ 	): boolean {
++		// One namespace read per package; carried additively on every resource
++		// this package registers (consumed by name-keyed loaders only).
++		const declaredNamespace = readPiManifest(join(packageRoot, "package.json"))?.namespace;
++		const nsMetadata: PathMetadata =
++			declaredNamespace !== undefined ? { ...metadata, namespace: declaredNamespace } : metadata;
++		metadata = nsMetadata;
+ 		if (filter) {
+ 			for (const resourceType of RESOURCE_TYPES) {
+ 				const patterns = filter[resourceType];
+@@ -2174,7 +2182,7 @@ export class DefaultPackageManager implements PackageManager {
+ 		const manifest = readPiManifest(join(packageRoot, "package.json"));
+ 		if (manifest) {
+ 			for (const resourceType of RESOURCE_TYPES) {
+-				const entries = manifest[resourceType as keyof PiManifest];
++				const entries = manifest[resourceType as ResourceArrayKey];
+ 				this.addManifestEntries(
+ 					entries,
+ 					packageRoot,
+@@ -2208,7 +2216,7 @@ export class DefaultPackageManager implements PackageManager {
+ 		metadata: PathMetadata,
+ 	): void {
+ 		const manifest = readPiManifest(join(packageRoot, "package.json"));
+-		const entries = manifest?.[resourceType as keyof PiManifest];
++		const entries = manifest?.[resourceType as ResourceArrayKey];
+ 		if (entries) {
+ 			this.addManifestEntries(entries, packageRoot, resourceType, target, metadata);
+ 			return;
+@@ -2277,7 +2285,7 @@ export class DefaultPackageManager implements PackageManager {
+ 		resourceType: ResourceType,
+ 	): { allFiles: string[]; enabledByManifest: Set<string> } {
+ 		const manifest = readPiManifest(join(packageRoot, "package.json"));
+-		const entries = manifest?.[resourceType as keyof PiManifest];
++		const entries = manifest?.[resourceType as ResourceArrayKey];
+ 		if (entries && entries.length > 0) {
+ 			const allFiles = this.collectFilesFromManifestEntries(entries, packageRoot, resourceType);
+ 			const manifestPatterns = entries.filter(isOverridePattern);
+diff --git a/packages/coding-agent/src/core/pi-manifest.ts b/packages/coding-agent/src/core/pi-manifest.ts
+index fd7dd5edb..b19ebfdeb 100644
+--- a/packages/coding-agent/src/core/pi-manifest.ts
++++ b/packages/coding-agent/src/core/pi-manifest.ts
+@@ -6,10 +6,15 @@ export interface PiManifest {
+ 	skills?: string[];
+ 	prompts?: string[];
+ 	themes?: string[];
++	/** Opt-in namespace applied to name-keyed resources loaded from this package. */
++	namespace?: string;
+ }
+ 
+ const RESOURCE_FIELDS = ["extensions", "skills", "prompts", "themes"] as const;
+ 
++/** The manifest keys whose values are resource-path arrays. */
++export type ResourceArrayKey = (typeof RESOURCE_FIELDS)[number];
++
+ function isObject(value: unknown): value is Record<string, unknown> {
+ 	return typeof value === "object" && value !== null && !Array.isArray(value);
+ }
+@@ -28,6 +33,9 @@ export function readPiManifest(packageJsonPath: string): PiManifest | null {
+ 				manifest[field] = entries;
+ 			}
+ 		}
++		if (typeof pkg.pi.namespace === "string") {
++			manifest.namespace = pkg.pi.namespace;
++		}
+ 		return manifest;
+ 	} catch {
+ 		return null;
+diff --git a/packages/coding-agent/src/core/prompt-templates.ts b/packages/coding-agent/src/core/prompt-templates.ts
+index e0fe89e53..4a0411ccd 100644
+--- a/packages/coding-agent/src/core/prompt-templates.ts
++++ b/packages/coding-agent/src/core/prompt-templates.ts
+@@ -3,6 +3,7 @@ import { basename, dirname, join, resolve, sep } from "path";
+ import { CONFIG_DIR_NAME } from "../config.ts";
+ import { parseFrontmatter } from "../utils/frontmatter.ts";
+ import { resolvePath } from "../utils/paths.ts";
++import { findNamespaceForPath, type ResourceNamespace } from "./skills.ts";
+ import { createSyntheticSourceInfo, type SourceInfo } from "./source-info.ts";
+ 
+ /**
+@@ -15,6 +16,10 @@ export interface PromptTemplate {
+ 	content: string;
+ 	sourceInfo: SourceInfo;
+ 	filePath: string; // Absolute path to the template file
++	/** Package namespace this template is exposed under (set when namespaced). */
++	namespace?: string;
++	/** Original name before namespace composition (equals name when not namespaced). */
++	baseName?: string;
+ }
+ 
+ /**
+@@ -183,6 +188,8 @@ export interface LoadPromptTemplatesOptions {
+ 	promptPaths: string[];
+ 	/** Include default prompt directories. */
+ 	includeDefaults: boolean;
++	/** Pre-validated path-to-namespace associations (package-origin). */
++	namespaces?: ResourceNamespace[];
+ }
+ 
+ /**
+@@ -196,9 +203,23 @@ export function loadPromptTemplates(options: LoadPromptTemplatesOptions): Prompt
+ 	const resolvedAgentDir = resolvePath(options.agentDir);
+ 	const promptPaths = options.promptPaths;
+ 	const includeDefaults = options.includeDefaults;
++	const namespaces = options.namespaces ?? [];
+ 
+ 	const templates: PromptTemplate[] = [];
+ 
++	/** Compose the exposed name when the template's path has a namespace association. */
++	const applyNamespace = (template: PromptTemplate): PromptTemplate => {
++		if (namespaces.length === 0) return template;
++		const namespace = findNamespaceForPath(template.filePath, namespaces);
++		if (namespace === undefined) return template;
++		return {
++			...template,
++			name: `${namespace}:${template.name}`,
++			namespace,
++			baseName: template.name,
++		};
++	};
++
+ 	const globalPromptsDir = join(resolvedAgentDir, "prompts");
+ 	const projectPromptsDir = resolve(resolvedCwd, CONFIG_DIR_NAME, "prompts");
+ 
+@@ -233,8 +254,8 @@ export function loadPromptTemplates(options: LoadPromptTemplatesOptions): Prompt
+ 	};
+ 
+ 	if (includeDefaults) {
+-		templates.push(...loadTemplatesFromDir(globalPromptsDir, getSourceInfo));
+-		templates.push(...loadTemplatesFromDir(projectPromptsDir, getSourceInfo));
++		templates.push(...loadTemplatesFromDir(globalPromptsDir, getSourceInfo).map(applyNamespace));
++		templates.push(...loadTemplatesFromDir(projectPromptsDir, getSourceInfo).map(applyNamespace));
+ 	}
+ 
+ 	// 3. Load explicit prompt paths
+@@ -247,11 +268,11 @@ export function loadPromptTemplates(options: LoadPromptTemplatesOptions): Prompt
+ 		try {
+ 			const stats = statSync(resolvedPath);
+ 			if (stats.isDirectory()) {
+-				templates.push(...loadTemplatesFromDir(resolvedPath, getSourceInfo));
++				templates.push(...loadTemplatesFromDir(resolvedPath, getSourceInfo).map(applyNamespace));
+ 			} else if (stats.isFile() && resolvedPath.endsWith(".md")) {
+ 				const template = loadTemplateFromFile(resolvedPath, getSourceInfo(resolvedPath));
+ 				if (template) {
+-					templates.push(template);
++					templates.push(applyNamespace(template));
+ 				}
+ 			}
+ 		} catch {
+@@ -275,10 +296,21 @@ export function expandPromptTemplate(text: string, templates: PromptTemplate[]):
+ 	const templateName = match[1];
+ 	const argsString = match[2] ?? "";
+ 
++	// Exact match first; then a fallback to the unique namespaced template
++	// whose baseName matches. The fallback never applies to colon-bearing
++	// requests and never resolves an ambiguous base name.
+ 	const template = templates.find((t) => t.name === templateName);
+-	if (template) {
++	const fallback =
++		templateName.includes(":") || template
++			? undefined
++			: (() => {
++					const candidates = templates.filter((t) => t.namespace !== undefined && t.baseName === templateName);
++					return candidates.length === 1 ? candidates[0] : undefined;
++				})();
++	const resolved = template ?? fallback;
++	if (resolved) {
+ 		const args = parseCommandArgs(argsString);
+-		return substituteArgs(template.content, args);
++		return substituteArgs(resolved.content, args);
+ 	}
+ 
+ 	return text;
+diff --git a/packages/coding-agent/src/core/resource-loader.ts b/packages/coding-agent/src/core/resource-loader.ts
+index 04102425b..1aab0b31e 100644
+--- a/packages/coding-agent/src/core/resource-loader.ts
++++ b/packages/coding-agent/src/core/resource-loader.ts
+@@ -23,7 +23,7 @@ import type { PromptTemplate } from "./prompt-templates.ts";
+ import { loadPromptTemplates } from "./prompt-templates.ts";
+ import { SettingsManager } from "./settings-manager.ts";
+ import type { Skill } from "./skills.ts";
+-import { loadSkills } from "./skills.ts";
++import { loadSkills, type ResourceNamespace, validateNamespaceValue } from "./skills.ts";
+ import { createSourceInfo, type SourceInfo } from "./source-info.ts";
+ import { resetTimings } from "./timings.ts";
+ 
+@@ -669,17 +669,51 @@ export class DefaultResourceLoader implements ResourceLoader {
+ 		});
+ 	}
+ 
++	/**
++	 * Build pre-validated path-to-namespace associations from package-origin
++	 * metadata. Invalid namespace values warn into the caller's diagnostics
++	 * channel and are dropped (resources load bare).
++	 */
++	private buildNamespaceAssociations(
++		metadataByPath: Map<string, PathMetadata> | undefined,
++		diagnostics: ResourceDiagnostic[],
++	): ResourceNamespace[] {
++		if (!metadataByPath) return [];
++		const associations: ResourceNamespace[] = [];
++		const warned = new Set<string>();
++		for (const [path, metadata] of metadataByPath) {
++			if (metadata.namespace === undefined) continue;
++			const errors = validateNamespaceValue(metadata.namespace);
++			if (errors.length > 0) {
++				if (!warned.has(metadata.namespace)) {
++					warned.add(metadata.namespace);
++					diagnostics.push({
++						type: "warning",
++						message: `invalid package namespace "${metadata.namespace}": ${errors.join("; ")} — resources load un-namespaced`,
++						path,
++					});
++				}
++				continue;
++			}
++			associations.push({ path, namespace: metadata.namespace });
++		}
++		return associations;
++	}
++
+ 	private updateSkillsFromPaths(skillPaths: string[], metadataByPath?: Map<string, PathMetadata>): void {
+ 		let skillsResult: { skills: Skill[]; diagnostics: ResourceDiagnostic[] };
+ 		if (this.noSkills && skillPaths.length === 0) {
+ 			skillsResult = { skills: [], diagnostics: [] };
+ 		} else {
++			const namespaceDiagnostics: ResourceDiagnostic[] = [];
+ 			skillsResult = loadSkills({
+ 				cwd: this.cwd,
+ 				agentDir: this.agentDir,
+ 				skillPaths,
+ 				includeDefaults: false,
++				namespaces: this.buildNamespaceAssociations(metadataByPath, namespaceDiagnostics),
+ 			});
++			skillsResult.diagnostics.push(...namespaceDiagnostics);
+ 		}
+ 		const resolvedSkills = this.skillsOverride ? this.skillsOverride(skillsResult) : skillsResult;
+ 		this.skills = resolvedSkills.skills.map((skill) => ({
+@@ -697,13 +731,16 @@ export class DefaultResourceLoader implements ResourceLoader {
+ 		if (this.noPromptTemplates && promptPaths.length === 0) {
+ 			promptsResult = { prompts: [], diagnostics: [] };
+ 		} else {
++			const namespaceDiagnostics: ResourceDiagnostic[] = [];
+ 			const allPrompts = loadPromptTemplates({
+ 				cwd: this.cwd,
+ 				agentDir: this.agentDir,
+ 				promptPaths,
+ 				includeDefaults: false,
++				namespaces: this.buildNamespaceAssociations(metadataByPath, namespaceDiagnostics),
+ 			});
+ 			promptsResult = this.dedupePrompts(allPrompts);
++			promptsResult.diagnostics.push(...namespaceDiagnostics);
+ 		}
+ 		const resolvedPrompts = this.promptsOverride ? this.promptsOverride(promptsResult) : promptsResult;
+ 		this.prompts = resolvedPrompts.prompts.map((prompt) => ({
+diff --git a/packages/coding-agent/src/core/skills.ts b/packages/coding-agent/src/core/skills.ts
+index 464129b64..5812a4f9e 100644
+--- a/packages/coding-agent/src/core/skills.ts
++++ b/packages/coding-agent/src/core/skills.ts
+@@ -78,6 +78,16 @@ export interface Skill {
+ 	baseDir: string;
+ 	sourceInfo: SourceInfo;
+ 	disableModelInvocation: boolean;
++	/** Package namespace this skill is exposed under (set when namespaced). */
++	namespace?: string;
++	/** Original name before namespace composition (equals name when not namespaced). */
++	baseName?: string;
++}
++
++/** A path-to-namespace association for package resources. */
++export interface ResourceNamespace {
++	path: string;
++	namespace: string;
+ }
+ 
+ export interface LoadSkillsResult {
+@@ -389,6 +399,96 @@ function escapeXml(str: string): string {
+ 		.replace(/'/g, "&apos;");
+ }
+ 
++/**
++ * Validate a package namespace value (pi.namespace).
++ * Same charset as skill names: lowercase a-z, 0-9, hyphens; non-empty.
++ * Returns array of validation error messages (empty if valid).
++ */
++export function validateNamespaceValue(value: string): string[] {
++	const errors: string[] = [];
++
++	if (value.length === 0) {
++		errors.push("namespace must not be empty");
++	}
++	if (value.length > MAX_NAME_LENGTH) {
++		errors.push(`namespace exceeds ${MAX_NAME_LENGTH} characters (${value.length})`);
++	}
++	if (!/^[a-z0-9-]+$/.test(value)) {
++		errors.push("namespace contains invalid characters (must be lowercase a-z, 0-9, hyphens only)");
++	}
++	if (value.startsWith("-") || value.endsWith("-")) {
++		errors.push("namespace must not start or end with a hyphen");
++	}
++	if (value.includes("--")) {
++		errors.push("namespace must not contain consecutive hyphens");
++	}
++
++	return errors;
++}
++
++/**
++ * Find the namespace association for a resource path.
++ * Exact path match wins; otherwise the longest association path that is a
++ * prefix (directory containment) wins. Returns undefined when unassociated.
++ */
++export function findNamespaceForPath(filePath: string, namespaces: ResourceNamespace[]): string | undefined {
++	let best: string | undefined;
++	let bestLength = -1;
++	for (const association of namespaces) {
++		const root = resolvePath(association.path);
++		const contained = filePath === root || filePath.startsWith(root.endsWith(sep) ? root : `${root}${sep}`);
++		if (contained && root.length > bestLength) {
++			best = association.namespace;
++			bestLength = root.length;
++		}
++	}
++	return best;
++}
++
++/**
++ * Resolve a skill by its invocation name: exact name match first, then a
++ * fallback to the unique namespaced skill whose baseName matches. The
++ * fallback never applies to colon-bearing requests and never resolves an
++ * ambiguous base name (two namespaces claiming it).
++ */
++export function findSkillByInvocationName(skills: Skill[], invocationName: string): Skill | undefined {
++	const exact = skills.find((s) => s.name === invocationName);
++	if (exact) return exact;
++
++	if (invocationName.includes(":")) return undefined;
++
++	const candidates = skills.filter((s) => s.namespace !== undefined && s.baseName === invocationName);
++	if (candidates.length === 1) return candidates[0];
++	return undefined;
++}
++
++/**
++ * Resolve a bare namespace-form slash command (`/<ns>:<name> [args]`) to a
++ * skill. Fires only when the name is colon-bearing and NOT owned by a prompt
++ * template (templates compose to the same shape and keep precedence), and
++ * matches the skill by its exact exposed name (never a base-name fallback).
++ * Returns the skill and remaining args, or undefined to pass through.
++ */
++export function resolveBareNamespaceSkill(
++	text: string,
++	skills: Skill[],
++	templateNames: ReadonlyArray<string>,
++): { skill: Skill; args: string } | undefined {
++	if (!text.startsWith("/")) return undefined;
++
++	const match = text.match(/^\/([^\s]+)(?:\s+([\s\S]*))?$/);
++	if (!match) return undefined;
++
++	const name = match[1];
++	if (!name.includes(":") || name.startsWith("skill:")) return undefined;
++	if (templateNames.includes(name)) return undefined;
++
++	const skill = findSkillByInvocationName(skills, name);
++	if (!skill) return undefined;
++
++	return { skill, args: (match[2] ?? "").trim() };
++}
++
+ export interface LoadSkillsOptions {
+ 	/** Working directory for project-local skills. */
+ 	cwd: string;
+@@ -398,6 +498,21 @@ export interface LoadSkillsOptions {
+ 	skillPaths: string[];
+ 	/** Include default skills directories. */
+ 	includeDefaults: boolean;
++	/** Pre-validated path-to-namespace associations (package-origin). */
++	namespaces?: ResourceNamespace[];
++}
++
++/** Compose the exposed name when the skill's path has a namespace association. */
++function applyNamespaceToSkill(skill: Skill, namespaces: ResourceNamespace[]): Skill {
++	if (namespaces.length === 0) return skill;
++	const namespace = findNamespaceForPath(skill.filePath, namespaces);
++	if (namespace === undefined) return skill;
++	return {
++		...skill,
++		name: `${namespace}:${skill.name}`,
++		namespace,
++		baseName: skill.name,
++	};
+ }
+ 
+ /**
+@@ -406,6 +521,7 @@ export interface LoadSkillsOptions {
+  */
+ export function loadSkills(options: LoadSkillsOptions): LoadSkillsResult {
+ 	const { agentDir, skillPaths, includeDefaults } = options;
++	const namespaces = options.namespaces ?? [];
+ 
+ 	// Resolve agentDir - if not provided, use default from config
+ 	const resolvedCwd = resolvePath(options.cwd);
+@@ -418,15 +534,17 @@ export function loadSkills(options: LoadSkillsOptions): LoadSkillsResult {
+ 
+ 	function addSkills(result: LoadSkillsResult) {
+ 		allDiagnostics.push(...result.diagnostics);
+-		for (const skill of result.skills) {
++		for (const loadedSkill of result.skills) {
+ 			// Resolve symlinks to detect duplicate files
+-			const realPath = canonicalizePath(skill.filePath);
++			const realPath = canonicalizePath(loadedSkill.filePath);
+ 
+ 			// Skip silently if we've already loaded this exact file (via symlink)
+ 			if (realPathSet.has(realPath)) {
+ 				continue;
+ 			}
+ 
++			const skill = applyNamespaceToSkill(loadedSkill, namespaces);
++
+ 			const existing = skillMap.get(skill.name);
+ 			if (existing) {
+ 				collisionDiagnostics.push({
+diff --git a/packages/coding-agent/src/modes/interactive/interactive-mode.ts b/packages/coding-agent/src/modes/interactive/interactive-mode.ts
+index aee28d448..f4d86c126 100644
+--- a/packages/coding-agent/src/modes/interactive/interactive-mode.ts
++++ b/packages/coding-agent/src/modes/interactive/interactive-mode.ts
+@@ -760,6 +760,7 @@ export class InteractiveMode {
+ 		this.skillCommands.clear();
+ 		const skillCommandList: SlashCommand[] = [];
+ 		if (this.settingsManager.getEnableSkillCommands()) {
++			const templateNames = new Set(this.session.promptTemplates.map((template) => template.name));
+ 			for (const skill of this.session.resourceLoader.getSkills().skills) {
+ 				const commandName = `skill:${skill.name}`;
+ 				this.skillCommands.set(commandName, skill.filePath);
+@@ -767,6 +768,15 @@ export class InteractiveMode {
+ 					name: commandName,
+ 					description: this.prefixAutocompleteDescription(skill.description, skill.sourceInfo),
+ 				});
++				// Namespaced skills also surface via the unified bare form
++				// /<ns>:<name> — offered when no template owns the composed name
++				// (mirrors resolveBareNamespaceSkill's template-ownership guard).
++				if (skill.namespace !== undefined && !templateNames.has(skill.name)) {
++					skillCommandList.push({
++						name: skill.name,
++						description: this.prefixAutocompleteDescription(skill.description, skill.sourceInfo),
++					});
++				}
+ 			}
+ 		}
+ 
+diff --git a/packages/coding-agent/test/fixtures/skills/ns-package/ns-one/SKILL.md b/packages/coding-agent/test/fixtures/skills/ns-package/ns-one/SKILL.md
+new file mode 100644
+index 000000000..a5c85363e
+--- /dev/null
++++ b/packages/coding-agent/test/fixtures/skills/ns-package/ns-one/SKILL.md
+@@ -0,0 +1,5 @@
++---
++name: cross-source-review
++description: Fixture skill one for namespace tests.
++---
++Body one.
+diff --git a/packages/coding-agent/test/fixtures/skills/ns-package/ns-two-dup/SKILL.md b/packages/coding-agent/test/fixtures/skills/ns-package/ns-two-dup/SKILL.md
+new file mode 100644
+index 000000000..fdca09afa
+--- /dev/null
++++ b/packages/coding-agent/test/fixtures/skills/ns-package/ns-two-dup/SKILL.md
+@@ -0,0 +1,5 @@
++---
++name: cross-source-review
++description: Duplicate base name in the same namespace.
++---
++Dup body.
+diff --git a/packages/coding-agent/test/fixtures/skills/ns-package/ns-two/SKILL.md b/packages/coding-agent/test/fixtures/skills/ns-package/ns-two/SKILL.md
+new file mode 100644
+index 000000000..3d98b6d30
+--- /dev/null
++++ b/packages/coding-agent/test/fixtures/skills/ns-package/ns-two/SKILL.md
+@@ -0,0 +1,5 @@
++---
++name: other-skill
++description: Fixture skill two for namespace tests.
++---
++Body two.
+diff --git a/packages/coding-agent/test/fixtures/skills/ns-package/package.json b/packages/coding-agent/test/fixtures/skills/ns-package/package.json
+new file mode 100644
+index 000000000..8c79365f5
+--- /dev/null
++++ b/packages/coding-agent/test/fixtures/skills/ns-package/package.json
+@@ -0,0 +1,4 @@
++{
++	"name": "ns-pkg-fixture",
++	"pi": { "namespace": "solidforge" }
++}
+diff --git a/packages/coding-agent/test/fixtures/skills/ns-user-dir/user-skill/SKILL.md b/packages/coding-agent/test/fixtures/skills/ns-user-dir/user-skill/SKILL.md
+new file mode 100644
+index 000000000..c93e61fb8
+--- /dev/null
++++ b/packages/coding-agent/test/fixtures/skills/ns-user-dir/user-skill/SKILL.md
+@@ -0,0 +1,5 @@
++---
++name: cross-source-review
++description: User skill with the same base name.
++---
++User body.
+diff --git a/packages/coding-agent/test/package-manager.test.ts b/packages/coding-agent/test/package-manager.test.ts
+index 6f4f6b4fa..ab22dc13a 100644
+--- a/packages/coding-agent/test/package-manager.test.ts
++++ b/packages/coding-agent/test/package-manager.test.ts
+@@ -2683,4 +2683,71 @@ export default function(api) { api.registerTool({ name: "test", description: "te
+ 			await expect(capturePromise).resolves.toBe("abc123");
+ 		});
+ 	});
++
++	describe("pi.namespace metadata", () => {
++		it("should carry namespace on PathMetadata for skills, prompts, and themes of a declaring package", async () => {
++			const pkgDir = join(tempDir, "ns-pkg");
++			mkdirSync(join(pkgDir, "skills", "ns-one"), { recursive: true });
++			mkdirSync(join(pkgDir, "prompts"), { recursive: true });
++			mkdirSync(join(pkgDir, "themes"), { recursive: true });
++			writeFileSync(
++				join(pkgDir, "package.json"),
++				JSON.stringify({
++					name: "ns-pkg",
++					pi: { namespace: "solidforge", skills: ["./skills"], prompts: ["./prompts"], themes: ["./themes"] },
++				}),
++			);
++			writeFileSync(join(pkgDir, "skills", "ns-one", "SKILL.md"), "---\nname: ns-one\ndescription: one\n---\n");
++			writeFileSync(join(pkgDir, "prompts", "cmd.md"), "---\ndescription: cmd\n---\nbody");
++			writeFileSync(join(pkgDir, "themes", "t.json"), JSON.stringify({ name: "t", colors: {} }));
++
++			settingsManager.setPackages([pkgDir]);
++			const result = await packageManager.resolve();
++
++			const skill = result.skills.find((r) => r.path.includes("ns-one"));
++			expect(skill?.metadata.namespace).toBe("solidforge");
++			const prompt = result.prompts.find((r) => r.path.endsWith("cmd.md"));
++			expect(prompt?.metadata.namespace).toBe("solidforge");
++			const theme = result.themes.find((r) => r.path.endsWith("t.json"));
++			expect(theme?.metadata.namespace).toBe("solidforge");
++		});
++
++		it("should work with manifest skill entries and conventional dirs alike", async () => {
++			const pkgDir = join(tempDir, "ns-pkg-conv");
++			mkdirSync(join(pkgDir, "skills", "conv-skill"), { recursive: true });
++			writeFileSync(
++				join(pkgDir, "package.json"),
++				JSON.stringify({ name: "ns-pkg-conv", pi: { namespace: "convns", skills: ["./skills"] } }),
++			);
++			writeFileSync(
++				join(pkgDir, "skills", "conv-skill", "SKILL.md"),
++				"---\nname: conv-skill\ndescription: c\n---\n",
++			);
++
++			settingsManager.setPackages([pkgDir]);
++			const result = await packageManager.resolve();
++
++			const skill = result.skills.find((r) => r.path.includes("conv-skill"));
++			expect(skill?.metadata.namespace).toBe("convns");
++		});
++
++		it("should omit namespace when not declared", async () => {
++			const pkgDir = join(tempDir, "plain-pkg");
++			mkdirSync(join(pkgDir, "skills", "plain-skill"), { recursive: true });
++			writeFileSync(
++				join(pkgDir, "package.json"),
++				JSON.stringify({ name: "plain-pkg", pi: { skills: ["./skills"] } }),
++			);
++			writeFileSync(
++				join(pkgDir, "skills", "plain-skill", "SKILL.md"),
++				"---\nname: plain-skill\ndescription: p\n---\n",
++			);
++
++			settingsManager.setPackages([pkgDir]);
++			const result = await packageManager.resolve();
++
++			const skill = result.skills.find((r) => r.path.includes("plain-skill"));
++			expect(skill?.metadata.namespace).toBeUndefined();
++		});
++	});
+ });
+diff --git a/packages/coding-agent/test/prompt-templates.test.ts b/packages/coding-agent/test/prompt-templates.test.ts
+index 97bfe985c..144a64755 100644
+--- a/packages/coding-agent/test/prompt-templates.test.ts
++++ b/packages/coding-agent/test/prompt-templates.test.ts
+@@ -622,3 +622,111 @@ Analyze GitHub issue(s): $ARGUMENTS`,
+ 		} catch {}
+ 	});
+ });
++
++// ============================================================================
++// package namespaces
++// ============================================================================
++
++describe("package namespaces", () => {
++	const createdDirs: string[] = [];
++
++	const makeTemplates = () => {
++		const dir = join(tmpdir(), `pi-ns-prompts-${Date.now()}-${Math.random().toString(36).slice(2)}`);
++		mkdirSync(join(dir, "pkg", "prompts"), { recursive: true });
++		writeFileSync(join(dir, "pkg", "prompts", "arm-tools.md"), "---\ndescription: Arm tools\n---\nArm the project.");
++		writeFileSync(
++			join(dir, "pkg", "prompts", "colon-named.md"),
++			"---\ndescription: Legacy colon filename\n---\nLegacy.",
++		);
++		createdDirs.push(dir);
++		return { dir, pkgPrompts: join(dir, "pkg", "prompts") };
++	};
++
++	afterAll(() => {
++		for (const dir of createdDirs) {
++			rmSync(dir, { recursive: true, force: true });
++		}
++	});
++
++	test("should rename templates under an associated path", () => {
++		const { dir, pkgPrompts } = makeTemplates();
++		const templates = loadPromptTemplates({
++			cwd: dir,
++			agentDir: dir,
++			promptPaths: [pkgPrompts],
++			includeDefaults: false,
++			namespaces: [{ path: pkgPrompts, namespace: "solidforge" }],
++		});
++
++		const arm = templates.find((t) => t.baseName === "arm-tools");
++		expect(arm?.name).toBe("solidforge:arm-tools");
++		expect(arm?.namespace).toBe("solidforge");
++
++		const colon = templates.find((t) => t.baseName === "colon-named");
++		expect(colon?.name).toBe("solidforge:colon-named");
++	});
++
++	test("legacy colon filename composes to ns:colon-name (exact match still works)", () => {
++		const dir = join(tmpdir(), `pi-ns-colon-${Date.now()}-${Math.random().toString(36).slice(2)}`);
++		mkdirSync(join(dir, "pkg", "prompts"), { recursive: true });
++		writeFileSync(
++			join(dir, "pkg", "prompts", "solidforge:arm-tools.md"),
++			"---\ndescription: Legacy\n---\nLegacy body.",
++		);
++		createdDirs.push(dir);
++		const pkgPrompts = join(dir, "pkg", "prompts");
++		const templates = loadPromptTemplates({
++			cwd: dir,
++			agentDir: dir,
++			promptPaths: [pkgPrompts],
++			includeDefaults: false,
++			namespaces: [{ path: pkgPrompts, namespace: "solidforge" }],
++		});
++
++		expect(templates.map((t) => t.name)).toContain("solidforge:solidforge:arm-tools");
++		const expanded = expandPromptTemplate("/solidforge:solidforge:arm-tools", templates);
++		expect(expanded).toContain("Legacy body.");
++	});
++
++	test("expandPromptTemplate falls back to a unique namespaced base name", () => {
++		const { dir, pkgPrompts } = makeTemplates();
++		const templates = loadPromptTemplates({
++			cwd: dir,
++			agentDir: dir,
++			promptPaths: [pkgPrompts],
++			includeDefaults: false,
++			namespaces: [{ path: pkgPrompts, namespace: "solidforge" }],
++		});
++
++		expect(expandPromptTemplate("/arm-tools", templates)).toContain("Arm the project.");
++		expect(expandPromptTemplate("/solidforge:arm-tools", templates)).toContain("Arm the project.");
++	});
++
++	test("expandPromptTemplate does not fall back on colon-bearing or ambiguous requests", () => {
++		const dir = join(tmpdir(), `pi-ns-amb-${Date.now()}-${Math.random().toString(36).slice(2)}`);
++		for (const pkg of ["a", "b"]) {
++			mkdirSync(join(dir, pkg, "prompts"), { recursive: true });
++			writeFileSync(join(dir, pkg, "prompts", "shared.md"), `---\ndescription: ${pkg}\n---\nBody ${pkg}.`);
++		}
++		createdDirs.push(dir);
++		const templates = [
++			...loadPromptTemplates({
++				cwd: dir,
++				agentDir: dir,
++				promptPaths: [join(dir, "a", "prompts")],
++				includeDefaults: false,
++				namespaces: [{ path: join(dir, "a", "prompts"), namespace: "a" }],
++			}),
++			...loadPromptTemplates({
++				cwd: dir,
++				agentDir: dir,
++				promptPaths: [join(dir, "b", "prompts")],
++				includeDefaults: false,
++				namespaces: [{ path: join(dir, "b", "prompts"), namespace: "b" }],
++			}),
++		];
++
++		expect(expandPromptTemplate("/shared", templates)).toBe("/shared");
++		expect(expandPromptTemplate("/nope:x", templates)).toBe("/nope:x");
++	});
++});
+diff --git a/packages/coding-agent/test/resource-loader.test.ts b/packages/coding-agent/test/resource-loader.test.ts
+index 145eca3b2..858657ad1 100644
+--- a/packages/coding-agent/test/resource-loader.test.ts
++++ b/packages/coding-agent/test/resource-loader.test.ts
+@@ -1118,4 +1118,167 @@ export default function(pi: ExtensionAPI) {
+ 			expect(files.map((f) => f.content)).toEqual(["repo instructions", "src instructions"]);
+ 		});
+ 	});
++
++	describe("package namespace association", () => {
++		it("should expose namespaced skill and prompt names for a package declaring pi.namespace", async () => {
++			const pkgDir = join(tempDir, "ns-pkg");
++			mkdirSync(join(pkgDir, "skills", "cross-source-review"), { recursive: true });
++			mkdirSync(join(pkgDir, "prompts"), { recursive: true });
++			writeFileSync(
++				join(pkgDir, "package.json"),
++				JSON.stringify({
++					name: "ns-pkg",
++					pi: { namespace: "solidforge", skills: ["./skills"], prompts: ["./prompts"] },
++				}),
++			);
++			writeFileSync(
++				join(pkgDir, "skills", "cross-source-review", "SKILL.md"),
++				"---\nname: cross-source-review\ndescription: csr\n---\nBody.",
++			);
++			writeFileSync(join(pkgDir, "prompts", "arm-tools.md"), "---\ndescription: arm\n---\nArm body.");
++
++			const settingsManager = SettingsManager.inMemory();
++			settingsManager.setPackages([pkgDir]);
++			const loader = new DefaultResourceLoader({ cwd, agentDir, settingsManager });
++			await loader.reload();
++
++			const skillNames = loader.getSkills().skills.map((s) => s.name);
++			expect(skillNames).toContain("solidforge:cross-source-review");
++			expect(skillNames).not.toContain("cross-source-review");
++
++			const promptNames = loader.getPrompts().prompts.map((p) => p.name);
++			expect(promptNames).toContain("solidforge:arm-tools");
++		});
++
++		it("should coexist with a same-named bare user skill", async () => {
++			const pkgDir = join(tempDir, "ns-pkg2");
++			mkdirSync(join(pkgDir, "skills", "dupe"), { recursive: true });
++			mkdirSync(join(agentDir, "skills", "dupe"), { recursive: true });
++			writeFileSync(
++				join(pkgDir, "package.json"),
++				JSON.stringify({ name: "ns-pkg2", pi: { namespace: "nsx", skills: ["./skills"] } }),
++			);
++			writeFileSync(join(pkgDir, "skills", "dupe", "SKILL.md"), "---\nname: dupe\ndescription: pkg\n---\nPkg.");
++			writeFileSync(join(agentDir, "skills", "dupe", "SKILL.md"), "---\nname: dupe\ndescription: user\n---\nUser.");
++
++			const settingsManager = SettingsManager.inMemory();
++			settingsManager.setPackages([pkgDir]);
++			const loader = new DefaultResourceLoader({ cwd, agentDir, settingsManager });
++			await loader.reload();
++
++			const names = loader.getSkills().skills.map((s) => s.name);
++			expect(names).toContain("dupe");
++			expect(names).toContain("nsx:dupe");
++			expect(loader.getSkills().diagnostics.filter((d) => d.type === "collision")).toHaveLength(0);
++		});
++
++		it("should warn and load bare on an invalid namespace value (skills and prompts)", async () => {
++			const pkgDir = join(tempDir, "bad-ns-pkg");
++			mkdirSync(join(pkgDir, "skills", "badns"), { recursive: true });
++			mkdirSync(join(pkgDir, "prompts"), { recursive: true });
++			writeFileSync(
++				join(pkgDir, "package.json"),
++				JSON.stringify({
++					name: "bad-ns-pkg",
++					pi: { namespace: "Bad_NS", skills: ["./skills"], prompts: ["./prompts"] },
++				}),
++			);
++			writeFileSync(join(pkgDir, "skills", "badns", "SKILL.md"), "---\nname: badns\ndescription: b\n---\nB.");
++			writeFileSync(join(pkgDir, "prompts", "badcmd.md"), "---\ndescription: bc\n---\nBC.");
++
++			const settingsManager = SettingsManager.inMemory();
++			settingsManager.setPackages([pkgDir]);
++			const loader = new DefaultResourceLoader({ cwd, agentDir, settingsManager });
++			await loader.reload();
++
++			const names = loader
++				.getSkills()
++				.skills.map((s) => s.name)
++				.filter((n) => n.includes("badns"));
++			expect(names).toEqual(["badns"]);
++			expect(loader.getSkills().skills.some((s) => s.namespace === "Bad_NS")).toBe(false);
++			expect(
++				loader.getSkills().diagnostics.some((d) => d.type === "warning" && d.message.includes("namespace")),
++			).toBe(true);
++
++			// AC4: the owning diagnostics channel for prompts carries the warning too,
++			// and prompt resources load bare.
++			const promptNames = loader
++				.getPrompts()
++				.prompts.map((p) => p.name)
++				.filter((n) => n.includes("badcmd"));
++			expect(promptNames).toEqual(["badcmd"]);
++			expect(
++				loader.getPrompts().diagnostics.some((d) => d.type === "warning" && d.message.includes("namespace")),
++			).toBe(true);
++		});
++
++		it("should load bare via a raw settings path into a namespaced package (D6 boundary)", async () => {
++			const pkgDir = join(tempDir, "raw-ns-pkg");
++			mkdirSync(join(pkgDir, "skills", "rawns"), { recursive: true });
++			writeFileSync(
++				join(pkgDir, "package.json"),
++				JSON.stringify({ name: "raw-ns-pkg", pi: { namespace: "rns", skills: ["./skills"] } }),
++			);
++			writeFileSync(join(pkgDir, "skills", "rawns", "SKILL.md"), "---\nname: rawns\ndescription: r\n---\nR.");
++
++			// Raw settings skill path pointing INTO the package, package NOT resolved
++			// through package resolution (no packages entry).
++			const settingsManager = SettingsManager.inMemory();
++			settingsManager.setSkillPaths([join(pkgDir, "skills")]);
++			const loader = new DefaultResourceLoader({ cwd, agentDir, settingsManager });
++			await loader.reload();
++
++			// CLI-style additional path into the same package: also bare.
++			const loader2 = new DefaultResourceLoader({
++				cwd,
++				agentDir,
++				additionalSkillPaths: [join(pkgDir, "skills")],
++			});
++			await loader2.reload();
++
++			const names = loader
++				.getSkills()
++				.skills.map((s) => s.name)
++				.filter((n) => n.includes("rawns"));
++			expect(names).toEqual(["rawns"]);
++
++			const names2 = loader2
++				.getSkills()
++				.skills.map((s) => s.name)
++				.filter((n) => n.includes("rawns"));
++			expect(names2).toEqual(["rawns"]);
++		});
++
++		it("should namespace prompts (and bare-restamp skills) from a --extension package dir", async () => {
++			const pkgDir = join(tempDir, "ext-ns-pkg");
++			mkdirSync(join(pkgDir, "skills", "extns"), { recursive: true });
++			mkdirSync(join(pkgDir, "prompts"), { recursive: true });
++			writeFileSync(
++				join(pkgDir, "package.json"),
++				JSON.stringify({
++					name: "ext-ns-pkg",
++					pi: { namespace: "extns", skills: ["./skills"], prompts: ["./prompts"] },
++				}),
++			);
++			writeFileSync(join(pkgDir, "skills", "extns", "SKILL.md"), "---\nname: extns\ndescription: e\n---\nE.");
++			writeFileSync(join(pkgDir, "prompts", "extcmd.md"), "---\ndescription: ec\n---\nEC.");
++
++			const loader = new DefaultResourceLoader({ cwd, agentDir, additionalExtensionPaths: [pkgDir] });
++			await loader.reload();
++
++			// CLI --extension runs full package resolution: prompts keep package-origin
++			// metadata (no restamp loop) -> namespaced; skills are restamped cli -> bare.
++			const promptNames = loader
++				.getPrompts()
++				.prompts.map((p) => p.name)
++				.filter((n) => n.includes("extcmd"));
++			expect(promptNames).toEqual(["extns:extcmd"]);
++			const skillNames = loader
++				.getSkills()
++				.skills.map((s) => s.name)
++				.filter((n) => n.includes("extns"));
++			expect(skillNames).toEqual(["extns"]);
++		});
++	});
+ });
+diff --git a/packages/coding-agent/test/skills.test.ts b/packages/coding-agent/test/skills.test.ts
+index 039801994..5a57d409a 100644
+--- a/packages/coding-agent/test/skills.test.ts
++++ b/packages/coding-agent/test/skills.test.ts
+@@ -2,11 +2,21 @@ import { homedir } from "os";
+ import { join, resolve } from "path";
+ import { describe, expect, it } from "vitest";
+ import type { ResourceDiagnostic } from "../src/core/diagnostics.ts";
+-import { formatSkillsForPrompt, loadSkills, loadSkillsFromDir, type Skill } from "../src/core/skills.ts";
++import {
++	findSkillByInvocationName,
++	formatSkillsForPrompt,
++	loadSkills,
++	loadSkillsFromDir,
++	resolveBareNamespaceSkill,
++	type Skill,
++	validateNamespaceValue,
++} from "../src/core/skills.ts";
+ import { createSyntheticSourceInfo } from "../src/core/source-info.ts";
+ 
+ const fixturesDir = resolve(__dirname, "fixtures/skills");
+ const collisionFixturesDir = resolve(__dirname, "fixtures/skills-collision");
++const nsPackageDir = join(fixturesDir, "ns-package");
++const nsUserDir = join(fixturesDir, "ns-user-dir");
+ 
+ function createTestSkill(options: {
+ 	name: string;
+@@ -430,3 +440,199 @@ describe("skills", () => {
+ 		});
+ 	});
+ });
++
++describe("package namespaces", () => {
++	it("should rename skills under an associated path to ns:name", () => {
++		const { skills, diagnostics } = loadSkills({
++			cwd: fixturesDir,
++			agentDir: fixturesDir,
++			skillPaths: [join(nsPackageDir, "ns-one")],
++			includeDefaults: false,
++			namespaces: [{ path: join(nsPackageDir, "ns-one"), namespace: "solidforge" }],
++		});
++
++		expect(skills).toHaveLength(1);
++		expect(skills[0].name).toBe("solidforge:cross-source-review");
++		expect(skills[0].namespace).toBe("solidforge");
++		expect(skills[0].baseName).toBe("cross-source-review");
++		expect(diagnostics).toHaveLength(0);
++	});
++
++	it("should associate by parent dir of a SKILL.md path", () => {
++		const { skills } = loadSkills({
++			cwd: fixturesDir,
++			agentDir: fixturesDir,
++			skillPaths: [join(nsPackageDir, "ns-one", "SKILL.md")],
++			includeDefaults: false,
++			namespaces: [{ path: join(nsPackageDir, "ns-one"), namespace: "solidforge" }],
++		});
++
++		expect(skills[0].name).toBe("solidforge:cross-source-review");
++	});
++
++	it("should let a namespaced skill coexist with a same-named bare user skill", () => {
++		const { skills, diagnostics } = loadSkills({
++			cwd: fixturesDir,
++			agentDir: fixturesDir,
++			skillPaths: [nsUserDir, join(nsPackageDir, "ns-one")],
++			includeDefaults: false,
++			namespaces: [{ path: join(nsPackageDir, "ns-one"), namespace: "solidforge" }],
++		});
++
++		const names = skills.map((s) => s.name).sort();
++		expect(names).toEqual(["cross-source-review", "solidforge:cross-source-review"]);
++		expect(diagnostics.filter((d: ResourceDiagnostic) => d.type === "collision")).toHaveLength(0);
++	});
++
++	it("should report a collision on the composed name for two same-ns same-base skills", () => {
++		const { skills, diagnostics } = loadSkills({
++			cwd: fixturesDir,
++			agentDir: fixturesDir,
++			skillPaths: [join(nsPackageDir, "ns-one"), join(nsPackageDir, "ns-two-dup")],
++			includeDefaults: false,
++			namespaces: [
++				{ path: join(nsPackageDir, "ns-one"), namespace: "solidforge" },
++				{ path: join(nsPackageDir, "ns-two-dup"), namespace: "solidforge" },
++			],
++		});
++
++		expect(skills.filter((s) => s.name === "solidforge:cross-source-review")).toHaveLength(1);
++		const collision = diagnostics.find((d: ResourceDiagnostic) => d.type === "collision");
++		expect(collision?.collision?.name).toBe("solidforge:cross-source-review");
++	});
++
++	it("should namespace skills loaded from a directory resource path", () => {
++		const { skills } = loadSkills({
++			cwd: fixturesDir,
++			agentDir: fixturesDir,
++			skillPaths: [nsPackageDir],
++			includeDefaults: false,
++			namespaces: [{ path: nsPackageDir, namespace: "solidforge" }],
++		});
++
++		const names = skills.map((s) => s.name).sort();
++		expect(names).toEqual(["solidforge:cross-source-review", "solidforge:other-skill"]);
++	});
++});
++
++describe("validateNamespaceValue", () => {
++	it("should accept valid namespace values", () => {
++		expect(validateNamespaceValue("solidforge")).toEqual([]);
++		expect(validateNamespaceValue("a")).toEqual([]);
++		expect(validateNamespaceValue("ns-2")).toEqual([]);
++	});
++
++	it("should reject invalid namespace values", () => {
++		expect(validateNamespaceValue("Solidforge").length).toBeGreaterThan(0);
++		expect(validateNamespaceValue("a:b").length).toBeGreaterThan(0);
++		expect(validateNamespaceValue("-x").length).toBeGreaterThan(0);
++		expect(validateNamespaceValue("x-").length).toBeGreaterThan(0);
++		expect(validateNamespaceValue("a--b").length).toBeGreaterThan(0);
++		expect(validateNamespaceValue("x".repeat(65)).length).toBeGreaterThan(0);
++		expect(validateNamespaceValue("").length).toBeGreaterThan(0);
++	});
++});
++
++describe("findSkillByInvocationName", () => {
++	const makeSkill = (name: string): Skill =>
++		createTestSkill({
++			name,
++			description: "d",
++			filePath: `/tmp/${name.replace(/[^a-z-]/g, "_")}/SKILL.md`,
++			baseDir: `/tmp/${name.replace(/[^a-z-]/g, "_")}`,
++		}) as Skill;
++
++	function namespaced(name: string, ns: string): Skill {
++		const skill = makeSkill(`${ns}:${name}`);
++		skill.namespace = ns;
++		skill.baseName = name;
++		return skill;
++	}
++
++	it("should resolve an exact composed name", () => {
++		const skills = [namespaced("cross-source-review", "solidforge")];
++		expect(findSkillByInvocationName(skills, "solidforge:cross-source-review")?.name).toBe(
++			"solidforge:cross-source-review",
++		);
++	});
++
++	it("should fall back to a unique namespaced base name", () => {
++		const skills = [namespaced("cross-source-review", "solidforge")];
++		expect(findSkillByInvocationName(skills, "cross-source-review")?.name).toBe("solidforge:cross-source-review");
++	});
++
++	it("should not fall back when the requested name contains a colon", () => {
++		const skills = [namespaced("arm-tools", "solidforge")];
++		// baseName arm-tools requested with a colon-bearing string that is not the composed name
++		expect(findSkillByInvocationName(skills, "other:arm-tools")).toBeUndefined();
++	});
++
++	it("should not fall back when two namespaces claim the base name", () => {
++		const skills = [namespaced("utils", "a"), namespaced("utils", "b")];
++		expect(findSkillByInvocationName(skills, "utils")).toBeUndefined();
++	});
++
++	it("should prefer an exact bare owner over a namespaced fallback", () => {
++		const skills = [makeSkill("utils"), namespaced("utils", "a")];
++		expect(findSkillByInvocationName(skills, "utils")?.namespace).toBeUndefined();
++	});
++
++	it("should resolve the exact composed name even when a bare twin exists", () => {
++		const skills = [makeSkill("utils"), namespaced("utils", "a")];
++		expect(findSkillByInvocationName(skills, "a:utils")?.namespace).toBe("a");
++	});
++});
++
++describe("resolveBareNamespaceSkill", () => {
++	function namespaced(name: string, ns: string): Skill {
++		const skill = createTestSkill({
++			name: `${ns}:${name}`,
++			description: "d",
++			filePath: `/tmp/${ns}-${name}/SKILL.md`,
++			baseDir: `/tmp/${ns}-${name}`,
++		});
++		skill.namespace = ns;
++		skill.baseName = name;
++		return skill;
++	}
++
++	const skills = [namespaced("cross-source-review", "myorg"), namespaced("arm-tools", "myorg")];
++
++	it("should resolve a namespaced skill via the bare /ns:name form", () => {
++		const resolved = resolveBareNamespaceSkill("/myorg:cross-source-review", skills, []);
++		expect(resolved?.skill.name).toBe("myorg:cross-source-review");
++		expect(resolved?.args).toBe("");
++	});
++
++	it("should carry args", () => {
++		const resolved = resolveBareNamespaceSkill("/myorg:arm-tools --with-tools", skills, []);
++		expect(resolved?.skill.name).toBe("myorg:arm-tools");
++		expect(resolved?.args).toBe("--with-tools");
++	});
++
++	it("should yield to a prompt template owning the same name", () => {
++		const resolved = resolveBareNamespaceSkill("/myorg:arm-tools", skills, ["myorg:arm-tools"]);
++		expect(resolved).toBeUndefined();
++	});
++
++	it("should pass through colon-bearing names with no exact skill match", () => {
++		expect(resolveBareNamespaceSkill("/myorg:unknown", skills, [])).toBeUndefined();
++		expect(resolveBareNamespaceSkill("/other:cross-source-review", skills, [])).toBeUndefined();
++	});
++
++	it("should ignore non-colon names and /skill: prefixed text", () => {
++		expect(resolveBareNamespaceSkill("/cross-source-review", skills, [])).toBeUndefined();
++		expect(resolveBareNamespaceSkill("/skill:myorg:cross-source-review", skills, [])).toBeUndefined();
++		expect(resolveBareNamespaceSkill("plain text", skills, [])).toBeUndefined();
++	});
++
++	it("should resolve a colon-bearing frontmatter name by exact match", () => {
++		const odd = createTestSkill({
++			name: "weird:name",
++			description: "d",
++			filePath: "/tmp/weird/SKILL.md",
++			baseDir: "/tmp/weird",
++		});
++		expect(resolveBareNamespaceSkill("/weird:name", [odd], [])?.skill.name).toBe("weird:name");
++	});
++});
+-- 
+2.55.0
+

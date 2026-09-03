@@ -1,13 +1,13 @@
 {
 	"feature": "pi.namespace — opt-in package namespace for skills and prompt templates",
-	"patchVersion": "0.84.4-namespace.1",
+	"patchVersion": "0.84.4-namespace.2",
 	"baseTag": "v0.84.4",
 	"baseSha": "b79e4cc834970cca69daebffab7df1da7d1e52c4",
-	"featureCommit": "994a9cb0752babb8bce8c6aae7d73f3c0ee63734",
-	"versionStampCommit": "5cd7caeee8a4b0d4ea673898621447e8ad5517a2e",
-	"forkReleaseTag": "v0.84.4-namespace.1",
-	"tarballAsset": "earendil-works-pi-coding-agent-0.84.4-namespace.1.tgz",
-	"generatedAt": "2026-08-30",
+	"featureCommit": "caafb4daebf9df611d6e0ebbf3fb1ae028e62661",
+	"versionStampCommit": "7c99a8e92ee47091f1b64a78c93d32bbb8822bc1",
+	"forkReleaseTag": "v0.84.4-namespace.2",
+	"tarballAsset": "earendil-works-pi-coding-agent-0.84.4-namespace.2.tgz",
+	"generatedAt": "2026-09-03",
 	"upstreamProposal": "https://github.com/earendil-works/pi/issues/8834",
 	"install": {
 		"tierA_prebuilt": "npm install -g https://github.com/maskshell/pi/releases/download/v0.84.4-namespace.1/earendil-works-pi-coding-agent-0.84.4-namespace.1.tgz",
@@ -20,5 +20,6 @@
 		"check": "exit 0 (full chain incl. biome --error-on-warnings, tsgo, shrinkwrap + install-lock)",
 		"consumer": "solidforge-pi master (pi.namespace: solidforge) — https://github.com/maskshell/solidforge-pi"
 	},
-	"tracking": "PATCH-TRACKING.md (same directory); release monitor: .github/workflows/namespace-patch-tracker.yml on fork main"
+	"tracking": "PATCH-TRACKING.md (same directory); release monitor: .github/workflows/namespace-patch-tracker.yml on fork main",
+	"packageVersion": "0.84.4+namespace.2"
 }
