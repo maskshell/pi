@@ -1,0 +1,75 @@
+name: namespace-patch-tracker
+
+# Monitors upstream earendil-works/pi releases against the base recorded in
+# patch/MANIFEST.json on the namespace-patch branch. On a new release, opens
+# (or updates) a patch-tracking issue in this fork. The re-base itself is a
+# manual harness step — see patch/PATCH-TRACKING.md on the namespace-patch
+# branch for the procedure this trigger feeds.
+
+on:
+  schedule:
+    - cron: "23 4 * * *" # daily, off-peak
+  workflow_dispatch: {}
+
+permissions:
+  issues: write
+  contents: read
+
+concurrency:
+  group: namespace-patch-tracker
+  cancel-in-progress: false
+
+jobs:
+  track:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Compare upstream latest release with patch base
+        id: compare
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          LATEST=$(gh api repos/earendil-works/pi/releases/latest --jq .tag_name)
+          BASE=$(curl -fsS "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/namespace-patch/patch/MANIFEST.json" | jq -r .baseTag)
+          echo "latest=$LATEST base=$BASE"
+          {
+            echo "latest=$LATEST"
+            echo "base=$BASE"
+          } >> "$GITHUB_OUTPUT"
+          if [ "$LATEST" != "$BASE" ]; then
+            RELEASE_URL=$(gh api repos/earendil-works/pi/releases/latest --jq .html_url)
+            {
+              echo "release_url=$RELEASE_URL"
+              echo "needs_update=true"
+            } >> "$GITHUB_OUTPUT"
+          else
+            echo "release_url=" >> "$GITHUB_OUTPUT"
+            echo "needs_update=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Open or update the tracking issue
+        if: steps.compare.outputs.needs_update == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LATEST: ${{ steps.compare.outputs.latest }}
+          BASE: ${{ steps.compare.outputs.base }}
+          RELEASE_URL: ${{ steps.compare.outputs.release_url }}
+        run: |
+          set -euo pipefail
+          TITLE="patch-tracking: pi.namespace -> $LATEST"
+          BODY="$(cat <<EOF
+          The upstream release $LATEST is out; the maintained pi.namespace patch still tracks $BASE.
+
+          - Release notes: $RELEASE_URL
+          - Procedure: [PATCH-TRACKING.md](https://github.com/${GITHUB_REPOSITORY}/blob/namespace-patch/patch/PATCH-TRACKING.md) (steps 2-5: re-base, verify, close this issue, notify the upstream proposal)
+          - Manifest to update: [patch/MANIFEST.json](https://github.com/${GITHUB_REPOSITORY}/blob/namespace-patch/patch/MANIFEST.json) (baseTag $BASE -> $LATEST)
+          EOF
+          )"
+          EXISTING=$(gh issue list --repo "$GITHUB_REPOSITORY" --label patch-tracking --state open --json number,title --jq ".[] | select(.title == \"$TITLE\") | .number" | head -n1)
+          if [ -n "$EXISTING" ]; then
+            echo "Tracking issue #$EXISTING already open — refreshing body."
+            gh issue edit "$EXISTING" --repo "$GITHUB_REPOSITORY" --body "$BODY"
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$TITLE" --body "$BODY" --label patch-tracking || \
+              gh issue create --repo "$GITHUB_REPOSITORY" --title "$TITLE" --body "$BODY"
+          fi
