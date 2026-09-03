@@ -197,12 +197,13 @@ jobs:
         run: |
           set -euo pipefail
           cd /tmp/work
-          OLD_MANIFEST=$(git show origin/namespace-patch:patch/MANIFEST.json)
-          TAG=$(jq -n --argjson m "$OLD_MANIFEST" '$m.forkReleaseTag')
-          ASSET=$(jq -n --argjson m "$OLD_MANIFEST" '$m.tarballAsset')
+          git show origin/namespace-patch:patch/MANIFEST.json > /tmp/old-manifest.json
+          TAG=$(jq -r .forkReleaseTag /tmp/old-manifest.json)
+          ASSET=$(jq -r .tarballAsset /tmp/old-manifest.json)
+          BASE_NUM=$(jq -r .baseTag /tmp/old-manifest.json | tr -d v)
           echo ">> agent pin: $TAG / $ASSET"
           npm install -g "https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${ASSET}" \
-            || npm install -g "@earendil-works/pi-coding-agent@$(jq -n --argjson m "$OLD_MANIFEST" '$m.baseTag' | tr -d 'v"')" \
+            || npm install -g "@earendil-works/pi-coding-agent@${BASE_NUM}" \
             || { echo ">> no installable agent pin"; exit 1; }
           pi --version
 
