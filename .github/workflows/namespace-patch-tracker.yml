@@ -176,8 +176,8 @@ jobs:
 
       - name: Restore worktree
         run: |
-          mkdir -p ~/work && tar -xzf /tmp/state/patch-state.tgz -C ~/work
-          cd ~/work && git config user.email agent@maskshell.github && git config user.name "patch-repair-agent"
+          mkdir -p /tmp/work && tar -xzf /tmp/state/patch-state.tgz -C /tmp/work
+          cd /tmp/work && git config user.email agent@maskshell.github && git config user.name "patch-repair-agent"
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -185,7 +185,7 @@ jobs:
 
       - name: Install deps
         run: |
-          cd ~/work
+          cd /tmp/work
           npm ci --no-audit --no-fund
           npm run hydrate:model-data
           mkdir -p /tmp/ci
@@ -196,7 +196,7 @@ jobs:
       - name: Install the pinned agent pi (current released patch — self-hosting)
         run: |
           set -euo pipefail
-          cd ~/work
+          cd /tmp/work
           OLD_MANIFEST=$(git show origin/namespace-patch:patch/MANIFEST.json)
           TAG=$(jq -n --argjson m "$OLD_MANIFEST" '$m.forkReleaseTag')
           ASSET=$(jq -n --argjson m "$OLD_MANIFEST" '$m.tarballAsset')
@@ -207,7 +207,7 @@ jobs:
           pi --version
 
       - name: Agentic repair (headless pi, wall-clock breaker)
-        working-directory: ~/work
+        working-directory: /tmp/work
         env:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           TARGET_TAG: ${{ needs.detect.outputs.target_tag }}
@@ -244,12 +244,12 @@ jobs:
             "Repair the pi.namespace patch re-base onto ${TARGET_TAG}. Work in $(pwd): inspect failure-context.txt, git status, and gate-results.txt first. Report at the end: what failed, what you changed, and the final gate status."
 
       - name: Post-agent verification (trust but verify)
-        working-directory: ~/work
+        working-directory: /tmp/work
         run: /tmp/ci/verify.sh
 
       - name: Push branch + open PR (on green)
         if: success()
-        working-directory: ~/work
+        working-directory: /tmp/work
         env:
           GH_TOKEN: ${{ github.token }}
           TARGET: ${{ needs.detect.outputs.target_tag }}
