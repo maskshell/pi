@@ -56,7 +56,9 @@ jobs:
           {
             echo "target_tag=$TARGET"
             echo "base_tag=$BASE"
-            if [ "$TARGET" != "$BASE" ]; then
+            # An explicit force_target always runs the pipeline (test mode);
+            # otherwise run only when the target differs from the base.
+            if [ -n "$FORCE_TARGET" ] || [ "$TARGET" != "$BASE" ]; then
             echo "needs_update=true"
             else
             echo "needs_update=false"
@@ -64,7 +66,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Open or update the tracking issue
-        if: steps.compare.outputs.needs_update == 'true'
+        if: steps.compare.outputs.needs_update == 'true' && github.event.inputs.force_target == ''
         id: issue
         env:
           GH_TOKEN: ${{ github.token }}
@@ -149,6 +151,8 @@ jobs:
           ISSUE: ${{ needs.detect.outputs.issue_number }}
         run: |
           set -euo pipefail
+          ISSUE_LINE=""
+          [ -n "$ISSUE" ] && ISSUE_LINE="Tracking issue: #$ISSUE."
           git push -f origin namespace-patch-next
           if gh pr list --repo "$GITHUB_REPOSITORY" --head namespace-patch-next --json number --jq 'length' | grep -q '^0$'; then
             gh pr create --repo "$GITHUB_REPOSITORY" \
@@ -156,7 +160,7 @@ jobs:
               --title "patch: track ${TARGET} (mechanical re-base)" \
               --body "Automated L1 mechanical re-base onto ${TARGET}: cherry-pick clean, version stamp + artifacts regenerated, all gates green (npm run check, four touched suites, build).
 
-          Tracking issue: #$ISSUE. On merge, the harness cuts the fork release per PATCH-TRACKING.md step 4 (P3 automation pending)."
+          ${ISSUE_LINE} On merge, the harness cuts the fork release per PATCH-TRACKING.md step 4 (P3 automation pending)."
           fi
 
   l2-repair:
@@ -252,6 +256,8 @@ jobs:
           ISSUE: ${{ needs.detect.outputs.issue_number }}
         run: |
           set -euo pipefail
+          ISSUE_LINE=""
+          [ -n "$ISSUE" ] && ISSUE_LINE="Tracking issue: #$ISSUE."
           git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" namespace-patch-next
           if gh pr list --repo "$GITHUB_REPOSITORY" --head namespace-patch-next --json number --jq 'length' | grep -q '^0$'; then
             gh pr create --repo "$GITHUB_REPOSITORY" \
@@ -259,7 +265,7 @@ jobs:
               --title "patch: track ${TARGET} (agent-repaired)" \
               --body "L1 failed; the L2 agent (pinned to the currently-released patched pi) resolved it and the pipeline re-verified all gates green.
 
-          Tracking issue: #$ISSUE. On merge, the harness cuts the fork release per PATCH-TRACKING.md step 4."
+          ${ISSUE_LINE} On merge, the harness cuts the fork release per PATCH-TRACKING.md step 4."
           fi
 
       - name: Escalate on tracking issue (still red)
