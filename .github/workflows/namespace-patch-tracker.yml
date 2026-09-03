@@ -1,78 +1,272 @@
 name: namespace-patch-tracker
 
-# Monitors upstream earendil-works/pi releases against the base recorded in
-# patch/MANIFEST.json on the namespace-patch branch. On a new release, opens
-# (or updates) a patch-tracking issue in this fork. The re-base itself is a
-# manual harness step — see patch/PATCH-TRACKING.md on the namespace-patch
-# branch for the procedure this trigger feeds.
+# Release-tracked maintenance of the pi.namespace patch.
+#
+#   detect  — compare upstream latest release with patch/MANIFEST.json baseTag
+#             (daily cron / dispatch; force_target overrides for testing) and
+#             open/refresh a patch-tracking issue
+#   l1      — mechanical re-base on the new tag (cherry-pick + stamp + artifact
+#             regen + full gates); green -> auto-PR; failure -> upload state
+#   l2      — agentic repair on L1 failure: pinned to the CURRENTLY RELEASED
+#             patched pi (self-hosting: patch N repairs toward patch N+1),
+#             deepseek-routed headless agent with wall-clock breaker; verified
+#             again post-agent; green -> PR, red -> escalate on the issue
+#
+# Procedure contract: patch/PATCH-TRACKING.md on the namespace-patch branch.
+# Publish (release cut + upstream comment) stays a manual harness step (P3).
 
 on:
   schedule:
-    - cron: "23 4 * * *" # daily, off-peak
-  workflow_dispatch: {}
+    - cron: "23 4 * * *"
+  workflow_dispatch:
+    inputs:
+      force_target:
+        description: "Override target tag (e.g. v0.84.4) to force/test the pipeline"
+        required: false
+        default: ""
 
 permissions:
+  contents: write
+  pull-requests: write
   issues: write
-  contents: read
 
 concurrency:
   group: namespace-patch-tracker
   cancel-in-progress: false
 
 jobs:
-  track:
+  detect:
     runs-on: ubuntu-latest
+    outputs:
+      needs_update: ${{ steps.compare.outputs.needs_update }}
+      target_tag: ${{ steps.compare.outputs.target_tag }}
+      issue_number: ${{ steps.issue.outputs.number }}
     steps:
       - name: Compare upstream latest release with patch base
         id: compare
         env:
           GH_TOKEN: ${{ github.token }}
+          FORCE_TARGET: ${{ github.event.inputs.force_target }}
         run: |
           set -euo pipefail
           LATEST=$(gh api repos/earendil-works/pi/releases/latest --jq .tag_name)
           BASE=$(curl -fsS "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/namespace-patch/patch/MANIFEST.json" | jq -r .baseTag)
-          echo "latest=$LATEST base=$BASE"
+          TARGET="${FORCE_TARGET:-$LATEST}"
+          echo "latest=$LATEST base=$BASE target=$TARGET"
           {
-            echo "latest=$LATEST"
-            echo "base=$BASE"
+            echo "target_tag=$TARGET"
+            echo "base_tag=$BASE"
+            if [ "$TARGET" != "$BASE" ]; then
+            echo "needs_update=true"
+            else
+            echo "needs_update=false"
+            fi
           } >> "$GITHUB_OUTPUT"
-          if [ "$LATEST" != "$BASE" ]; then
-            RELEASE_URL=$(gh api repos/earendil-works/pi/releases/latest --jq .html_url)
-            {
-              echo "release_url=$RELEASE_URL"
-              echo "needs_update=true"
-            } >> "$GITHUB_OUTPUT"
-          else
-            echo "release_url=" >> "$GITHUB_OUTPUT"
-            echo "needs_update=false" >> "$GITHUB_OUTPUT"
-          fi
 
       - name: Open or update the tracking issue
         if: steps.compare.outputs.needs_update == 'true'
+        id: issue
         env:
           GH_TOKEN: ${{ github.token }}
-          LATEST: ${{ steps.compare.outputs.latest }}
-          BASE: ${{ steps.compare.outputs.base }}
-          RELEASE_URL: ${{ steps.compare.outputs.release_url }}
+          TARGET: ${{ steps.compare.outputs.target_tag }}
+          BASE: ${{ steps.compare.outputs.base_tag }}
         run: |
           set -euo pipefail
           gh label create patch-tracking --repo "$GITHUB_REPOSITORY" \
             --description "pi.namespace patch needs tracking of a new upstream release" \
             --color 5319e7 2>/dev/null || true
-          TITLE="patch-tracking: pi.namespace -> $LATEST"
+          TITLE="patch-tracking: pi.namespace -> $TARGET"
           BODY="$(cat <<EOF
-          The upstream release $LATEST is out; the maintained pi.namespace patch still tracks $BASE.
+          The pi.namespace patch needs to track upstream release $TARGET (current base: $BASE).
 
-          - Release notes: $RELEASE_URL
-          - Procedure: [PATCH-TRACKING.md](https://github.com/${GITHUB_REPOSITORY}/blob/namespace-patch/patch/PATCH-TRACKING.md) (steps 2-5: re-base, verify, close this issue, notify the upstream proposal)
-          - Manifest to update: [patch/MANIFEST.json](https://github.com/${GITHUB_REPOSITORY}/blob/namespace-patch/patch/MANIFEST.json) (baseTag $BASE -> $LATEST)
+          - Procedure: [PATCH-TRACKING.md](https://github.com/${GITHUB_REPOSITORY}/blob/namespace-patch/patch/PATCH-TRACKING.md)
+          - This issue is also the escalation target for the automated pipeline (L1 mechanical re-base -> L2 agentic repair on failure).
           EOF
           )"
           EXISTING=$(gh issue list --repo "$GITHUB_REPOSITORY" --label patch-tracking --state open --json number,title --jq ".[] | select(.title == \"$TITLE\") | .number" | head -n1)
           if [ -n "$EXISTING" ]; then
-            echo "Tracking issue #$EXISTING already open — refreshing body."
-            gh issue edit "$EXISTING" --repo "$GITHUB_REPOSITORY" --body "$BODY"
+            gh issue edit "$EXISTING" --repo "$GITHUB_REPOSITORY" --body "$BODY" >/dev/null
+            echo "number=$EXISTING" >> "$GITHUB_OUTPUT"
           else
-            gh issue create --repo "$GITHUB_REPOSITORY" --title "$TITLE" --body "$BODY" --label patch-tracking || \
-              gh issue create --repo "$GITHUB_REPOSITORY" --title "$TITLE" --body "$BODY"
+            URL=$(gh issue create --repo "$GITHUB_REPOSITORY" --title "$TITLE" --body "$BODY" --label patch-tracking)
+            echo "number=$(basename "$URL")" >> "$GITHUB_OUTPUT"
           fi
+
+  l1-mechanical:
+    needs: detect
+    if: needs.detect.outputs.needs_update == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: namespace-patch
+          fetch-depth: 0
+          fetch-tags: true
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      - name: Install deps
+        run: |
+          npm ci --no-audit --no-fund
+          npm run hydrate:model-data
+
+      - name: Mechanical re-base (cherry-pick + stamp + artifacts)
+        run: |
+          mkdir -p /tmp/ci && cp patch/ci/*.sh /tmp/ci/ && chmod +x /tmp/ci/*.sh
+          /tmp/ci/mechanical-rebase.sh "${{ needs.detect.outputs.target_tag }}"
+
+      - name: Verify (gates)
+        run: /tmp/ci/verify.sh
+
+      - name: Upload state for L2 (on failure)
+        if: failure()
+        run: |
+          {
+            echo "failed-run: $GITHUB_RUN_URL"
+            echo "target-tag: ${{ needs.detect.outputs.target_tag }}"
+            echo "unmerged:"; git ls-files --unmerged || true
+            echo "status:"; git status --short || true
+            [ -f gate-results.txt ] && { echo "gate-results:"; cat gate-results.txt; } || true
+          } > failure-context.txt
+          tar --exclude=node_modules -czf /tmp/patch-state.tgz .
+          echo "state_size=$(du -h /tmp/patch-state.tgz | cut -f1)"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: failure()
+        with:
+          name: patch-state
+          path: /tmp/patch-state.tgz
+          retention-days: 7
+
+      - name: Push branch + open PR (on success)
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET: ${{ needs.detect.outputs.target_tag }}
+          ISSUE: ${{ needs.detect.outputs.issue_number }}
+        run: |
+          set -euo pipefail
+          git push -f origin namespace-patch-next
+          if gh pr list --repo "$GITHUB_REPOSITORY" --head namespace-patch-next --json number --jq 'length' | grep -q '^0$'; then
+            gh pr create --repo "$GITHUB_REPOSITORY" \
+              --base namespace-patch --head namespace-patch-next \
+              --title "patch: track ${TARGET} (mechanical re-base)" \
+              --body "Automated L1 mechanical re-base onto ${TARGET}: cherry-pick clean, version stamp + artifacts regenerated, all gates green (npm run check, four touched suites, build).
+
+          Tracking issue: #$ISSUE. On merge, the harness cuts the fork release per PATCH-TRACKING.md step 4 (P3 automation pending)."
+          fi
+
+  l2-repair:
+    needs: [detect, l1-mechanical]
+    if: failure() && needs.detect.outputs.needs_update == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: patch-state
+          path: /tmp/state
+
+      - name: Restore worktree
+        run: |
+          mkdir -p ~/work && tar -xzf /tmp/state/patch-state.tgz -C ~/work
+          cd ~/work && git config user.email agent@maskshell.github && git config user.name "patch-repair-agent"
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      - name: Install deps
+        run: |
+          cd ~/work
+          npm ci --no-audit --no-fund
+          npm run hydrate:model-data
+          mkdir -p /tmp/ci
+          git show origin/namespace-patch:patch/ci/mechanical-rebase.sh > /tmp/ci/mechanical-rebase.sh
+          git show origin/namespace-patch:patch/ci/verify.sh > /tmp/ci/verify.sh
+          chmod +x /tmp/ci/*.sh
+
+      - name: Install the pinned agent pi (current released patch — self-hosting)
+        run: |
+          set -euo pipefail
+          cd ~/work
+          OLD_MANIFEST=$(git show origin/namespace-patch:patch/MANIFEST.json)
+          TAG=$(jq -n --argjson m "$OLD_MANIFEST" '$m.forkReleaseTag')
+          ASSET=$(jq -n --argjson m "$OLD_MANIFEST" '$m.tarballAsset')
+          echo ">> agent pin: $TAG / $ASSET"
+          npm install -g "https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${ASSET}" \
+            || npm install -g "@earendil-works/pi-coding-agent@$(jq -n --argjson m "$OLD_MANIFEST" '$m.baseTag' | tr -d 'v"')" \
+            || { echo ">> no installable agent pin"; exit 1; }
+          pi --version
+
+      - name: Agentic repair (headless pi, wall-clock breaker)
+        working-directory: ~/work
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          TARGET_TAG: ${{ needs.detect.outputs.target_tag }}
+          ISSUE: ${{ needs.detect.outputs.issue_number }}
+        run: |
+          set -euo pipefail
+          cat > /tmp/agent-rules.md <<'RULES'
+          You are the L2 repair agent for the pi.namespace patch pipeline.
+          Rules of engagement (PATCH-TRACKING.md on the origin/namespace-patch
+          branch is the full contract — read it):
+          - The L1 mechanical re-base onto a new upstream release tag failed
+            (cherry-pick conflict and/or a verification gate). Finish the job.
+          - If git shows unmerged paths: resolve conflicts in favor of
+            semantic correctness (upstream refactors may rename or move the
+            patched surfaces; adapt the patch, do not blindly take either
+            side), then run /tmp/ci/mechanical-rebase.sh "$TARGET_TAG" (it
+            resumes from conflict state and completes stamp + artifacts).
+          - If instead a gate failed (see failure-context.txt / gate-results.txt):
+            fix the cause with the smallest change consistent with the
+            feature's design, then run /tmp/ci/verify.sh.
+          - Constraints: touch only the patch's own surfaces
+            (packages/coding-agent/{src,test,docs}, lockfiles, patch/);
+            never rewrite upstream commits; commit with --no-verify is
+            allowed (the pipeline re-runs gates after you exit); iterate
+            until /tmp/ci/verify.sh is fully green or you determine it
+            cannot be — then write /tmp/at-risk.md with the reason.
+          - Budget: hard 90-minute wall clock. Prefer small verified steps
+            over large speculative ones.
+          RULES
+          timeout 5400 pi --mode text -p --no-session \
+            --provider deepseek --model deepseek-v4-flash --thinking high \
+            --tools read,bash,edit,write \
+            --append-system-prompt /tmp/agent-rules.md \
+            "Repair the pi.namespace patch re-base onto ${TARGET_TAG}. Work in $(pwd): inspect failure-context.txt, git status, and gate-results.txt first. Report at the end: what failed, what you changed, and the final gate status."
+
+      - name: Post-agent verification (trust but verify)
+        working-directory: ~/work
+        run: /tmp/ci/verify.sh
+
+      - name: Push branch + open PR (on green)
+        if: success()
+        working-directory: ~/work
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET: ${{ needs.detect.outputs.target_tag }}
+          ISSUE: ${{ needs.detect.outputs.issue_number }}
+        run: |
+          set -euo pipefail
+          git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" namespace-patch-next
+          if gh pr list --repo "$GITHUB_REPOSITORY" --head namespace-patch-next --json number --jq 'length' | grep -q '^0$'; then
+            gh pr create --repo "$GITHUB_REPOSITORY" \
+              --base namespace-patch --head namespace-patch-next \
+              --title "patch: track ${TARGET} (agent-repaired)" \
+              --body "L1 failed; the L2 agent (pinned to the currently-released patched pi) resolved it and the pipeline re-verified all gates green.
+
+          Tracking issue: #$ISSUE. On merge, the harness cuts the fork release per PATCH-TRACKING.md step 4."
+          fi
+
+      - name: Escalate on tracking issue (still red)
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE: ${{ needs.detect.outputs.issue_number }}
+          TARGET: ${{ needs.detect.outputs.target_tag }}
+        run: |
+          gh issue comment "$ISSUE" --repo "$GITHUB_REPOSITORY" --body "Automated pipeline could not bring the patch to ${TARGET}: L1 (mechanical) and L2 (agentic repair, wall-clock bounded) both failed. Manual harness attention needed per PATCH-TRACKING.md (at-risk criteria apply). Run log: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
