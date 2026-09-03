@@ -56,6 +56,9 @@ jobs:
           RELEASE_URL: ${{ steps.compare.outputs.release_url }}
         run: |
           set -euo pipefail
+          gh label create patch-tracking --repo "$GITHUB_REPOSITORY" \
+            --description "pi.namespace patch needs tracking of a new upstream release" \
+            --color 5319e7 2>/dev/null || true
           TITLE="patch-tracking: pi.namespace -> $LATEST"
           BODY="$(cat <<EOF
           The upstream release $LATEST is out; the maintained pi.namespace patch still tracks $BASE.
