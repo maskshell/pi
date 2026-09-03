@@ -120,6 +120,9 @@ jobs:
           mkdir -p /tmp/ci && cp patch/ci/*.sh /tmp/ci/ && chmod +x /tmp/ci/*.sh
           /tmp/ci/mechanical-rebase.sh "${{ needs.detect.outputs.target_tag }}"
 
+      - name: Re-sync node_modules (the re-base regenerated the lock)
+        run: npm ci --no-audit --no-fund
+
       - name: Verify (gates)
         run: /tmp/ci/verify.sh
 
@@ -155,12 +158,21 @@ jobs:
           [ -n "$ISSUE" ] && ISSUE_LINE="Tracking issue: #$ISSUE."
           git push -f origin namespace-patch-next
           if gh pr list --repo "$GITHUB_REPOSITORY" --head namespace-patch-next --json number --jq 'length' | grep -q '^0$'; then
+            BODY="Automated L1 mechanical re-base onto ${TARGET}: cherry-pick clean, version stamp + artifacts regenerated, all gates green (npm run check, four touched suites, build).
+
+          ${ISSUE_LINE} On merge, the harness cuts the fork release per PATCH-TRACKING.md step 4 (P3 automation pending)."
             gh pr create --repo "$GITHUB_REPOSITORY" \
               --base namespace-patch --head namespace-patch-next \
               --title "patch: track ${TARGET} (mechanical re-base)" \
-              --body "Automated L1 mechanical re-base onto ${TARGET}: cherry-pick clean, version stamp + artifacts regenerated, all gates green (npm run check, four touched suites, build).
-
-          ${ISSUE_LINE} On merge, the harness cuts the fork release per PATCH-TRACKING.md step 4 (P3 automation pending)."
+              --body "$BODY" || {
+              echo ">> gh pr create not permitted for GITHUB_TOKEN — compare-link fallback"
+              COMPARE="https://github.com/${GITHUB_REPOSITORY}/compare/namespace-patch...namespace-patch-next?expand=1"
+              if [ -n "$ISSUE" ]; then
+                NOTE="L1 mechanical re-base onto ${TARGET} is green on namespace-patch-next. Open the PR: ${COMPARE}"
+                gh issue comment "$ISSUE" --repo "$GITHUB_REPOSITORY" --body "$NOTE"
+              fi
+              echo "PR ready to open: ${COMPARE}"
+            }
           fi
 
   l2-repair:
@@ -261,16 +273,25 @@ jobs:
           [ -n "$ISSUE" ] && ISSUE_LINE="Tracking issue: #$ISSUE."
           git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" namespace-patch-next
           if gh pr list --repo "$GITHUB_REPOSITORY" --head namespace-patch-next --json number --jq 'length' | grep -q '^0$'; then
+            BODY="L1 failed; the L2 agent (pinned to the currently-released patched pi) resolved it and the pipeline re-verified all gates green.
+
+          ${ISSUE_LINE} On merge, the harness cuts the fork release per PATCH-TRACKING.md step 4."
             gh pr create --repo "$GITHUB_REPOSITORY" \
               --base namespace-patch --head namespace-patch-next \
               --title "patch: track ${TARGET} (agent-repaired)" \
-              --body "L1 failed; the L2 agent (pinned to the currently-released patched pi) resolved it and the pipeline re-verified all gates green.
-
-          ${ISSUE_LINE} On merge, the harness cuts the fork release per PATCH-TRACKING.md step 4."
+              --body "$BODY" || {
+              echo ">> gh pr create not permitted for GITHUB_TOKEN — compare-link fallback"
+              COMPARE="https://github.com/${GITHUB_REPOSITORY}/compare/namespace-patch...namespace-patch-next?expand=1"
+              if [ -n "$ISSUE" ]; then
+                NOTE="L2 agent-repaired re-base onto ${TARGET} is green on namespace-patch-next. Open the PR: ${COMPARE}"
+                gh issue comment "$ISSUE" --repo "$GITHUB_REPOSITORY" --body "$NOTE"
+              fi
+              echo "PR ready to open: ${COMPARE}"
+            }
           fi
 
       - name: Escalate on tracking issue (still red)
-        if: failure()
+        if: failure() && needs.detect.outputs.issue_number != ''
         env:
           GH_TOKEN: ${{ github.token }}
           ISSUE: ${{ needs.detect.outputs.issue_number }}
