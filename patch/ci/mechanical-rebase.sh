@@ -4,8 +4,9 @@
 #
 # Preconditions: cwd = a git checkout of this repo with namespace-patch
 # fetched; node/npm available; `npm ci` already run (stamp regen touches
-# lockfiles). Conflict state (unmerged paths) is RESUMED, not restarted —
-# the L2 agent resolves conflicts, then reruns this script.
+# lockfiles). The upstream release tag is fetched on demand — CI checkouts
+# carry only fork refs. Conflict state (unmerged paths) is RESUMED, not
+# restarted — the L2 agent resolves conflicts, then reruns this script.
 #
 # Usage: mechanical-rebase.sh <new-tag>       # e.g. v0.85.0
 # Exit:  0 done (feature/stamp/artifacts commits on namespace-patch-next)
@@ -33,6 +34,17 @@ BRANCH="namespace-patch-next"
 
 echo ">> rebase: ${OLD_NUM} -> ${NEW_VER} [display ${DISPLAY_VER}] (base ${NEW_TAG})"
 
+# Runner checkouts of the fork carry no upstream remote and no upstream
+# release tags — `git checkout -B <branch> v0.85.0` dies with exit 128
+# ("not a commit"). Fetch the tag from upstream by URL when the local
+# repo cannot resolve it. Also covers the resume path: the MANIFEST update
+# at the end rev-parses the tag.
+if ! git rev-parse -q --verify "refs/tags/${NEW_TAG}^{commit}" >/dev/null 2>&1; then
+	echo ">> tag ${NEW_TAG} absent locally — fetching from upstream"
+	git fetch --no-tags https://github.com/earendil-works/pi.git \
+		"refs/tags/${NEW_TAG}:refs/tags/${NEW_TAG}"
+fi
+
 # Runners/plain checkouts may carry no git identity; cherry-pick/commit need
 # one. Local-only, does not touch global config.
 if ! git config user.email >/dev/null 2>&1; then
@@ -59,10 +71,14 @@ fi
 FEATURE_SHA="$(git rev-parse HEAD)"
 
 echo ">> version stamp ${NEW_VER}"
-python3 - "$OLD_NUM" "$NEW_VER" <<'PY'
+# Match the NEW base's versions, not the old ones: on a fresh release tag
+# every package.json says <NEW_NUM> (upstream lockstep bump), while a
+# same-tag rerun carries <NEW_NUM>(+/-)namespace.N. Matching OLD_NUM would
+# bump zero files across versions and the stamp commit would die empty.
+python3 - "$NEW_NUM" "$NEW_VER" <<'PY'
 import json, glob, re, sys
-old, new = sys.argv[1], sys.argv[2]
-pat = re.compile(r"^" + re.escape(old) + r"([+-]namespace\.\d+)?$")
+base, new = sys.argv[1], sys.argv[2]
+pat = re.compile(r"^" + re.escape(base) + r"([+-]namespace\.\d+)?$")
 n = 0
 for f in sorted(glob.glob("packages/**/package.json", recursive=True)):
     if "node_modules" in f or "/examples/" in f:
@@ -72,7 +88,7 @@ for f in sorted(glob.glob("packages/**/package.json", recursive=True)):
     except Exception:
         continue
     v = d.get("version", "")
-    if v == old or pat.match(v):
+    if v == base or pat.match(v):
         d["version"] = new
         json.dump(d, open(f, "w"), indent="\t", ensure_ascii=False)
         open(f, "a").write("\n")
@@ -117,7 +133,10 @@ for lf in ["package-lock.json"]:
         _json.dump(lock, open(lf, "w"), indent=2)
         print(f"stripped {removed} overlay entries from {lf}")
 SCRUB
-git add -A
+# Stage everything EXCEPT patch/: the restored artifact dir is committed by
+# the track step below, so version-stamp.patch stays version+lockfile-only
+# (git add -A here would embed the whole patch/ dir into the stamp commit).
+git add -A -- . ':!patch'
 git commit -q --no-verify -m "patch: version stamp ${DISPLAY_VER} (fork build identification)"
 STAMP_SHA="$(git rev-parse HEAD)"
 
