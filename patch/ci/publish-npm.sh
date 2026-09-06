@@ -136,10 +136,64 @@ if s is not None:
     open(sh, "a").write("\n")
 PY
 
-README="$PKG/README.md"
-if [ -f "$README" ]; then
-	printf '<!-- pi-namespace-patch is the maskshell fork build of pi carrying the pi.namespace patch (earendil-works/pi#8834). Upstream project: earendil-works/pi. Fork source + release-tracked patches: https://github.com/maskshell/pi (namespace-patch branch). This README below is upstream'"'"'s. -->\n\n' | cat - "$README" > "$README.new" && mv "$README.new" "$README"
-fi
+# Storefront README: this is a FORK alias, not the official pi package.
+# Shipping upstream's README verbatim makes the npm page read as the
+# official package (the earlier prepend-an-HTML-comment approach is
+# invisible in the rendered page). Dedicated fork README; product docs
+# stay a link to upstream.
+DISPLAY_TGZ="$(basename "$TARBALL")"
+DISPLAY_VER="${DISPLAY_TGZ#earendil-works-pi-coding-agent-}"
+DISPLAY_VER="${DISPLAY_VER%.tgz}"
+GH_ASSET_URL="https://github.com/maskshell/pi/releases/download/v${DISPLAY_VER}/${DISPLAY_TGZ}"
+python3 - "$PKG" "${DISPLAY_VER}" "${GH_ASSET_URL}" <<'PY'
+import json, sys
+pkg, display, url = sys.argv[1:4]
+version = json.load(open(f"{pkg}/package.json")).get("version", "")
+plus = display.replace("-namespace.", "+namespace.") if "-namespace." in display else display
+readme = f"""# pi-namespace-patch
+
+The [`pi`](https://github.com/earendil-works/pi) coding agent — **maskshell fork build** carrying the
+[`pi.namespace`](https://github.com/earendil-works/pi/issues/8834) patch: an opt-in package namespace
+for skills and prompt templates. A package declaring `"pi": {{ "namespace": "myorg" }}` exposes
+its skills and prompt templates as `<ns>:<name>` (`/skill:myorg:foo`, `/myorg:foo`); resource
+content stays untouched and bare user/project names coexist.
+
+This is not the official package. It tracks upstream releases as a
+[release-managed patch](https://github.com/maskshell/pi/tree/namespace-patch/patch) — everything
+else is upstream pi. Product documentation: the
+[upstream README](https://github.com/earendil-works/pi).
+
+## Install
+
+```bash
+npm install -g pi-namespace-patch
+pi --version   # {version} (this alias)
+```
+
+Pinned to this release / registry-free — same build; the GitHub tarball reports the
+workspace-stamped form `{plus}`:
+
+```bash
+npm install -g {url}
+```
+
+## Version scheme
+
+Registry versions use the prerelease form `X.Y.Z-namespace.N`, matching the fork's release tags:
+npm collapses semver build metadata, so the workspace's `X.Y.Z+namespace.N` form cannot be reused
+here, and the registry suffix may run ahead of the release suffix when a re-publish occupies a new
+slot. Pin exact versions (`pi-namespace-patch@{version}`), not ranges.
+
+## Provenance
+
+Each alias version is derived from the verified GitHub release asset (never rebuilt) and published
+via trusted publishing (OIDC) with provenance attached. Sources and lifecycle:
+[maskshell/pi](https://github.com/maskshell/pi), branch `namespace-patch`.
+
+License: MIT (as upstream).
+"""
+open(f"{pkg}/README.md", "w").write(readme)
+PY
 
 VERSION="$(python3 -c "import json; print(json.load(open('$PKG/package.json'))['version'])")"
 
