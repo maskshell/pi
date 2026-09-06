@@ -10,8 +10,8 @@ was closed NOT_PLANNED. Everything else tracks upstream.
 ## Install the patched pi (one line)
 
 ```bash
-npm install -g https://github.com/maskshell/pi/releases/download/v0.84.4-namespace.1/earendil-works-pi-coding-agent-0.84.4-namespace.1.tgz
-pi --version   # 0.84.4-namespace.1
+npm install -g https://github.com/maskshell/pi/releases/download/v0.85.1-namespace.1/earendil-works-pi-coding-agent-0.85.1-namespace.1.tgz
+pi --version   # 0.85.1+namespace.1
 ```
 
 What you get: a package declaring `"pi": { "namespace": "myorg" }` exposes
