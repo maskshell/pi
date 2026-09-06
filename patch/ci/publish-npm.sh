@@ -41,9 +41,9 @@ fi
 tar -xzf "$TARBALL" -C "$STAGE"
 PKG="$STAGE/package"
 
-python3 - "$PKG" "$NPM_NAME" <<'PY'
+python3 - "$PKG" "$NPM_NAME" "${REV:-}" <<'PY'
 import json, sys
-pkg_dir, name = sys.argv[1], sys.argv[2]
+pkg_dir, name, rev = sys.argv[1], sys.argv[2], sys.argv[3]
 p = f"{pkg_dir}/package.json"
 d = json.load(open(p))
 old = d.get("name")
@@ -57,6 +57,16 @@ old = d.get("name")
 # (config.ts), not a build-time bake.
 ver = d.get("version", "")
 npm_ver = ver.replace("+namespace.", "-namespace.") if "+namespace." in ver else ver
+# REV overrides the prerelease revision (X.Y.Z-namespace.REV). Registry
+# version slots are burnt by every publish — a failed publish still
+# occupies its version forever — so a fixed re-publish of the same release
+# needs REV=<n+1> (see the collision abort in the shell below).
+if rev:
+    import re as _re
+    npm_ver, n = _re.subn(r"-namespace\.\d+$", f"-namespace.{rev}", npm_ver)
+    if n != 1:
+        print(f"!! REV given but version {npm_ver} has no -namespace.N suffix", file=sys.stderr)
+        sys.exit(1)
 d["name"] = name
 d["version"] = npm_ver
 d["description"] = (
@@ -91,20 +101,39 @@ if s is not None:
         root["name"] = name
     if root and root.get("version") == ver:
         root["version"] = npm_ver
-    # Workspace-sibling pins are landmines in a PUBLISHED package: the
-    # stamp puts them at <X.Y.Z>+namespace.N — versions that exist only in
-    # the fork workspace, never on the registry — so registry installs 404
-    # on their resolved tarballs (file/URL installs re-resolve via ranges
-    # and mask this). Delete the pins; the caret ranges in package.json
-    # then resolve to the published upstream base versions, which are
-    # byte-equivalent for siblings (the patch touches only coding-agent).
-    dropped = [k for k in s.get("packages", {}) if k.startswith("node_modules/@earendil-works/")]
-    for k in dropped:
-        del s["packages"][k]
+    # Workspace-sibling pins are landmines in a PUBLISHED package: the stamp
+    # puts them at <X.Y.Z>+namespace.N — versions that exist only in the
+    # fork workspace, never on the registry. A shipped npm-shrinkwrap is
+    # AUTHORITATIVE (npm does not fall back to package.json ranges for
+    # entries it omits — dropping them removed the deps from installs
+    # entirely and the bundle's external imports crashed at runtime), so
+    # the pins are REWRITTEN to the published upstream base versions,
+    # which are byte-equivalent for siblings (the patch touches only
+    # coding-agent). Stale integrity hashes belong to the never-published
+    # tarballs and are dropped.
+    import subprocess
+    for k, v in list(s.get("packages", {}).items()):
+        if not k.startswith("node_modules/@earendil-works/"):
+            continue
+        pv = str(v.get("version", ""))
+        if "+namespace." not in pv:
+            continue
+        base = pv.split("+", 1)[0]
+        pkg = k.rsplit("/", 1)[1]
+        scoped = k[len("node_modules/"):]
+        v["version"] = base
+        v["resolved"] = f"https://registry.npmjs.org/{scoped}/-/{pkg}-{base}.tgz"
+        v.pop("integrity", None)
+        probe = subprocess.run(
+            ["npm", "view", f"{scoped}@{base}", "version", "--registry", "https://registry.npmjs.org/"],
+            capture_output=True,
+        )
+        if probe.returncode != 0:
+            print(f"!! rewritten pin {scoped}@{base} is not published upstream — cannot fix shrinkwrap", file=sys.stderr)
+            sys.exit(1)
+        print(f"rewrote pin {scoped}: {pv} -> {base}")
     json.dump(s, open(sh, "w"), indent="\t", ensure_ascii=False)
     open(sh, "a").write("\n")
-    if dropped:
-        print(f"dropped {len(dropped)} workspace-sibling pins from the variant shrinkwrap")
 PY
 
 README="$PKG/README.md"
@@ -113,6 +142,14 @@ if [ -f "$README" ]; then
 fi
 
 VERSION="$(python3 -c "import json; print(json.load(open('$PKG/package.json'))['version'])")"
+
+# Collision abort: an existing version slot means a publish already
+# happened — never silently bump (idempotent dispatches must not fork
+# revisions); rerun with REV=<n+1> if that slot is broken.
+if npm view "${NPM_NAME}@${VERSION}" version --registry="$NPM_REGISTRY" >/dev/null 2>&1; then
+	echo "!! ${NPM_NAME}@${VERSION} is already published — rerun with REV=<next> if this slot is broken" >&2
+	exit 1
+fi
 
 # Guard: after sibling-pin removal, no non-root shrinkwrap entry may carry a
 # stamped +namespace version — that is exactly the 404-on-install landmine.
@@ -173,9 +210,9 @@ RDIR="$STAGE/registry-verify"
 i=0
 until mkdir "$RDIR" 2>/dev/null; do RDIR="$RDIR-$i"; i=$((i+1)); done
 ok=0
-for attempt in 1 2 3 4 5; do
+for attempt in 1 2 3 4 5 6 7 8; do
 	if ( cd "$RDIR" && npm install --no-audit --no-fund --registry="$NPM_REGISTRY" "${NPM_NAME}@${VERSION}" >/dev/null 2>&1 ); then ok=1; break; fi
-	echo "   attempt $attempt failed (propagation lag?) — retrying in 20s"; sleep 20
+	echo "   attempt $attempt failed (propagation lag?) — retrying in 30s"; sleep 30
 done
 if [ "$ok" != 1 ]; then
 	echo "!! REGISTRY INSTALL FAILED for ${NPM_NAME}@${VERSION} — do not announce; investigate" >&2
