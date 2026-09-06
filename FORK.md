@@ -11,7 +11,7 @@ was closed NOT_PLANNED. Everything else tracks upstream.
 
 ```bash
 npm install -g pi-namespace-patch
-pi --version   # 0.85.1-namespace.2
+pi --version   # 0.85.1-namespace.3
 ```
 
 `pi-namespace-patch` is the npm alias of the current release, published by
@@ -22,7 +22,9 @@ the workspace-stamped artifact reports the semver build-metadata form
 (npm collapses build metadata to one slot per `X.Y.Z`, so the alias cannot
 reuse the `+` form). The registry suffix can also run ahead of the release
 suffix: every publish occupies its version forever, so a registry-side fix
-re-publishes at `N+1` (that is why the current alias is `-namespace.2`).
+re-publishes at `N+1` (that is why the current alias is `-namespace.3`:
+`.1` shipped a broken shrinkwrap, `.2` carried upstream's README on the
+npm page — both superseded; the alias ships a dedicated fork README).
 
 Pinned / registry-free install from the GitHub release:
 
