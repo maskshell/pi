@@ -30,6 +30,13 @@ escalation comment on the tracking issue). Agent pin source:
 `origin/namespace-patch:patch/MANIFEST.json` (forkReleaseTag/tarballAsset),
 fallback = stock npm package at the same base version, never `latest`.
 
+Repo setting: upstream's `Build Binaries` workflow
+(`.github/workflows/build-binaries.yml`) is **disabled in the fork** — its
+publish/announce jobs are bound to upstream's OIDC trusted publishing and R2
+secrets and can only fail here; without the disable, every namespace release
+tag (`v*` pattern) triggers a guaranteed-red run (`gh workflow disable
+"Build Binaries"`). Re-verify the disabled state after any fork clone/restore.
+
 Prerequisite secrets (repo settings): `DEEPSEEK_API_KEY` (the L2 agent's
 provider). Merge of the pipeline PR remains the human/agent gate; release
 cut + upstream comment are manual step 4/6 below (P3 automation deferred).
