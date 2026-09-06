@@ -46,13 +46,15 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24
+          registry-url: 'https://registry.npmjs.org'
 
-      # Trusted publishing (OIDC) needs npm >= 11.5.1; the Node-bundled npm
-      # can be older and then fails with ENEEDAUTH before ever trying OIDC.
+      # Trusted publishing (OIDC): npm is pinned to the version upstream's
+      # publish job uses (npm@latest = 12.x regresses to ENEEDAUTH before
+      # ever attempting the OIDC exchange), and setup-node's registry-url
+      # anchors the default registry so npm's OIDC short-circuit engages.
       - name: Ensure npm supports trusted publishing
         run: |
-          echo "bundled npm: $(npm --version)"
-          npm install -g npm@latest >/dev/null 2>&1
+          npm install -g npm@11.16.0 --ignore-scripts >/dev/null 2>&1
           echo "active npm:  $(npm --version)"
           if [ -n "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ] && [ -n "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]; then
             echo "OIDC env: present"
