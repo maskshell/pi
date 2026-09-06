@@ -10,14 +10,14 @@
 	"generatedAt": "2026-09-06",
 	"upstreamProposal": "https://github.com/earendil-works/pi/issues/8834",
 	"install": {
-		"tierA_prebuilt": "npm install -g https://github.com/maskshell/pi/releases/download/v0.84.4-namespace.1/earendil-works-pi-coding-agent-0.84.4-namespace.1.tgz",
-		"tierB_source": "clone upstream @ v0.84.4; git am patch/pi-namespace.patch patch/version-stamp.patch; npm ci; npm run hydrate:model-data; npm run build",
+		"tierA_prebuilt": "npm install -g https://github.com/maskshell/pi/releases/download/v0.85.1-namespace.1/earendil-works-pi-coding-agent-0.85.1-namespace.1.tgz",
+		"tierB_source": "clone upstream @ v0.85.1; git am patch/pi-namespace.patch patch/version-stamp.patch; npm ci; npm run hydrate:model-data; npm run build",
 		"tierC_script": "bash apply.sh [target-dir]"
 	},
 	"verification": {
-		"version": "pi --version -> 0.84.4-namespace.1",
-		"tests": "315 passed (skills 47, prompt-templates 96, resource-loader 46, package-manager 126)",
-		"check": "exit 0 (full chain incl. biome --error-on-warnings, tsgo, shrinkwrap + install-lock)",
+		"version": "pi --version -> 0.85.1+namespace.1",
+		"tests": "315 passed (skills 47, prompt-templates 96, resource-loader 46, package-manager 126) — counts identical to the v0.84.4 base",
+		"check": "exit 0 (full chain incl. biome --error-on-warnings, tsgo, shrinkwrap + install-lock); build + lockfiles-public gates green; zero workspace overlays",
 		"consumer": "solidforge-pi master (pi.namespace: solidforge) — https://github.com/maskshell/solidforge-pi"
 	},
 	"tracking": "PATCH-TRACKING.md (same directory); release monitor: .github/workflows/namespace-patch-tracker.yml on fork main",
