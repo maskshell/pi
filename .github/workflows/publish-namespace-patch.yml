@@ -47,6 +47,14 @@ jobs:
         with:
           node-version: 24
 
+      # Trusted publishing (OIDC) needs npm >= 11.5.1; the Node-bundled npm
+      # can be older and then fails with ENEEDAUTH before ever trying OIDC.
+      - name: Ensure npm supports trusted publishing
+        run: |
+          echo "bundled npm: $(npm --version)"
+          npm install -g npm@latest >/dev/null 2>&1
+          echo "active npm:  $(npm --version)"
+
       - name: Resolve release tag + download asset
         env:
           GH_TOKEN: ${{ github.token }}
