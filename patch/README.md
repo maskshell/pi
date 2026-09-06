@@ -12,9 +12,11 @@ for anyone who wants it, and as live field data should upstream reconsider.
   templates as `/myorg:foo`. Content untouched (SKILL.md frontmatter stays
   spec-compliant); namespaced and same-named bare user/project resources
   coexist; bare invocations keep resolving via a unique-base-name fallback.
-- **Current base**: `MANIFEST.json → baseTag`. Two patches: the feature commit
-  (`pi-namespace.patch`) and a fork version stamp (`version-stamp.patch`, makes
-  `pi --version` self-identify).
+- **Current base**: `MANIFEST.json → baseTag`. Three patches: the feature
+  commit (`pi-namespace.patch`), a fork update-banner fix
+  (`fork-update-banner.patch`, compares core versions so a fork-stamped
+  build of the current release is not reported as outdated), and a fork
+  version stamp (`version-stamp.patch`, makes `pi --version` self-identify).
 - **Consumer**: [solidforge-pi](https://github.com/maskshell/solidforge-pi)
   ships `"namespace": "solidforge"` on this build.
 
@@ -27,7 +29,7 @@ npm install -g https://github.com/maskshell/pi/releases/download/v0.84.4-namespa
 pi --version   # 0.84.4-namespace.1
 ```
 
-**Tier B — from source**: clone upstream at `baseTag`, `git am` both patches,
+**Tier B — from source**: clone upstream at `baseTag`, `git am` all patches,
 `npm ci`, `npm run hydrate:model-data`, `npm run build` — see
 `MANIFEST.json → install.tierB_source`.
 

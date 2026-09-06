@@ -18,10 +18,11 @@ git clone --quiet https://github.com/earendil-works/pi "$TARGET"
 cd "$TARGET"
 git checkout --quiet "$BASE_TAG"
 
-echo ">> applying patches (feature + version stamp)"
+echo ">> applying patches (feature + fork fix + version stamp)"
 curl -fsS "$MANIFEST_URL_BASE/pi-namespace.patch" -o pi-namespace.patch
+curl -fsS "$MANIFEST_URL_BASE/fork-update-banner.patch" -o fork-update-banner.patch
 curl -fsS "$MANIFEST_URL_BASE/version-stamp.patch" -o version-stamp.patch
-git am pi-namespace.patch version-stamp.patch
+git am pi-namespace.patch fork-update-banner.patch version-stamp.patch
 
 echo ">> installing deps (isolated to $TARGET)"
 npm ci --no-audit --no-fund
@@ -30,7 +31,8 @@ npm run hydrate:model-data   # gitignored model data; required for check/build
 echo ">> verifying"
 npm run check
 ( cd packages/coding-agent && node ../../node_modules/vitest/dist/cli.js --run \
-	test/skills.test.ts test/prompt-templates.test.ts test/resource-loader.test.ts test/package-manager.test.ts )
+	test/skills.test.ts test/prompt-templates.test.ts test/resource-loader.test.ts test/package-manager.test.ts \
+	test/version-check.test.ts )
 
 echo ">> building"
 npm run build

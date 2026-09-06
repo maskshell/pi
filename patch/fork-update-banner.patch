@@ -1,0 +1,80 @@
+From 80e9e974d65060aa0000caef63ea3691a00bc630 Mon Sep 17 00:00:00 2001
+From: Analyser <analyser@gmail.com>
+Date: Sun, 6 Sep 2026 20:21:18 +0800
+Subject: [PATCH] patch: update-banner compares core versions (fork-stamped
+ builds)
+
+---
+ .../coding-agent/src/utils/version-check.ts    | 15 +++++++++++----
+ .../coding-agent/test/version-check.test.ts    | 18 ++++++++++++++++++
+ 2 files changed, 29 insertions(+), 4 deletions(-)
+
+diff --git a/packages/coding-agent/src/utils/version-check.ts b/packages/coding-agent/src/utils/version-check.ts
+index a09a3d000..f67eae920 100644
+--- a/packages/coding-agent/src/utils/version-check.ts
++++ b/packages/coding-agent/src/utils/version-check.ts
+@@ -1,4 +1,4 @@
+-import { compare, valid } from "semver";
++import { compare, major, minor, patch, valid } from "semver";
+ import { fetchWithRetry } from "./management-http.ts";
+ import { getPiUserAgent } from "./pi-user-agent.ts";
+ 
+@@ -41,9 +41,16 @@ export function comparePackageVersions(leftVersion: string, rightVersion: string
+ }
+ 
+ export function isNewerPackageVersion(candidateVersion: string, currentVersion: string): boolean {
+-	const comparison = comparePackageVersions(candidateVersion, currentVersion);
+-	if (comparison !== undefined) {
+-		return comparison > 0;
++	const left = valid(candidateVersion.trim());
++	const right = valid(currentVersion.trim());
++	if (left !== null && right !== null) {
++		// Compare core versions only: fork builds stamp the base release with a
++		// namespace suffix (0.85.1+namespace.1 in the workspace, 0.85.1-namespace.N
++		// on the npm alias), and semver orders any prerelease below its release —
++		// so the same upstream release must not count as newer than the fork
++		// build of it.
++		const core = (version: string) => `${major(version)}.${minor(version)}.${patch(version)}`;
++		return compare(core(left), core(right)) > 0;
+ 	}
+ 	return candidateVersion.trim() !== currentVersion.trim();
+ }
+diff --git a/packages/coding-agent/test/version-check.test.ts b/packages/coding-agent/test/version-check.test.ts
+index ffe21508c..b99443fca 100644
+--- a/packages/coding-agent/test/version-check.test.ts
++++ b/packages/coding-agent/test/version-check.test.ts
+@@ -34,6 +34,16 @@ describe("version checks", () => {
+ 		expect(isNewerPackageVersion("0.70.6", "0.70.5")).toBe(true);
+ 	});
+ 
++	it("does not count the same upstream release as newer than a fork-stamped version", () => {
++		// npm alias form (prerelease): 0.85.1-namespace.3 vs upstream marker 0.85.1
++		expect(isNewerPackageVersion("0.85.1", "0.85.1-namespace.3")).toBe(false);
++		// tarball form (build metadata)
++		expect(isNewerPackageVersion("0.85.1", "0.85.1+namespace.1")).toBe(false);
++		// a genuinely newer upstream release still counts
++		expect(isNewerPackageVersion("0.85.2", "0.85.1-namespace.3")).toBe(true);
++		expect(isNewerPackageVersion("0.86.0", "0.85.1+namespace.1")).toBe(true);
++	});
++
+ 	it("returns only newer versions", async () => {
+ 		const fetchMock = vi.fn(async () => Response.json({ version: "1.2.3" }));
+ 		vi.stubGlobal("fetch", fetchMock);
+@@ -42,6 +52,14 @@ describe("version checks", () => {
+ 		await expect(checkForNewPiVersion("1.2.2")).resolves.toEqual({ version: "1.2.3" });
+ 	});
+ 
++	it("does not report a fork-stamped build of the latest release as outdated", async () => {
++		const fetchMock = vi.fn(async () => Response.json({ version: "0.85.1" }));
++		vi.stubGlobal("fetch", fetchMock);
++
++		await expect(checkForNewPiVersion("0.85.1-namespace.3")).resolves.toBeUndefined();
++		await expect(checkForNewPiVersion("0.85.1+namespace.1")).resolves.toBeUndefined();
++	});
++
+ 	it("uses the pi.dev version check api with a pi user agent", async () => {
+ 		const fetchMock = vi.fn(async () => Response.json({ version: "1.2.4" }));
+ 		vi.stubGlobal("fetch", fetchMock);
+-- 
+2.55.0
+

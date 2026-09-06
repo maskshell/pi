@@ -5,6 +5,7 @@
 	"baseSha": "d981de1229ef899957bbe968bc8dcda02a21f477",
 	"featureCommit": "b9941357182321933ba531e595d775a0c948ccda",
 	"versionStampCommit": "45b1ff253952fbb0a787bd16452aed51e0fba71e",
+	"forkFixCommit": "80e9e974d65060aa0000caef63ea3691a00bc630",
 	"forkReleaseTag": "v0.85.1-namespace.1",
 	"tarballAsset": "earendil-works-pi-coding-agent-0.85.1-namespace.1.tgz",
 	"generatedAt": "2026-09-06",
@@ -12,7 +13,7 @@
 	"install": {
 		"tierA_npm": "npm install -g pi-namespace-patch (registry.npmjs.org, trusted publishing; registry version X.Y.Z-namespace.N — may exceed the release suffix after burnt-slot re-publishes)",
 		"tierA_tarball": "npm install -g https://github.com/maskshell/pi/releases/download/v0.85.1-namespace.1/earendil-works-pi-coding-agent-0.85.1-namespace.1.tgz",
-		"tierB_source": "clone upstream @ v0.85.1; git am patch/pi-namespace.patch patch/version-stamp.patch; npm ci; npm run hydrate:model-data; npm run build",
+		"tierB_source": "clone upstream @ v0.85.1; git am patch/pi-namespace.patch patch/fork-update-banner.patch patch/version-stamp.patch; npm ci; npm run hydrate:model-data; npm run build",
 		"tierC_script": "bash apply.sh [target-dir]"
 	},
 	"verification": {

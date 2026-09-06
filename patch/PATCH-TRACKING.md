@@ -10,7 +10,9 @@ in this fork; the only automated step is the release monitor.
 - **Upstream**: earendil-works/pi (releases `vX.Y.Z`).
 - **Fork**: maskshell/pi. `main` mirrors upstream main (sole fork-specific
   file: `.github/workflows/namespace-patch-tracker.yml`). The patch lives on
-  `namespace-patch` as: [1] feature commit, [2] version-stamp commit,
+  `namespace-patch` as: [1] feature commit, [2] fork-fix commits (recorded in
+  `MANIFEST.json → forkFixCommit`; currently the update-banner core-version
+  compare), [3] version-stamp commit,
   [3] `patch/` artifact directory (patches, MANIFEST, README, apply.sh, this
   file). `package-namespace` tracks upstream main HEAD in PR-ready form.
 - **Proposal issue**: earendil-works/pi#8834 — closed NOT_PLANNED; the
@@ -78,7 +80,7 @@ remains the contract the automation implements.
    git -C <main-checkout> worktree add ../pi-ns-<XY.Z> namespace-patch
    git -C <main-checkout> fetch upstream --tags
    git -C ../pi-ns-<XY.Z> checkout -B namespace-patch <new-tag>
-   git cherry-pick <feature-commit> <version-stamp-commit>   # resolve if moved
+   git cherry-pick <feature-commit> <fork-fix-commits>   # resolve if moved
    npm ci --no-audit --no-fund && npm run hydrate:model-data # gitignored data
    ```
    Version-stamp refresh: re-run the bump across every `packages/**/package.json`
@@ -86,8 +88,8 @@ remains the contract the automation implements.
    `npm run shrinkwrap:coding-agent`, `npm run install-lock:coding-agent`
    (the pre-commit hook enforces all three).
 3. **[harness] Verify on the new base**: `npm run check` (full chain) and the
-   four touched suites (`skills` / `prompt-templates` / `resource-loader` /
-   `package-manager`) — record the actual counts in MANIFEST
+   five touched suites (`skills` / `prompt-templates` / `resource-loader` /
+   `package-manager` / `version-check`) — record the actual counts in MANIFEST
    `verification.tests`. Never silence a failing suite to make the artifact
    green; if upstream moved those tests, record the new numbers.
 4. **[harness] Rebuild artifacts + fork release**:
@@ -95,6 +97,7 @@ remains the contract the automation implements.
    npm run build
    ( cd packages/coding-agent && npm pack --pack-destination /tmp )
    git format-patch -1 <feature-commit> --stdout  > patch/pi-namespace.patch
+   git format-patch -1 <fork-fix-commit>  --stdout  > patch/fork-update-banner.patch
    git format-patch -1 <stamp-commit>   --stdout  > patch/version-stamp.patch
    # update MANIFEST.json (baseTag/baseSha/commits/patchVersion "<X.Y.Z>-namespace.<n>"/
    #   forkReleaseTag/tarballAsset) and this file's History table
@@ -160,3 +163,4 @@ remains the contract the automation implements.
 |---|---|---|---|
 | 0.84.4-namespace.1 | v0.84.4 | v0.84.4-namespace.1 | first release-based artifact (cherry-pick of the #8834 implementation + version stamp) |
 | 0.85.1-namespace.1 | v0.85.1 | v0.85.1-namespace.1 | first cross-version re-base (v0.84.4 -> v0.85.1, skipping v0.85.0); carries the L1 script fixes (fetch upstream tag, stamp the new base's versions, keep patch/ out of the stamp commit); executed manually after the 09-05 pipeline run failed on fork-only refs + L2 hit an out-of-balance DEEPSEEK_API_KEY |
+| (unreleased) | v0.85.1 | — | fork update-banner fix added to the chain (forkFixCommit): isNewerPackageVersion compares core versions so an upstream release equal to the fork's base is not reported as newer; mechanical-rebase cherry-picks it with the feature commit |

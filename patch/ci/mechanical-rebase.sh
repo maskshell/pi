@@ -54,21 +54,36 @@ fi
 
 if git ls-files --unmerged | grep -q .; then
 	echo ">> conflict state detected — resuming after agent resolution"
+	# patch/ survived the branch switch, so the recorded fix commit (if any)
+	# still resolves here on the resume path.
+	FIX_SHA="$(jq -r '.forkFixCommit // empty' patch/MANIFEST.json)"
 else
 	# Capture the artifact dir before switching: the release tag has no patch/
 	rm -rf /tmp/patch-orig && cp -r patch /tmp/patch-orig
 	FEATURE_SHA="$(jq -r .featureCommit patch/MANIFEST.json)"
+	FIX_SHA="$(jq -r '.forkFixCommit // empty' patch/MANIFEST.json)"
 	git checkout -q -B "$BRANCH" "$NEW_TAG"
 	# Restore the FULL artifact dir (rules, scripts, README, apply.sh) — the
 	# release tag carries none of it; only the .patch files and MANIFEST are
 	# regenerated below. Restoring just MANIFEST once silently dropped the rest.
 	cp -r /tmp/patch-orig/. patch/
-	if ! git cherry-pick "$FEATURE_SHA"; then
+	# Fork-fix commits ride the feature chain: one cherry-pick sequence so an
+	# L2 resolution + `cherry-pick --continue` finishes the whole chain.
+	if ! git cherry-pick $FEATURE_SHA $FIX_SHA; then
 		echo ">> cherry-pick conflict — leaving state for the L2 agent" >&2
 		exit 2
 	fi
 fi
-FEATURE_SHA="$(git rev-parse HEAD)"
+if [ -n "$FIX_SHA" ] && [ "$(git log -1 --format=%s)" = "$(git log -1 --format=%s "$FIX_SHA")" ]; then
+	# Chain completed: HEAD is the fix commit (cherry-pick preserves subjects).
+	# The subject guard also covers the resume path where L2 stopped after the
+	# feature pick — then HEAD is the feature commit and no fix is recorded.
+	FEATURE_SHA="$(git rev-parse HEAD~1)"
+	FIX_SHA="$(git rev-parse HEAD)"
+else
+	FEATURE_SHA="$(git rev-parse HEAD)"
+	FIX_SHA=""
+fi
 
 echo ">> version stamp ${NEW_VER}"
 # Match the NEW base's versions, not the old ones: on a fresh release tag
@@ -143,10 +158,13 @@ STAMP_SHA="$(git rev-parse HEAD)"
 echo ">> artifact regeneration"
 mkdir -p patch
 git format-patch -1 "$FEATURE_SHA" --stdout > patch/pi-namespace.patch
+if [ -n "$FIX_SHA" ]; then
+	git format-patch -1 "$FIX_SHA" --stdout > patch/fork-update-banner.patch
+fi
 git format-patch -1 "$STAMP_SHA" --stdout > patch/version-stamp.patch
-python3 - "$NEW_TAG" "$FEATURE_SHA" "$STAMP_SHA" "$DISPLAY_VER" "$NEW_VER" <<'PY'
+python3 - "$NEW_TAG" "$FEATURE_SHA" "$FIX_SHA" "$STAMP_SHA" "$DISPLAY_VER" "$NEW_VER" <<'PY'
 import json, sys, datetime, subprocess
-new_tag, feat, stamp, display, package_ver = sys.argv[1:6]
+new_tag, feat, fix, stamp, display, package_ver = sys.argv[1:7]
 base_sha = subprocess.run(["git", "rev-parse", new_tag], capture_output=True, text=True).stdout.strip()
 m = json.load(open("patch/MANIFEST.json"))
 m.update({
@@ -160,6 +178,10 @@ m.update({
     "tarballAsset": f"earendil-works-pi-coding-agent-{display}.tgz",
     "generatedAt": datetime.date.today().isoformat(),
 })
+if fix:
+    m["forkFixCommit"] = fix
+else:
+    m.pop("forkFixCommit", None)
 json.dump(m, open("patch/MANIFEST.json", "w"), indent="\t", ensure_ascii=False)
 open("patch/MANIFEST.json", "a").write("\n")
 PY

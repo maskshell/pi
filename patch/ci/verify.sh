@@ -23,7 +23,8 @@ rm -f "$ROOT/gate-results.txt"
 run_gate npm-check bash -c "cd '$ROOT' && npm run check" || FAILED=1
 run_gate suites bash -c "cd '$PKG' && node '$ROOT/node_modules/vitest/dist/cli.js' --run \
 	test/skills.test.ts test/prompt-templates.test.ts \
-	test/resource-loader.test.ts test/package-manager.test.ts" || FAILED=1
+	test/resource-loader.test.ts test/package-manager.test.ts \
+	test/version-check.test.ts" || FAILED=1
 run_gate build bash -c "cd '$ROOT' && npm run build" || FAILED=1
 run_gate lockfiles-public bash -c "! grep -rE '\"resolved\": \"https://(?!registry\\.npmjs\\.org)' \
 	'$ROOT/package-lock.json' '$ROOT/packages/coding-agent/npm-shrinkwrap.json' \
