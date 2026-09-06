@@ -209,10 +209,14 @@ echo ">> registry verification: install ${NPM_NAME}@${VERSION} from npmjs"
 RDIR="$STAGE/registry-verify"
 i=0
 until mkdir "$RDIR" 2>/dev/null; do RDIR="$RDIR-$i"; i=$((i+1)); done
+VLOG="$STAGE/registry-install.log"
 ok=0
 for attempt in 1 2 3 4 5 6 7 8; do
-	if ( cd "$RDIR" && npm install --no-audit --no-fund --registry="$NPM_REGISTRY" "${NPM_NAME}@${VERSION}" >/dev/null 2>&1 ); then ok=1; break; fi
-	echo "   attempt $attempt failed (propagation lag?) — retrying in 30s"; sleep 30
+	# --prefer-online: the collision-abort `npm view` above cached a 404
+	# packument for this exact version on the runner; a cached resolution
+	# fails every retry within the job. Force packument revalidation.
+	if ( cd "$RDIR" && npm install --prefer-online --no-audit --no-fund --registry="$NPM_REGISTRY" "${NPM_NAME}@${VERSION}" >"$VLOG" 2>&1 ); then ok=1; break; fi
+	echo "   attempt $attempt failed — tail of install log:"; tail -5 "$VLOG" | sed 's/^/     /'; sleep 30
 done
 if [ "$ok" != 1 ]; then
 	echo "!! REGISTRY INSTALL FAILED for ${NPM_NAME}@${VERSION} — do not announce; investigate" >&2
