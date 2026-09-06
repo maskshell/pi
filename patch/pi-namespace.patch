@@ -1,4 +1,4 @@
-From caafb4daebf9df611d6e0ebbf3fb1ae028e62661 Mon Sep 17 00:00:00 2001
+From b9941357182321933ba531e595d775a0c948ccda Mon Sep 17 00:00:00 2001
 From: Analyser <analyser@gmail.com>
 Date: Sat, 29 Aug 2026 20:24:21 +0800
 Subject: [PATCH] feat(coding-agent): opt-in package namespace (pi.namespace)
@@ -147,7 +147,7 @@ index 073b9f00a..89f19190a 100644
  - CLI: `--prompt-template <path>` (repeatable)
  
 diff --git a/packages/coding-agent/docs/skills.md b/packages/coding-agent/docs/skills.md
-index 8905b7ff9..bed6da7ef 100644
+index 02835f820..7aa258a84 100644
 --- a/packages/coding-agent/docs/skills.md
 +++ b/packages/coding-agent/docs/skills.md
 @@ -188,6 +188,40 @@ Declared skills with missing descriptions are not loaded. Malformed `SKILL.md` f
@@ -192,7 +192,7 @@ index 8905b7ff9..bed6da7ef 100644
  
  ```
 diff --git a/packages/coding-agent/src/core/agent-session.ts b/packages/coding-agent/src/core/agent-session.ts
-index 27b5ac13f..c7b1790c3 100644
+index ac2bd4b18..f3d9685b8 100644
 --- a/packages/coding-agent/src/core/agent-session.ts
 +++ b/packages/coding-agent/src/core/agent-session.ts
 @@ -105,6 +105,7 @@ import { exportSessionToJsonl } from "./session-export.ts";
@@ -203,7 +203,7 @@ index 27b5ac13f..c7b1790c3 100644
  import type { SlashCommandInfo } from "./slash-commands.ts";
  import { createSyntheticSourceInfo, type SourceInfo } from "./source-info.ts";
  import { type BuildSystemPromptOptions, buildSystemPrompt } from "./system-prompt.ts";
-@@ -1204,6 +1205,7 @@ export class AgentSession {
+@@ -1203,6 +1204,7 @@ export class AgentSession {
  			let expandedText = currentText;
  			if (expandPromptTemplates) {
  				expandedText = this._expandSkillCommand(expandedText);
@@ -211,7 +211,7 @@ index 27b5ac13f..c7b1790c3 100644
  				expandedText = expandPromptTemplate(expandedText, [...this.promptTemplates]);
  			}
  
-@@ -1356,11 +1358,41 @@ export class AgentSession {
+@@ -1355,11 +1357,41 @@ export class AgentSession {
  
  		const spaceIndex = text.indexOf(" ");
  		const skillName = spaceIndex === -1 ? text.slice(7) : text.slice(7, spaceIndex);
@@ -255,7 +255,7 @@ index 27b5ac13f..c7b1790c3 100644
  		try {
  			const content = readFileSync(skill.filePath, "utf-8");
  			const body = stripFrontmatter(content).trim();
-@@ -1393,6 +1425,7 @@ export class AgentSession {
+@@ -1392,6 +1424,7 @@ export class AgentSession {
  
  		// Expand skill commands and prompt templates
  		let expandedText = this._expandSkillCommand(text);
@@ -263,7 +263,7 @@ index 27b5ac13f..c7b1790c3 100644
  		expandedText = expandPromptTemplate(expandedText, [...this.promptTemplates]);
  
  		await this._queueSteer(expandedText, images);
-@@ -1413,6 +1446,7 @@ export class AgentSession {
+@@ -1412,6 +1445,7 @@ export class AgentSession {
  
  		// Expand skill commands and prompt templates
  		let expandedText = this._expandSkillCommand(text);
@@ -551,7 +551,7 @@ index 04102425b..1aab0b31e 100644
  		const resolvedPrompts = this.promptsOverride ? this.promptsOverride(promptsResult) : promptsResult;
  		this.prompts = resolvedPrompts.prompts.map((prompt) => ({
 diff --git a/packages/coding-agent/src/core/skills.ts b/packages/coding-agent/src/core/skills.ts
-index 464129b64..5812a4f9e 100644
+index 744c1395a..f6755e4a6 100644
 --- a/packages/coding-agent/src/core/skills.ts
 +++ b/packages/coding-agent/src/core/skills.ts
 @@ -78,6 +78,16 @@ export interface Skill {
@@ -571,7 +571,7 @@ index 464129b64..5812a4f9e 100644
  }
  
  export interface LoadSkillsResult {
-@@ -389,6 +399,96 @@ function escapeXml(str: string): string {
+@@ -391,6 +401,96 @@ function escapeXml(str: string): string {
  		.replace(/'/g, "&apos;");
  }
  
@@ -668,7 +668,7 @@ index 464129b64..5812a4f9e 100644
  export interface LoadSkillsOptions {
  	/** Working directory for project-local skills. */
  	cwd: string;
-@@ -398,6 +498,21 @@ export interface LoadSkillsOptions {
+@@ -400,6 +500,21 @@ export interface LoadSkillsOptions {
  	skillPaths: string[];
  	/** Include default skills directories. */
  	includeDefaults: boolean;
@@ -690,7 +690,7 @@ index 464129b64..5812a4f9e 100644
  }
  
  /**
-@@ -406,6 +521,7 @@ export interface LoadSkillsOptions {
+@@ -408,6 +523,7 @@ export interface LoadSkillsOptions {
   */
  export function loadSkills(options: LoadSkillsOptions): LoadSkillsResult {
  	const { agentDir, skillPaths, includeDefaults } = options;
@@ -698,7 +698,7 @@ index 464129b64..5812a4f9e 100644
  
  	// Resolve agentDir - if not provided, use default from config
  	const resolvedCwd = resolvePath(options.cwd);
-@@ -418,15 +534,17 @@ export function loadSkills(options: LoadSkillsOptions): LoadSkillsResult {
+@@ -420,15 +536,17 @@ export function loadSkills(options: LoadSkillsOptions): LoadSkillsResult {
  
  	function addSkills(result: LoadSkillsResult) {
  		allDiagnostics.push(...result.diagnostics);
@@ -719,10 +719,10 @@ index 464129b64..5812a4f9e 100644
  			if (existing) {
  				collisionDiagnostics.push({
 diff --git a/packages/coding-agent/src/modes/interactive/interactive-mode.ts b/packages/coding-agent/src/modes/interactive/interactive-mode.ts
-index aee28d448..f4d86c126 100644
+index 8db1b8027..39ecf0c69 100644
 --- a/packages/coding-agent/src/modes/interactive/interactive-mode.ts
 +++ b/packages/coding-agent/src/modes/interactive/interactive-mode.ts
-@@ -760,6 +760,7 @@ export class InteractiveMode {
+@@ -714,6 +714,7 @@ export class InteractiveMode {
  		this.skillCommands.clear();
  		const skillCommandList: SlashCommand[] = [];
  		if (this.settingsManager.getEnableSkillCommands()) {
@@ -730,7 +730,7 @@ index aee28d448..f4d86c126 100644
  			for (const skill of this.session.resourceLoader.getSkills().skills) {
  				const commandName = `skill:${skill.name}`;
  				this.skillCommands.set(commandName, skill.filePath);
-@@ -767,6 +768,15 @@ export class InteractiveMode {
+@@ -721,6 +722,15 @@ export class InteractiveMode {
  					name: commandName,
  					description: this.prefixAutocompleteDescription(skill.description, skill.sourceInfo),
  				});

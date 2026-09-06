@@ -124,3 +124,4 @@ remains the contract the automation implements.
 | patchVersion | baseTag | release | note |
 |---|---|---|---|
 | 0.84.4-namespace.1 | v0.84.4 | v0.84.4-namespace.1 | first release-based artifact (cherry-pick of the #8834 implementation + version stamp) |
+| 0.85.1-namespace.1 | v0.85.1 | v0.85.1-namespace.1 | first cross-version re-base (v0.84.4 -> v0.85.1, skipping v0.85.0); carries the L1 script fixes (fetch upstream tag, stamp the new base's versions, keep patch/ out of the stamp commit); executed manually after the 09-05 pipeline run failed on fork-only refs + L2 hit an out-of-balance DEEPSEEK_API_KEY |
