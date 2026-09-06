@@ -150,7 +150,15 @@ PROVENANCE=""
 if [ -n "${GITHUB_ACTIONS:-}" ] && [ -n "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]; then
 	PROVENANCE="--provenance"
 fi
-npm publish --registry="$NPM_REGISTRY" --tag latest $PROVENANCE ${DRY_RUN:+--dry-run} "$VARIANT"
+# Explicit --registry is for maintainer machines (a mirror default must
+# not receive a publish). In GitHub Actions the default registry IS
+# npmjs — and npm's trusted-publishing (OIDC) short-circuit only engages
+# for the default registry; an explicit flag bypasses it (ENEEDAUTH).
+REG_FLAG=("--registry=$NPM_REGISTRY")
+if [ -n "${GITHUB_ACTIONS:-}" ]; then
+	REG_FLAG=()
+fi
+npm publish "${REG_FLAG[@]}" --tag latest $PROVENANCE ${DRY_RUN:+--dry-run} "$VARIANT"
 echo ">> publish ${DRY_RUN:+(dry-run) }done: ${NPM_NAME}@${VERSION}"
 
 if [ -n "$DRY_RUN" ]; then
