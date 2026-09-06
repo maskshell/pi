@@ -34,12 +34,30 @@ describe("version checks", () => {
 		expect(isNewerPackageVersion("0.70.6", "0.70.5")).toBe(true);
 	});
 
+	it("does not count the same upstream release as newer than a fork-stamped version", () => {
+		// npm alias form (prerelease): 0.85.1-namespace.3 vs upstream marker 0.85.1
+		expect(isNewerPackageVersion("0.85.1", "0.85.1-namespace.3")).toBe(false);
+		// tarball form (build metadata)
+		expect(isNewerPackageVersion("0.85.1", "0.85.1+namespace.1")).toBe(false);
+		// a genuinely newer upstream release still counts
+		expect(isNewerPackageVersion("0.85.2", "0.85.1-namespace.3")).toBe(true);
+		expect(isNewerPackageVersion("0.86.0", "0.85.1+namespace.1")).toBe(true);
+	});
+
 	it("returns only newer versions", async () => {
 		const fetchMock = vi.fn(async () => Response.json({ version: "1.2.3" }));
 		vi.stubGlobal("fetch", fetchMock);
 
 		await expect(checkForNewPiVersion("1.2.3")).resolves.toBeUndefined();
 		await expect(checkForNewPiVersion("1.2.2")).resolves.toEqual({ version: "1.2.3" });
+	});
+
+	it("does not report a fork-stamped build of the latest release as outdated", async () => {
+		const fetchMock = vi.fn(async () => Response.json({ version: "0.85.1" }));
+		vi.stubGlobal("fetch", fetchMock);
+
+		await expect(checkForNewPiVersion("0.85.1-namespace.3")).resolves.toBeUndefined();
+		await expect(checkForNewPiVersion("0.85.1+namespace.1")).resolves.toBeUndefined();
 	});
 
 	it("uses the pi.dev version check api with a pi user agent", async () => {
