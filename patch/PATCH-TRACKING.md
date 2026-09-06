@@ -34,6 +34,20 @@ Prerequisite secrets (repo settings): `DEEPSEEK_API_KEY` (the L2 agent's
 provider). Merge of the pipeline PR remains the human/agent gate; release
 cut + upstream comment are manual step 4/6 below (P3 automation deferred).
 
+PR merge policy: the pipeline PR (`namespace-patch-next` → `namespace-patch`)
+always shows CONFLICTING on GitHub — the re-based chain replaces the old
+feature/stamp/track commits, so both sides rewrite the same files. Merge it
+as a take-theirs merge commit whose tree is identical to `namespace-patch-next`
+and whose parents keep both histories (never rebase-merge or squash:
+`patch/MANIFEST.json` records the feature/stamp SHAs the next L1
+cherry-picks, and both rewrite them):
+```bash
+TREE=$(git rev-parse namespace-patch-next^{tree})
+MC=$(git commit-tree "$TREE" -p namespace-patch -p namespace-patch-next \
+	-m "Merge PR #N: patch: track <new-tag> (<X.Y.Z>-namespace.<n>)")
+git push origin "$MC":namespace-patch   # fast-forward; PR auto-marks merged
+```
+
 The manual procedure below is the fallback when Actions are disabled and
 remains the contract the automation implements.
 
