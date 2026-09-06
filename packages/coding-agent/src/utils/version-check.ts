@@ -1,4 +1,4 @@
-import { compare, valid } from "semver";
+import { compare, major, minor, patch, valid } from "semver";
 import { fetchWithRetry } from "./management-http.ts";
 import { getPiUserAgent } from "./pi-user-agent.ts";
 
@@ -41,9 +41,16 @@ export function comparePackageVersions(leftVersion: string, rightVersion: string
 }
 
 export function isNewerPackageVersion(candidateVersion: string, currentVersion: string): boolean {
-	const comparison = comparePackageVersions(candidateVersion, currentVersion);
-	if (comparison !== undefined) {
-		return comparison > 0;
+	const left = valid(candidateVersion.trim());
+	const right = valid(currentVersion.trim());
+	if (left !== null && right !== null) {
+		// Compare core versions only: fork builds stamp the base release with a
+		// namespace suffix (0.85.1+namespace.1 in the workspace, 0.85.1-namespace.N
+		// on the npm alias), and semver orders any prerelease below its release —
+		// so the same upstream release must not count as newer than the fork
+		// build of it.
+		const core = (version: string) => `${major(version)}.${minor(version)}.${patch(version)}`;
+		return compare(core(left), core(right)) > 0;
 	}
 	return candidateVersion.trim() !== currentVersion.trim();
 }
