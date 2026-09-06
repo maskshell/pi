@@ -144,7 +144,13 @@ echo ">> pi --version -> ${GOT}"
 
 # --tag latest: prerelease versions (X.Y.Z-namespace.N) must declare their
 # dist-tag explicitly; latest is the intent for this alias either way.
-npm publish --registry="$NPM_REGISTRY" --tag latest ${DRY_RUN:+--dry-run} "$VARIANT"
+# --provenance when running under GitHub Actions OIDC (trusted publishing):
+# free supply-chain attestation there, impossible from a local publish.
+PROVENANCE=""
+if [ -n "${GITHUB_ACTIONS:-}" ] && [ -n "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]; then
+	PROVENANCE="--provenance"
+fi
+npm publish --registry="$NPM_REGISTRY" --tag latest $PROVENANCE ${DRY_RUN:+--dry-run} "$VARIANT"
 echo ">> publish ${DRY_RUN:+(dry-run) }done: ${NPM_NAME}@${VERSION}"
 
 if [ -n "$DRY_RUN" ]; then
