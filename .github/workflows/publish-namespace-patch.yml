@@ -24,6 +24,10 @@ on:
         description: "Release tag to publish (e.g. v0.85.1-namespace.1; empty = latest)"
         required: false
         default: ""
+      revision:
+        description: "Force npm prerelease revision (e.g. 2 -> 0.85.1-namespace.2) when a version slot is burnt"
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -83,4 +87,6 @@ jobs:
             --pattern "earendil-works-pi-coding-agent-*.tgz" --dir /tmp/pub
 
       - name: Publish (trusted publishing, OIDC)
+        env:
+          REV: ${{ inputs.revision }}
         run: bash patch/ci/publish-npm.sh /tmp/pub/earendil-works-pi-coding-agent-*.tgz
