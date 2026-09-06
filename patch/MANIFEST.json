@@ -10,7 +10,8 @@
 	"generatedAt": "2026-09-06",
 	"upstreamProposal": "https://github.com/earendil-works/pi/issues/8834",
 	"install": {
-		"tierA_prebuilt": "npm install -g https://github.com/maskshell/pi/releases/download/v0.85.1-namespace.1/earendil-works-pi-coding-agent-0.85.1-namespace.1.tgz",
+		"tierA_npm": "npm install -g pi-namespace-patch (registry.npmjs.org, trusted publishing; registry version X.Y.Z-namespace.N — may exceed the release suffix after burnt-slot re-publishes)",
+		"tierA_tarball": "npm install -g https://github.com/maskshell/pi/releases/download/v0.85.1-namespace.1/earendil-works-pi-coding-agent-0.85.1-namespace.1.tgz",
 		"tierB_source": "clone upstream @ v0.85.1; git am patch/pi-namespace.patch patch/version-stamp.patch; npm ci; npm run hydrate:model-data; npm run build",
 		"tierC_script": "bash apply.sh [target-dir]"
 	},

@@ -38,8 +38,11 @@ tag (`v*` pattern) triggers a guaranteed-red run (`gh workflow disable
 "Build Binaries"`). Re-verify the disabled state after any fork clone/restore.
 
 Prerequisite secrets (repo settings): `DEEPSEEK_API_KEY` (the L2 agent's
-provider). Merge of the pipeline PR remains the human/agent gate; release
-cut + upstream comment are manual step 4/6 below (P3 automation deferred).
+provider). Release cut + upstream comment stay manual steps 4/6 below
+(P3); the npm alias publish is automated: the `release: published` event
+triggers the publish workflow (manual dispatch with a `revision` input
+for burnt-slot re-publishes). Merge of the pipeline PR remains the
+human/agent gate.
 
 PR merge policy: the pipeline PR (`namespace-patch-next` → `namespace-patch`)
 always shows CONFLICTING on GitHub — the re-based chain replaces the old
@@ -120,8 +123,19 @@ remains the contract the automation implements.
 
 ## Distribution tiers
 
-- **A (default)**: prebuilt tarball on the fork GitHub Release — one-line
-  `npm install -g <asset-url>`; the only tier most users need.
+- **A (default)**: npm alias `pi-namespace-patch` — `npm install -g
+  pi-namespace-patch`. Published automatically on every release by
+  `.github/workflows/publish-namespace-patch.yml` on main (npm trusted
+  publishing via OIDC, provenance attached; runs `patch/ci/publish-npm.sh`
+  against the GitHub release asset — the artifact is never rebuilt). The
+  registry version scheme is `X.Y.Z-namespace.N` (prerelease): npm
+  collapses build metadata to one slot per `X.Y.Z`, so the workspace's
+  `X.Y.Z+namespace.N` form cannot be reused there. Every publish occupies
+  its version forever — a broken one is unpublished and replaced with
+  `REV=<n+1>` (workflow_dispatch input), so N can run ahead of the release
+  suffix.
+- **A' (pinned / mirror)**: prebuilt tarball on the fork GitHub Release —
+  one-line `npm install -g <asset-url>`.
 - **B/C (source)**: the two `.patch` files / `apply.sh`, for people who build
   or want to read the diff.
 - **Deferred**: a resident scoped npm package (`@maskshell/pi-coding-agent`)
