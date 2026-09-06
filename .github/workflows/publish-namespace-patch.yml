@@ -1,0 +1,70 @@
+name: publish-namespace-patch
+
+# npm publication of a namespace release under the unscoped alias
+# `pi-namespace-patch`, via npm Trusted Publishing (OIDC): no local tokens,
+# no OTP. Derives the publish variant from the GitHub release asset with
+# patch/ci/publish-npm.sh (namespace-patch branch) — the released artifact
+# is never rebuilt. The script publishes a prerelease-form version
+# (X.Y.Z-namespace.N) with sibling pins stripped; see its header for why.
+#
+# Trusted publisher record (npmjs.com -> package settings), required before
+# the first OIDC publish:
+#   repository: maskshell/pi
+#   workflow:   .github/workflows/publish-namespace-patch.yml
+#   environment: npm-publish
+#
+# Fork-specific file on main (with FORK.md and namespace-patch-tracker.yml).
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Release tag to publish (e.g. v0.85.1-namespace.1; empty = latest)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: publish-namespace-patch
+  cancel-in-progress: false
+
+jobs:
+  publish-npm:
+    runs-on: ubuntu-latest
+    environment: npm-publish
+    steps:
+      - name: Checkout patch scripts (namespace-patch)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: namespace-patch
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+
+      - name: Resolve release tag + download asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          TAG="${RELEASE_TAG}"
+          if [ -z "$TAG" ]; then
+            TAG=$(gh api "repos/${GITHUB_REPOSITORY}/releases/latest" --jq .tag_name)
+          fi
+          case "$TAG" in
+            *-namespace.*) ;;
+            *) echo "refusing: ${TAG} is not a namespace release tag"; exit 1 ;;
+          esac
+          echo "publishing npm alias for release ${TAG}"
+          mkdir -p /tmp/pub
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" \
+            --pattern "earendil-works-pi-coding-agent-*.tgz" --dir /tmp/pub
+
+      - name: Publish (trusted publishing, OIDC)
+        run: bash patch/ci/publish-npm.sh /tmp/pub/earendil-works-pi-coding-agent-*.tgz
