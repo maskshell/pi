@@ -54,6 +54,12 @@ jobs:
           echo "bundled npm: $(npm --version)"
           npm install -g npm@latest >/dev/null 2>&1
           echo "active npm:  $(npm --version)"
+          if [ -n "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ] && [ -n "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]; then
+            echo "OIDC env: present"
+          else
+            echo "OIDC env: ABSENT — check the job's id-token: write permission"
+            exit 1
+          fi
 
       - name: Resolve release tag + download asset
         env:
