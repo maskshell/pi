@@ -158,7 +158,7 @@ jobs:
           [ -n "$ISSUE" ] && ISSUE_LINE="Tracking issue: #$ISSUE."
           git push -f origin namespace-patch-next
           if gh pr list --repo "$GITHUB_REPOSITORY" --head namespace-patch-next --json number --jq 'length' | grep -q '^0$'; then
-            BODY="Automated L1 mechanical re-base onto ${TARGET}: cherry-pick clean, version stamp + artifacts regenerated, all gates green (npm run check, four touched suites, build).
+            BODY="Automated L1 mechanical re-base onto ${TARGET}: cherry-pick clean, version stamp + artifacts regenerated, all gates green (npm run check, five touched suites, build).
 
           ${ISSUE_LINE} On merge, the harness cuts the fork release per PATCH-TRACKING.md step 4 (P3 automation pending)."
             gh pr create --repo "$GITHUB_REPOSITORY" \
