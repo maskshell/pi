@@ -17,8 +17,8 @@
 		"tierC_script": "bash apply.sh [target-dir]"
 	},
 	"verification": {
-		"version": "pi --version -> 0.85.1+namespace.1",
-		"tests": "315 passed (skills 47, prompt-templates 96, resource-loader 46, package-manager 126) — counts identical to the v0.84.4 base",
+		"version": "pi --version -> 0.86.0+namespace.1",
+		"tests": "327 passed (skills 47, prompt-templates 96, resource-loader 46, package-manager 126, version-check 12 — the suite joined the gates with the update-banner fix)",
 		"check": "exit 0 (full chain incl. biome --error-on-warnings, tsgo, shrinkwrap + install-lock); build + lockfiles-public gates green; zero workspace overlays",
 		"consumer": "solidforge-pi master (pi.namespace: solidforge) — https://github.com/maskshell/solidforge-pi"
 	},
