@@ -66,3 +66,32 @@ exceptions are `FORK.md`,
 `.github/workflows/namespace-patch-tracker.yml`, and
 `.github/workflows/publish-namespace-patch.yml`.
 All feature content lives on `namespace-patch` / `package-namespace`.
+
+## Never-behind invariant
+
+`main` may be ahead of upstream main (the three fork-specific files and
+sync commits) but must never be behind it: unincorporated upstream changes
+are exactly the risk a mirror exists to avoid. The GitHub ahead/behind
+counter is therefore meaningful and should always read `N ahead, 0 behind`.
+
+Sync method (take-theirs merge-parent, deterministic and conflict-free —
+never `-s ours`, which would silently mark unmerged upstream commits as
+incorporated):
+
+```bash
+git fetch upstream
+git read-tree -u --reset upstream/main
+git checkout HEAD -- FORK.md \
+	.github/workflows/namespace-patch-tracker.yml \
+	.github/workflows/publish-namespace-patch.yml
+TREE=$(git write-tree)
+MC=$(git commit-tree "$TREE" -p HEAD -p upstream/main \
+	-m "mirror: sync main with upstream/main")
+git update-ref refs/heads/main "$MC"
+git push origin main
+```
+
+The tracker workflow runs this as the `sync-main` job on its daily schedule
+(and on dispatch), so the invariant holds without manual attention; the
+fork-file list lives in that job and must be updated if the fork file set
+ever changes.

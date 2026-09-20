@@ -35,6 +35,41 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  sync-main:
+    # Never-behind invariant (FORK.md): main may be ahead of upstream main,
+    # never behind. Take-theirs merge-parent sync — deterministic, conflict-
+    # free, and unlike `-s ours` it never hides unmerged upstream commits.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Mirror-sync main with upstream/main (ahead-only)
+        run: |
+          set -euo pipefail
+          git config user.email "pi-namespace-pipeline@users.noreply.github.com"
+          git config user.name "pi.namespace pipeline"
+          git fetch --no-tags https://github.com/earendil-works/pi.git main
+          UP=$(git rev-parse FETCH_HEAD)
+          if git merge-base --is-ancestor "$UP" HEAD; then
+            echo "main is not behind upstream/main@$UP — nothing to sync"
+            exit 0
+          fi
+          # Fork-specific files preserved across the take-theirs swap; keep
+          # this list in sync with FORK.md's mirror-clean policy.
+          git read-tree -u --reset "$UP"
+          git checkout HEAD -- FORK.md \
+            .github/workflows/namespace-patch-tracker.yml \
+            .github/workflows/publish-namespace-patch.yml
+          TREE=$(git write-tree)
+          MC=$(git commit-tree "$TREE" -p HEAD -p "$UP" \
+            -m "mirror: sync main with upstream/main")
+          git update-ref refs/heads/main "$MC"
+          git push origin main
+          echo "synced: main now contains upstream/main@$UP (ahead-only)"
+
   detect:
     runs-on: ubuntu-latest
     outputs:
