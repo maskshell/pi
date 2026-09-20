@@ -113,7 +113,11 @@ jobs:
       - name: Install deps
         run: |
           npm ci --no-audit --no-fund
-          npm run hydrate:model-data
+          # Best-effort: the gitignored model data feeds runtime catalog refresh,
+          # not the gates (check/suites/build). Upstream data drift (a manually
+          # curated provider disappearing from models.dev, e.g. kimi-coding on
+          # 2026-09-20) must not block the re-base pipeline.
+          npm run hydrate:model-data || echo "::warning::model data hydration failed (upstream data drift); gates do not require it"
 
       - name: Mechanical re-base (cherry-pick + stamp + artifacts)
         run: |
@@ -199,7 +203,8 @@ jobs:
         run: |
           cd /tmp/work
           npm ci --no-audit --no-fund
-          npm run hydrate:model-data
+          # Best-effort for the same reason as the l1-mechanical job.
+          npm run hydrate:model-data || echo "::warning::model data hydration failed (upstream data drift); gates do not require it"
           mkdir -p /tmp/ci
           git show origin/namespace-patch:patch/ci/mechanical-rebase.sh > /tmp/ci/mechanical-rebase.sh
           git show origin/namespace-patch:patch/ci/verify.sh > /tmp/ci/verify.sh
