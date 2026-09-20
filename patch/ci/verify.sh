@@ -7,6 +7,17 @@ set -uo pipefail
 ROOT="$(git rev-parse --show-toplevel)"
 PKG="$ROOT/packages/coding-agent"
 
+# npm run check (tsgo) and the touched suites import the generated provider
+# catalog, which is gitignored and absent on a fresh runner checkout. L1's
+# mechanical rebase hydrates it, but a resumed/partial run can leave it
+# missing; materialize it before the gates so a failure here is a real
+# regression, not a missing-data artifact. Best-effort by design.
+if [ ! -f "$ROOT/packages/ai/src/providers/data/.manifest.json" ]; then
+	if ! (cd "$ROOT" && npm run hydrate:model-data); then
+		echo ">> WARN: hydrate:model-data failed; npm-check/suites import the generated catalog" >&2
+	fi
+fi
+
 run_gate() {
 	local name="$1"; shift
 	echo "=== gate: ${name} ==="
