@@ -125,6 +125,14 @@ PY
 npm install --package-lock-only --no-audit --no-fund --registry=https://registry.npmjs.org
 npm run shrinkwrap:coding-agent
 npm run install-lock:coding-agent
+# verify.sh's first two gates (npm run check -> tsgo, and the touched suites)
+# import the generated provider catalog under packages/ai/src/providers/data.
+# It is gitignored, so a fresh runner checkout does not carry it; the build
+# gate regenerates it, but that gate runs AFTER the two that need it, so a
+# missing catalog reds npm-check + suites while build still passes. Hydrate
+# here, best-effort: a models.dev fetch failure must not abort the re-base
+# (verify.sh surfaces the real state).
+npm run hydrate:model-data || echo ">> WARN: hydrate:model-data failed; npm-check/suites import the generated catalog" >&2
 # Guard: lock regen must never bake private-registry resolved URLs (a local
 # ~/.npmrc mirror once leaked 19 nexus URLs into the root lock; CI's npm ci
 # then 401s). Rewrite any non-npmjs host defensively.
