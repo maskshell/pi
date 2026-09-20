@@ -52,11 +52,23 @@ if ! git config user.email >/dev/null 2>&1; then
 	git config user.name "pi.namespace pipeline"
 fi
 
-if git ls-files --unmerged | grep -q .; then
+if git ls-files --unmerged | grep -q . || git rev-parse -q --verify CHERRY_PICK_HEAD >/dev/null 2>&1; then
 	echo ">> conflict state detected — resuming after agent resolution"
+	# The agent resolved the conflicted tracked files in the worktree but did
+	# not advance the sequencer. Stage the resolution and finish the feature
+	# [+ fix] chain HERE: capturing FEATURE_SHA before the pick commits would
+	# squash the feature diff into the stamp commit, and format-patch would
+	# then emit the base release commit as pi-namespace.patch. patch/ and the
+	# pipeline's own failure artifacts must stay out of the picked commits.
+	git add -u -- . ':!patch'
 	# patch/ survived the branch switch, so the recorded fix commit (if any)
-	# still resolves here on the resume path.
+	# still resolves here on the resume path; it is only needed for the
+	# post-chain subject comparison below.
 	FIX_SHA="$(jq -r '.forkFixCommit // empty' patch/MANIFEST.json)"
+	if ! GIT_EDITOR=true git cherry-pick --continue; then
+		echo ">> cherry-pick still conflicted after resume — leaving state for L2" >&2
+		exit 2
+	fi
 else
 	# Capture the artifact dir before switching: the release tag has no patch/
 	rm -rf /tmp/patch-orig && cp -r patch /tmp/patch-orig
@@ -151,7 +163,7 @@ SCRUB
 # Stage everything EXCEPT patch/: the restored artifact dir is committed by
 # the track step below, so version-stamp.patch stays version+lockfile-only
 # (git add -A here would embed the whole patch/ dir into the stamp commit).
-git add -A -- . ':!patch'
+git add -A -- . ':!patch' ':!failure-context.txt' ':!gate-results.txt'
 git commit -q --no-verify -m "patch: version stamp ${DISPLAY_VER} (fork build identification)"
 STAMP_SHA="$(git rev-parse HEAD)"
 

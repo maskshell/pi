@@ -1,4 +1,4 @@
-From b9941357182321933ba531e595d775a0c948ccda Mon Sep 17 00:00:00 2001
+From c98cafceb52afef8371919c9f10a329d1076668b Mon Sep 17 00:00:00 2001
 From: Analyser <analyser@gmail.com>
 Date: Sat, 29 Aug 2026 20:24:21 +0800
 Subject: [PATCH] feat(coding-agent): opt-in package namespace (pi.namespace)
@@ -46,7 +46,7 @@ Out of scope: themes, runtime registrations, settings-level overrides.
  packages/coding-agent/docs/packages.md        |  39 ++++
  .../coding-agent/docs/prompt-templates.md     |  16 ++
  packages/coding-agent/docs/skills.md          |  34 +++
- .../coding-agent/src/core/agent-session.ts    |  38 +++-
+ .../coding-agent/src/core/agent-session.ts    |  37 +++-
  .../coding-agent/src/core/package-manager.ts  |  16 +-
  packages/coding-agent/src/core/pi-manifest.ts |   8 +
  .../coding-agent/src/core/prompt-templates.ts |  44 +++-
@@ -62,7 +62,7 @@ Out of scope: themes, runtime registrations, settings-level overrides.
  .../test/prompt-templates.test.ts             | 108 +++++++++
  .../coding-agent/test/resource-loader.test.ts | 163 ++++++++++++++
  packages/coding-agent/test/skills.test.ts     | 208 +++++++++++++++++-
- 19 files changed, 920 insertions(+), 16 deletions(-)
+ 19 files changed, 919 insertions(+), 16 deletions(-)
  create mode 100644 packages/coding-agent/test/fixtures/skills/ns-package/ns-one/SKILL.md
  create mode 100644 packages/coding-agent/test/fixtures/skills/ns-package/ns-two-dup/SKILL.md
  create mode 100644 packages/coding-agent/test/fixtures/skills/ns-package/ns-two/SKILL.md
@@ -192,18 +192,18 @@ index 02835f820..7aa258a84 100644
  
  ```
 diff --git a/packages/coding-agent/src/core/agent-session.ts b/packages/coding-agent/src/core/agent-session.ts
-index ac2bd4b18..f3d9685b8 100644
+index b0f4d1840..c09f29123 100644
 --- a/packages/coding-agent/src/core/agent-session.ts
 +++ b/packages/coding-agent/src/core/agent-session.ts
-@@ -105,6 +105,7 @@ import { exportSessionToJsonl } from "./session-export.ts";
+@@ -108,6 +108,7 @@ import { exportSessionToJsonl } from "./session-export.ts";
  import type { BranchSummaryEntry, CompactionEntry, SessionEntry, SessionManager } from "./session-manager.ts";
  import { getLatestCompactionEntry } from "./session-manager.ts";
- import type { SettingsManager } from "./settings-manager.ts";
+ import type { CacheWarmingMode, SettingsManager } from "./settings-manager.ts";
 +import { findSkillByInvocationName, resolveBareNamespaceSkill } from "./skills.ts";
  import type { SlashCommandInfo } from "./slash-commands.ts";
  import { createSyntheticSourceInfo, type SourceInfo } from "./source-info.ts";
- import { type BuildSystemPromptOptions, buildSystemPrompt } from "./system-prompt.ts";
-@@ -1203,6 +1204,7 @@ export class AgentSession {
+ import {
+@@ -1333,6 +1334,7 @@ export class AgentSession {
  			let expandedText = currentText;
  			if (expandPromptTemplates) {
  				expandedText = this._expandSkillCommand(expandedText);
@@ -211,7 +211,7 @@ index ac2bd4b18..f3d9685b8 100644
  				expandedText = expandPromptTemplate(expandedText, [...this.promptTemplates]);
  			}
  
-@@ -1355,11 +1357,41 @@ export class AgentSession {
+@@ -1483,11 +1485,41 @@ export class AgentSession {
  
  		const spaceIndex = text.indexOf(" ");
  		const skillName = spaceIndex === -1 ? text.slice(7) : text.slice(7, spaceIndex);
@@ -255,22 +255,14 @@ index ac2bd4b18..f3d9685b8 100644
  		try {
  			const content = readFileSync(skill.filePath, "utf-8");
  			const body = stripFrontmatter(content).trim();
-@@ -1392,6 +1424,7 @@ export class AgentSession {
+@@ -1523,6 +1555,7 @@ export class AgentSession {
+ 		if (!processedInput) return;
  
- 		// Expand skill commands and prompt templates
- 		let expandedText = this._expandSkillCommand(text);
+ 		let expandedText = this._expandSkillCommand(processedInput.text);
 +		expandedText = this._expandBareNamespaceSkillCommand(expandedText);
  		expandedText = expandPromptTemplate(expandedText, [...this.promptTemplates]);
  
- 		await this._queueSteer(expandedText, images);
-@@ -1412,6 +1445,7 @@ export class AgentSession {
- 
- 		// Expand skill commands and prompt templates
- 		let expandedText = this._expandSkillCommand(text);
-+		expandedText = this._expandBareNamespaceSkillCommand(expandedText);
- 		expandedText = expandPromptTemplate(expandedText, [...this.promptTemplates]);
- 
- 		await this._queueFollowUp(expandedText, images);
+ 		if (behavior === "steer") {
 diff --git a/packages/coding-agent/src/core/package-manager.ts b/packages/coding-agent/src/core/package-manager.ts
 index d65386c62..21a88b31f 100644
 --- a/packages/coding-agent/src/core/package-manager.ts
@@ -719,10 +711,10 @@ index 744c1395a..f6755e4a6 100644
  			if (existing) {
  				collisionDiagnostics.push({
 diff --git a/packages/coding-agent/src/modes/interactive/interactive-mode.ts b/packages/coding-agent/src/modes/interactive/interactive-mode.ts
-index 8db1b8027..39ecf0c69 100644
+index 3e32dbf0a..de817dd5b 100644
 --- a/packages/coding-agent/src/modes/interactive/interactive-mode.ts
 +++ b/packages/coding-agent/src/modes/interactive/interactive-mode.ts
-@@ -714,6 +714,7 @@ export class InteractiveMode {
+@@ -734,6 +734,7 @@ export class InteractiveMode {
  		this.skillCommands.clear();
  		const skillCommandList: SlashCommand[] = [];
  		if (this.settingsManager.getEnableSkillCommands()) {
@@ -730,7 +722,7 @@ index 8db1b8027..39ecf0c69 100644
  			for (const skill of this.session.resourceLoader.getSkills().skills) {
  				const commandName = `skill:${skill.name}`;
  				this.skillCommands.set(commandName, skill.filePath);
-@@ -721,6 +722,15 @@ export class InteractiveMode {
+@@ -741,6 +742,15 @@ export class InteractiveMode {
  					name: commandName,
  					description: this.prefixAutocompleteDescription(skill.description, skill.sourceInfo),
  				});
