@@ -258,14 +258,16 @@ fi
 
 # Post-publish registry verification — the file-install path cannot catch a
 # broken shrinkwrap (npm re-resolves deps from ranges); only a registry
-# install exercises it. Retry briefly: read replicas lag on fresh publishes.
+# install exercises it. Retry generously: read replicas can lag fresh
+# publishes by several minutes (the 0.86.0-namespace.1 publish exhausted
+# the original 8x30s window and failed the run after a successful publish).
 echo ">> registry verification: install ${NPM_NAME}@${VERSION} from npmjs"
 RDIR="$STAGE/registry-verify"
 i=0
 until mkdir "$RDIR" 2>/dev/null; do RDIR="$RDIR-$i"; i=$((i+1)); done
 VLOG="$STAGE/registry-install.log"
 ok=0
-for attempt in 1 2 3 4 5 6 7 8; do
+for attempt in $(seq 1 20); do
 	# --prefer-online: the collision-abort `npm view` above cached a 404
 	# packument for this exact version on the runner; a cached resolution
 	# fails every retry within the job. Force packument revalidation.
