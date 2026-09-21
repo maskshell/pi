@@ -2,16 +2,22 @@
 
 ## [Unreleased]
 
+### New Features
+
+- **Per-model image input limits** — Configure cache-safe image resizing per model for attachments, `read`, and tool-result images. See [Image Input Limits](docs/models.md#image-input-limits).
+
 ### Added
 
 - Added per-model image resize profiles through `inputLimits.images.resize` in `models.json`, applied to file attachments, image reads, and tool-result images ([#9631](https://github.com/earendil-works/pi/issues/9631)).
 
 ### Fixed
 
-- Fixed `/bug` running in offline mode instead of reporting that online mode is required.
+- Fixed `/bug` allowing uploads in offline mode while preserving local zip exports.
 - Fixed idle prompt-cache warming rebuilding expired caches when its timer or an extension decision is delayed.
 - Improved crash diagnostics with hints identifying loaded extensions that appear in the stack trace.
 - Fixed text files beginning with `GIF` being misclassified as images and omitted from `read` and CLI `@file` input ([#9755](https://github.com/earendil-works/pi/issues/9755)).
+- Fixed malformed prompt template frontmatter being silently ignored instead of reported as a resource warning ([#9830](https://github.com/earendil-works/pi/pull/9830)).
+- Fixed inherited unknown OpenAI-compatible Chat Completions endpoints receiving strict tool schemas unless they explicitly advertise support ([#9816](https://github.com/earendil-works/pi/issues/9816)).
 
 ## [0.86.1] - 2026-09-20
 
