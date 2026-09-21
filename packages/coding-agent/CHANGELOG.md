@@ -2,9 +2,16 @@
 
 ## [Unreleased]
 
+### Added
+
+- Added per-model image resize profiles through `inputLimits.images.resize` in `models.json`, applied to file attachments, image reads, and tool-result images ([#9631](https://github.com/earendil-works/pi/issues/9631)).
+
 ### Fixed
 
+- Fixed `/bug` running in offline mode instead of reporting that online mode is required.
 - Fixed idle prompt-cache warming rebuilding expired caches when its timer or an extension decision is delayed.
+- Improved crash diagnostics with hints identifying loaded extensions that appear in the stack trace.
+- Fixed text files beginning with `GIF` being misclassified as images and omitted from `read` and CLI `@file` input ([#9755](https://github.com/earendil-works/pi/issues/9755)).
 
 ## [0.86.1] - 2026-09-20
 
