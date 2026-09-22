@@ -8,7 +8,7 @@
  * - Edge cases and integration between parsing and substitution
  */
 
-import { mkdirSync, rmSync, writeFileSync } from "fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { afterAll, describe, expect, test } from "vitest";
@@ -515,7 +515,7 @@ argument-hint: "<PR-URL>"
 You are given one or more GitHub PR URLs: $@`,
 		);
 
-		const templates = loadPromptTemplates({
+		const { templates } = loadPromptTemplates({
 			cwd: process.cwd(),
 			agentDir: getAgentDir(),
 			promptPaths: [testDir],
@@ -538,7 +538,7 @@ argument-hint: "[instructions]"
 Wrap it. Additional instructions: $ARGUMENTS`,
 		);
 
-		const templates = loadPromptTemplates({
+		const { templates } = loadPromptTemplates({
 			cwd: process.cwd(),
 			agentDir: getAgentDir(),
 			promptPaths: [testDir],
@@ -560,7 +560,7 @@ description: Audit changelog entries before release
 Audit changelog entries for all commits since the last release.`,
 		);
 
-		const templates = loadPromptTemplates({
+		const { templates } = loadPromptTemplates({
 			cwd: process.cwd(),
 			agentDir: getAgentDir(),
 			promptPaths: [testDir],
@@ -582,7 +582,7 @@ argument-hint: ""
 Do something`,
 		);
 
-		const templates = loadPromptTemplates({
+		const { templates } = loadPromptTemplates({
 			cwd: process.cwd(),
 			agentDir: getAgentDir(),
 			promptPaths: [testDir],
@@ -604,7 +604,7 @@ argument-hint: "<issue>"
 Analyze GitHub issue(s): $ARGUMENTS`,
 		);
 
-		const templates = loadPromptTemplates({
+		const { templates } = loadPromptTemplates({
 			cwd: process.cwd(),
 			agentDir: getAgentDir(),
 			promptPaths: [testDir],
@@ -620,6 +620,36 @@ Analyze GitHub issue(s): $ARGUMENTS`,
 		try {
 			rmSync(testDir, { recursive: true, force: true });
 		} catch {}
+	});
+});
+
+describe("loadPromptTemplates - diagnostics", () => {
+	// Regression test for #9354.
+	test("reports invalid YAML frontmatter and keeps valid siblings", () => {
+		const testDir = mkdtempSync(join(tmpdir(), "pi-test-prompts-invalid-"));
+		const invalidPromptPath = join(testDir, "invalid.md");
+		try {
+			writeFileSync(invalidPromptPath, "---\ndescription: Broken: unquoted colon\n---\nDo something.\n");
+			writeFileSync(join(testDir, "valid.md"), "Valid prompt content.");
+
+			const { templates, diagnostics } = loadPromptTemplates({
+				cwd: process.cwd(),
+				agentDir: getAgentDir(),
+				promptPaths: [testDir],
+				includeDefaults: false,
+			});
+
+			expect(templates.map((template) => template.name)).toEqual(["valid"]);
+			expect(diagnostics).toEqual([
+				expect.objectContaining({
+					type: "warning",
+					path: invalidPromptPath,
+					message: expect.stringContaining("line 1, column 14"),
+				}),
+			]);
+		} finally {
+			rmSync(testDir, { recursive: true, force: true });
+		}
 	});
 });
 
@@ -650,7 +680,7 @@ describe("package namespaces", () => {
 
 	test("should rename templates under an associated path", () => {
 		const { dir, pkgPrompts } = makeTemplates();
-		const templates = loadPromptTemplates({
+		const { templates } = loadPromptTemplates({
 			cwd: dir,
 			agentDir: dir,
 			promptPaths: [pkgPrompts],
@@ -675,7 +705,7 @@ describe("package namespaces", () => {
 		);
 		createdDirs.push(dir);
 		const pkgPrompts = join(dir, "pkg", "prompts");
-		const templates = loadPromptTemplates({
+		const { templates } = loadPromptTemplates({
 			cwd: dir,
 			agentDir: dir,
 			promptPaths: [pkgPrompts],
@@ -690,7 +720,7 @@ describe("package namespaces", () => {
 
 	test("expandPromptTemplate falls back to a unique namespaced base name", () => {
 		const { dir, pkgPrompts } = makeTemplates();
-		const templates = loadPromptTemplates({
+		const { templates } = loadPromptTemplates({
 			cwd: dir,
 			agentDir: dir,
 			promptPaths: [pkgPrompts],
@@ -716,14 +746,14 @@ describe("package namespaces", () => {
 				promptPaths: [join(dir, "a", "prompts")],
 				includeDefaults: false,
 				namespaces: [{ path: join(dir, "a", "prompts"), namespace: "a" }],
-			}),
+			}).templates,
 			...loadPromptTemplates({
 				cwd: dir,
 				agentDir: dir,
 				promptPaths: [join(dir, "b", "prompts")],
 				includeDefaults: false,
 				namespaces: [{ path: join(dir, "b", "prompts"), namespace: "b" }],
-			}),
+			}).templates,
 		];
 
 		expect(expandPromptTemplate("/shared", templates)).toBe("/shared");

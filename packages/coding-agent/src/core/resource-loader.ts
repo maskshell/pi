@@ -739,8 +739,11 @@ export class DefaultResourceLoader implements ResourceLoader {
 				includeDefaults: false,
 				namespaces: this.buildNamespaceAssociations(metadataByPath, namespaceDiagnostics),
 			});
-			promptsResult = this.dedupePrompts(allPrompts);
-			promptsResult.diagnostics.push(...namespaceDiagnostics);
+			const deduped = this.dedupePrompts(allPrompts.templates);
+			promptsResult = {
+				prompts: deduped.prompts,
+				diagnostics: [...allPrompts.diagnostics, ...deduped.diagnostics, ...namespaceDiagnostics],
+			};
 		}
 		const resolvedPrompts = this.promptsOverride ? this.promptsOverride(promptsResult) : promptsResult;
 		this.prompts = resolvedPrompts.prompts.map((prompt) => ({

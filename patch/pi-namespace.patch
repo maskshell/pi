@@ -1,4 +1,4 @@
-From 310ede45457d391a50d6c6c54f525d64fd38ce27 Mon Sep 17 00:00:00 2001
+From 4ca383801ccf7363927d09f5e7ed673f739d6ca4 Mon Sep 17 00:00:00 2001
 From: Analyser <analyser@gmail.com>
 Date: Sat, 29 Aug 2026 20:24:21 +0800
 Subject: [PATCH] feat(coding-agent): opt-in package namespace (pi.namespace)
@@ -49,8 +49,8 @@ Out of scope: themes, runtime registrations, settings-level overrides.
  .../coding-agent/src/core/agent-session.ts    |  37 +++-
  .../coding-agent/src/core/package-manager.ts  |  16 +-
  packages/coding-agent/src/core/pi-manifest.ts |   8 +
- .../coding-agent/src/core/prompt-templates.ts |  44 +++-
- .../coding-agent/src/core/resource-loader.ts  |  39 +++-
+ .../coding-agent/src/core/prompt-templates.ts |  40 +++-
+ .../coding-agent/src/core/resource-loader.ts  |  44 +++-
  packages/coding-agent/src/core/skills.ts      | 122 +++++++++-
  .../src/modes/interactive/interactive-mode.ts |  10 +
  .../skills/ns-package/ns-one/SKILL.md         |   5 +
@@ -62,7 +62,7 @@ Out of scope: themes, runtime registrations, settings-level overrides.
  .../test/prompt-templates.test.ts             | 108 +++++++++
  .../coding-agent/test/resource-loader.test.ts | 163 ++++++++++++++
  packages/coding-agent/test/skills.test.ts     | 208 +++++++++++++++++-
- 19 files changed, 919 insertions(+), 16 deletions(-)
+ 19 files changed, 919 insertions(+), 17 deletions(-)
  create mode 100644 packages/coding-agent/test/fixtures/skills/ns-package/ns-one/SKILL.md
  create mode 100644 packages/coding-agent/test/fixtures/skills/ns-package/ns-two-dup/SKILL.md
  create mode 100644 packages/coding-agent/test/fixtures/skills/ns-package/ns-two/SKILL.md
@@ -192,18 +192,18 @@ index 02835f820..7aa258a84 100644
  
  ```
 diff --git a/packages/coding-agent/src/core/agent-session.ts b/packages/coding-agent/src/core/agent-session.ts
-index b0f4d1840..c09f29123 100644
+index 338d0e0d0..5e91331de 100644
 --- a/packages/coding-agent/src/core/agent-session.ts
 +++ b/packages/coding-agent/src/core/agent-session.ts
-@@ -108,6 +108,7 @@ import { exportSessionToJsonl } from "./session-export.ts";
- import type { BranchSummaryEntry, CompactionEntry, SessionEntry, SessionManager } from "./session-manager.ts";
- import { getLatestCompactionEntry } from "./session-manager.ts";
+@@ -119,6 +119,7 @@ import {
+ 	SessionManager,
+ } from "./session-manager.ts";
  import type { CacheWarmingMode, SettingsManager } from "./settings-manager.ts";
 +import { findSkillByInvocationName, resolveBareNamespaceSkill } from "./skills.ts";
  import type { SlashCommandInfo } from "./slash-commands.ts";
  import { createSyntheticSourceInfo, type SourceInfo } from "./source-info.ts";
  import {
-@@ -1333,6 +1334,7 @@ export class AgentSession {
+@@ -1647,6 +1648,7 @@ export class AgentSession {
  			let expandedText = currentText;
  			if (expandPromptTemplates) {
  				expandedText = this._expandSkillCommand(expandedText);
@@ -211,7 +211,7 @@ index b0f4d1840..c09f29123 100644
  				expandedText = expandPromptTemplate(expandedText, [...this.promptTemplates]);
  			}
  
-@@ -1483,11 +1485,41 @@ export class AgentSession {
+@@ -1799,11 +1801,41 @@ export class AgentSession {
  
  		const spaceIndex = text.indexOf(" ");
  		const skillName = spaceIndex === -1 ? text.slice(7) : text.slice(7, spaceIndex);
@@ -255,7 +255,7 @@ index b0f4d1840..c09f29123 100644
  		try {
  			const content = readFileSync(skill.filePath, "utf-8");
  			const body = stripFrontmatter(content).trim();
-@@ -1523,6 +1555,7 @@ export class AgentSession {
+@@ -1839,6 +1871,7 @@ export class AgentSession {
  		if (!processedInput) return;
  
  		let expandedText = this._expandSkillCommand(processedInput.text);
@@ -356,18 +356,18 @@ index fd7dd5edb..b19ebfdeb 100644
  	} catch {
  		return null;
 diff --git a/packages/coding-agent/src/core/prompt-templates.ts b/packages/coding-agent/src/core/prompt-templates.ts
-index e0fe89e53..4a0411ccd 100644
+index f5b21a665..f7979825b 100644
 --- a/packages/coding-agent/src/core/prompt-templates.ts
 +++ b/packages/coding-agent/src/core/prompt-templates.ts
-@@ -3,6 +3,7 @@ import { basename, dirname, join, resolve, sep } from "path";
- import { CONFIG_DIR_NAME } from "../config.ts";
+@@ -4,6 +4,7 @@ import { CONFIG_DIR_NAME } from "../config.ts";
  import { parseFrontmatter } from "../utils/frontmatter.ts";
  import { resolvePath } from "../utils/paths.ts";
+ import type { ResourceDiagnostic } from "./diagnostics.ts";
 +import { findNamespaceForPath, type ResourceNamespace } from "./skills.ts";
  import { createSyntheticSourceInfo, type SourceInfo } from "./source-info.ts";
  
  /**
-@@ -15,6 +16,10 @@ export interface PromptTemplate {
+@@ -16,6 +17,10 @@ export interface PromptTemplate {
  	content: string;
  	sourceInfo: SourceInfo;
  	filePath: string; // Absolute path to the template file
@@ -378,7 +378,7 @@ index e0fe89e53..4a0411ccd 100644
  }
  
  /**
-@@ -183,6 +188,8 @@ export interface LoadPromptTemplatesOptions {
+@@ -206,6 +211,8 @@ export interface LoadPromptTemplatesOptions {
  	promptPaths: string[];
  	/** Include default prompt directories. */
  	includeDefaults: boolean;
@@ -386,14 +386,20 @@ index e0fe89e53..4a0411ccd 100644
 +	namespaces?: ResourceNamespace[];
  }
  
- /**
-@@ -196,9 +203,23 @@ export function loadPromptTemplates(options: LoadPromptTemplatesOptions): Prompt
+ export interface LoadPromptTemplatesResult {
+@@ -224,14 +231,28 @@ export function loadPromptTemplates(options: LoadPromptTemplatesOptions): LoadPr
  	const resolvedAgentDir = resolvePath(options.agentDir);
  	const promptPaths = options.promptPaths;
  	const includeDefaults = options.includeDefaults;
 +	const namespaces = options.namespaces ?? [];
  
  	const templates: PromptTemplate[] = [];
+ 	const diagnostics: ResourceDiagnostic[] = [];
+ 	const addResult = (result: LoadPromptTemplatesResult): void => {
+-		templates.push(...result.templates);
++		templates.push(...result.templates.map(applyNamespace));
+ 		diagnostics.push(...result.diagnostics);
+ 	};
  
 +	/** Compose the exposed name when the template's path has a namespace association. */
 +	const applyNamespace = (template: PromptTemplate): PromptTemplate => {
@@ -411,32 +417,16 @@ index e0fe89e53..4a0411ccd 100644
  	const globalPromptsDir = join(resolvedAgentDir, "prompts");
  	const projectPromptsDir = resolve(resolvedCwd, CONFIG_DIR_NAME, "prompts");
  
-@@ -233,8 +254,8 @@ export function loadPromptTemplates(options: LoadPromptTemplatesOptions): Prompt
- 	};
- 
- 	if (includeDefaults) {
--		templates.push(...loadTemplatesFromDir(globalPromptsDir, getSourceInfo));
--		templates.push(...loadTemplatesFromDir(projectPromptsDir, getSourceInfo));
-+		templates.push(...loadTemplatesFromDir(globalPromptsDir, getSourceInfo).map(applyNamespace));
-+		templates.push(...loadTemplatesFromDir(projectPromptsDir, getSourceInfo).map(applyNamespace));
- 	}
- 
- 	// 3. Load explicit prompt paths
-@@ -247,11 +268,11 @@ export function loadPromptTemplates(options: LoadPromptTemplatesOptions): Prompt
- 		try {
- 			const stats = statSync(resolvedPath);
- 			if (stats.isDirectory()) {
--				templates.push(...loadTemplatesFromDir(resolvedPath, getSourceInfo));
-+				templates.push(...loadTemplatesFromDir(resolvedPath, getSourceInfo).map(applyNamespace));
+@@ -284,7 +305,7 @@ export function loadPromptTemplates(options: LoadPromptTemplatesOptions): LoadPr
  			} else if (stats.isFile() && resolvedPath.endsWith(".md")) {
- 				const template = loadTemplateFromFile(resolvedPath, getSourceInfo(resolvedPath));
- 				if (template) {
--					templates.push(template);
-+					templates.push(applyNamespace(template));
+ 				const result = loadTemplateFromFile(resolvedPath, getSourceInfo(resolvedPath));
+ 				if (result.template) {
+-					templates.push(result.template);
++					templates.push(applyNamespace(result.template));
  				}
+ 				diagnostics.push(...result.diagnostics);
  			}
- 		} catch {
-@@ -275,10 +296,21 @@ export function expandPromptTemplate(text: string, templates: PromptTemplate[]):
+@@ -310,10 +331,21 @@ export function expandPromptTemplate(text: string, templates: PromptTemplate[]):
  	const templateName = match[1];
  	const argsString = match[2] ?? "";
  
@@ -461,7 +451,7 @@ index e0fe89e53..4a0411ccd 100644
  
  	return text;
 diff --git a/packages/coding-agent/src/core/resource-loader.ts b/packages/coding-agent/src/core/resource-loader.ts
-index 04102425b..1aab0b31e 100644
+index 6babd0178..1007485a3 100644
 --- a/packages/coding-agent/src/core/resource-loader.ts
 +++ b/packages/coding-agent/src/core/resource-loader.ts
 @@ -23,7 +23,7 @@ import type { PromptTemplate } from "./prompt-templates.ts";
@@ -525,23 +515,28 @@ index 04102425b..1aab0b31e 100644
  		}
  		const resolvedSkills = this.skillsOverride ? this.skillsOverride(skillsResult) : skillsResult;
  		this.skills = resolvedSkills.skills.map((skill) => ({
-@@ -697,13 +731,16 @@ export class DefaultResourceLoader implements ResourceLoader {
+@@ -697,16 +731,18 @@ export class DefaultResourceLoader implements ResourceLoader {
  		if (this.noPromptTemplates && promptPaths.length === 0) {
  			promptsResult = { prompts: [], diagnostics: [] };
  		} else {
+-			const loaded = loadPromptTemplates({
 +			const namespaceDiagnostics: ResourceDiagnostic[] = [];
- 			const allPrompts = loadPromptTemplates({
++			const allPrompts = loadPromptTemplates({
  				cwd: this.cwd,
  				agentDir: this.agentDir,
  				promptPaths,
  				includeDefaults: false,
 +				namespaces: this.buildNamespaceAssociations(metadataByPath, namespaceDiagnostics),
  			});
- 			promptsResult = this.dedupePrompts(allPrompts);
-+			promptsResult.diagnostics.push(...namespaceDiagnostics);
+-			const deduped = this.dedupePrompts(loaded.templates);
++			const deduped = this.dedupePrompts(allPrompts.templates);
+ 			promptsResult = {
+ 				prompts: deduped.prompts,
+-				diagnostics: [...loaded.diagnostics, ...deduped.diagnostics],
++				diagnostics: [...allPrompts.diagnostics, ...deduped.diagnostics, ...namespaceDiagnostics],
+ 			};
  		}
  		const resolvedPrompts = this.promptsOverride ? this.promptsOverride(promptsResult) : promptsResult;
- 		this.prompts = resolvedPrompts.prompts.map((prompt) => ({
 diff --git a/packages/coding-agent/src/core/skills.ts b/packages/coding-agent/src/core/skills.ts
 index 744c1395a..f6755e4a6 100644
 --- a/packages/coding-agent/src/core/skills.ts
@@ -711,10 +706,10 @@ index 744c1395a..f6755e4a6 100644
  			if (existing) {
  				collisionDiagnostics.push({
 diff --git a/packages/coding-agent/src/modes/interactive/interactive-mode.ts b/packages/coding-agent/src/modes/interactive/interactive-mode.ts
-index 238302f9d..adea83990 100644
+index 968f74140..cb9b25b25 100644
 --- a/packages/coding-agent/src/modes/interactive/interactive-mode.ts
 +++ b/packages/coding-agent/src/modes/interactive/interactive-mode.ts
-@@ -741,6 +741,7 @@ export class InteractiveMode {
+@@ -759,6 +759,7 @@ export class InteractiveMode {
  		this.skillCommands.clear();
  		const skillCommandList: SlashCommand[] = [];
  		if (this.settingsManager.getEnableSkillCommands()) {
@@ -722,7 +717,7 @@ index 238302f9d..adea83990 100644
  			for (const skill of this.session.resourceLoader.getSkills().skills) {
  				const commandName = `skill:${skill.name}`;
  				this.skillCommands.set(commandName, skill.filePath);
-@@ -748,6 +749,15 @@ export class InteractiveMode {
+@@ -766,6 +767,15 @@ export class InteractiveMode {
  					name: commandName,
  					description: this.prefixAutocompleteDescription(skill.description, skill.sourceInfo),
  				});
@@ -869,11 +864,11 @@ index 6f4f6b4fa..ab22dc13a 100644
 +	});
  });
 diff --git a/packages/coding-agent/test/prompt-templates.test.ts b/packages/coding-agent/test/prompt-templates.test.ts
-index 97bfe985c..144a64755 100644
+index eaf59c12a..7339295bb 100644
 --- a/packages/coding-agent/test/prompt-templates.test.ts
 +++ b/packages/coding-agent/test/prompt-templates.test.ts
-@@ -622,3 +622,111 @@ Analyze GitHub issue(s): $ARGUMENTS`,
- 		} catch {}
+@@ -652,3 +652,111 @@ describe("loadPromptTemplates - diagnostics", () => {
+ 		}
  	});
  });
 +
@@ -904,7 +899,7 @@ index 97bfe985c..144a64755 100644
 +
 +	test("should rename templates under an associated path", () => {
 +		const { dir, pkgPrompts } = makeTemplates();
-+		const templates = loadPromptTemplates({
++		const { templates } = loadPromptTemplates({
 +			cwd: dir,
 +			agentDir: dir,
 +			promptPaths: [pkgPrompts],
@@ -929,7 +924,7 @@ index 97bfe985c..144a64755 100644
 +		);
 +		createdDirs.push(dir);
 +		const pkgPrompts = join(dir, "pkg", "prompts");
-+		const templates = loadPromptTemplates({
++		const { templates } = loadPromptTemplates({
 +			cwd: dir,
 +			agentDir: dir,
 +			promptPaths: [pkgPrompts],
@@ -944,7 +939,7 @@ index 97bfe985c..144a64755 100644
 +
 +	test("expandPromptTemplate falls back to a unique namespaced base name", () => {
 +		const { dir, pkgPrompts } = makeTemplates();
-+		const templates = loadPromptTemplates({
++		const { templates } = loadPromptTemplates({
 +			cwd: dir,
 +			agentDir: dir,
 +			promptPaths: [pkgPrompts],
@@ -970,14 +965,14 @@ index 97bfe985c..144a64755 100644
 +				promptPaths: [join(dir, "a", "prompts")],
 +				includeDefaults: false,
 +				namespaces: [{ path: join(dir, "a", "prompts"), namespace: "a" }],
-+			}),
++			}).templates,
 +			...loadPromptTemplates({
 +				cwd: dir,
 +				agentDir: dir,
 +				promptPaths: [join(dir, "b", "prompts")],
 +				includeDefaults: false,
 +				namespaces: [{ path: join(dir, "b", "prompts"), namespace: "b" }],
-+			}),
++			}).templates,
 +		];
 +
 +		expect(expandPromptTemplate("/shared", templates)).toBe("/shared");
@@ -985,10 +980,10 @@ index 97bfe985c..144a64755 100644
 +	});
 +});
 diff --git a/packages/coding-agent/test/resource-loader.test.ts b/packages/coding-agent/test/resource-loader.test.ts
-index 145eca3b2..858657ad1 100644
+index 435bd5e22..93762b9f1 100644
 --- a/packages/coding-agent/test/resource-loader.test.ts
 +++ b/packages/coding-agent/test/resource-loader.test.ts
-@@ -1118,4 +1118,167 @@ export default function(pi: ExtensionAPI) {
+@@ -1140,4 +1140,167 @@ export default function(pi: ExtensionAPI) {
  			expect(files.map((f) => f.content)).toEqual(["repo instructions", "src instructions"]);
  		});
  	});
