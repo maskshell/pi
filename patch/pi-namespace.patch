@@ -1,4 +1,4 @@
-From 4ca383801ccf7363927d09f5e7ed673f739d6ca4 Mon Sep 17 00:00:00 2001
+From eb64b911187065c9dc5d426109ec04992e6d57ea Mon Sep 17 00:00:00 2001
 From: Analyser <analyser@gmail.com>
 Date: Sat, 29 Aug 2026 20:24:21 +0800
 Subject: [PATCH] feat(coding-agent): opt-in package namespace (pi.namespace)
@@ -70,12 +70,12 @@ Out of scope: themes, runtime registrations, settings-level overrides.
  create mode 100644 packages/coding-agent/test/fixtures/skills/ns-user-dir/user-skill/SKILL.md
 
 diff --git a/packages/coding-agent/docs/packages.md b/packages/coding-agent/docs/packages.md
-index cadeb1867..db2f385ff 100644
+index 018eb219e..6b6efe6a3 100644
 --- a/packages/coding-agent/docs/packages.md
 +++ b/packages/coding-agent/docs/packages.md
-@@ -132,6 +132,45 @@ Add a `pi` manifest to `package.json` or use conventional directories. Include t
+@@ -73,6 +73,45 @@ Paths are relative to the package root. Arrays accept glob patterns and exclusio
  
- Paths are relative to the package root. Arrays support glob patterns and `!exclusions`. Positive manifest globs discover visible paths in lexical order. List dot-prefixed paths directly. If a glob would need to continue through a symlink, list the symlinked resource root directly.
+ The `pi-package` keyword makes an npm package eligible for discovery in the [Pi package gallery](https://pi.dev/packages). Optional `pi.image` and `pi.video` fields add gallery previews.
  
 +### Namespace
 +
@@ -116,19 +116,18 @@ index cadeb1867..db2f385ff 100644
 +  but with a namespace declared they compose to `<ns>:<ns>:<name>` — migrate
 +  them to plain filenames to keep the single-prefixed invocation.
 +
- ### Gallery Metadata
+ ## Declare dependencies
  
- The [package gallery](https://pi.dev/packages) displays packages tagged with `pi-package`. Add `video` or `image` fields to show a preview:
+ Put runtime packages imported by extensions in `dependencies`. Pi installs package dependencies when it installs an npm or git source.
 diff --git a/packages/coding-agent/docs/prompt-templates.md b/packages/coding-agent/docs/prompt-templates.md
-index 073b9f00a..89f19190a 100644
+index 8fee1a3fe..5e2e8e70c 100644
 --- a/packages/coding-agent/docs/prompt-templates.md
 +++ b/packages/coding-agent/docs/prompt-templates.md
-@@ -11,6 +11,22 @@ Pi loads prompt templates from:
- - Global: `~/.pi/agent/prompts/*.md`
- - Project: `.pi/prompts/*.md` (only after the project is trusted)
- - Packages: `prompts/` directories or `pi.prompts` entries in `package.json`
-+
-+### Package Namespaces
+@@ -48,6 +48,22 @@ Templates support these substitutions:
+ 
+ Arguments follow shell-like quoting, so `/review "API compatibility"` supplies one argument containing a space.
+ 
++## Package Namespaces
 +
 +A package declaring `pi.namespace` exposes its templates under the composed
 +name `<namespace>:<name>`: `prompts/arm-tools.md` in a package with
@@ -143,18 +142,19 @@ index 073b9f00a..89f19190a 100644
 +namespace declared they compose to `<ns>:<ns>:<name>` — prefer plain
 +filenames. See
 +[packages.md](packages.md#namespace).
- - Settings: `prompts` array with files or directories
- - CLI: `--prompt-template <path>` (repeatable)
++
+ <a id="choose-where-it-loads"></a>
  
+ ## Add it to Pi
 diff --git a/packages/coding-agent/docs/skills.md b/packages/coding-agent/docs/skills.md
-index 02835f820..7aa258a84 100644
+index 19d2bf289..c04c30ba5 100644
 --- a/packages/coding-agent/docs/skills.md
 +++ b/packages/coding-agent/docs/skills.md
-@@ -188,6 +188,40 @@ Declared skills with missing descriptions are not loaded. Malformed `SKILL.md` f
+@@ -84,6 +84,40 @@ Pi neither requires nor warns when the declared name differs from the parent dir
  
- Name collisions (same name from different locations) warn and keep the first skill found.
+ Malformed `SKILL.md` files and declared skills without descriptions are not loaded. Name collisions keep the first discovered skill and produce a warning.
  
-+### Package Namespaces
++## Package Namespaces
 +
 +A package can namespace its skills by declaring `pi.namespace` in `package.json`:
 +
@@ -188,9 +188,9 @@ index 02835f820..7aa258a84 100644
 +associations come from package resolution only: a raw settings or CLI path
 +pointing into a package bypasses the namespace and loads bare.
 +
- ## Example
+ ## Validate and share a skill
  
- ```
+ Run Pi from a location where the skill is discoverable, then inspect the startup diagnostics and `/skill:name` command. Run `/reload` after editing a skill during an active session.
 diff --git a/packages/coding-agent/src/core/agent-session.ts b/packages/coding-agent/src/core/agent-session.ts
 index 338d0e0d0..5e91331de 100644
 --- a/packages/coding-agent/src/core/agent-session.ts

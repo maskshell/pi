@@ -1,14 +1,14 @@
 {
 	"feature": "pi.namespace — opt-in package namespace for skills and prompt templates",
-	"patchVersion": "0.87.0-namespace.1",
-	"baseTag": "v0.87.0",
-	"baseSha": "16787ad5b2dc748047f314ca1bfe7708f30f54f3",
-	"featureCommit": "4ca383801ccf7363927d09f5e7ed673f739d6ca4",
-	"versionStampCommit": "6bada94ec7e95d2b3078157692332bccfffe39aa",
-	"forkFixCommit": "a254fd7501f472b717f3a8403a568fe87a2b140d",
-	"forkReleaseTag": "v0.87.0-namespace.1",
-	"tarballAsset": "earendil-works-pi-coding-agent-0.87.0-namespace.1.tgz",
-	"generatedAt": "2026-09-22",
+	"patchVersion": "0.87.1-namespace.1",
+	"baseTag": "v0.87.1",
+	"baseSha": "f07218c4d4bbc12bef056a7058c3dd49dfe41abe",
+	"featureCommit": "eb64b911187065c9dc5d426109ec04992e6d57ea",
+	"versionStampCommit": "639d248ac73d4094281074f66e40b29b8a4d1777",
+	"forkFixCommit": "3ace605a1517ca664a6a2024c668819cd0b1d5d9",
+	"forkReleaseTag": "v0.87.1-namespace.1",
+	"tarballAsset": "earendil-works-pi-coding-agent-0.87.1-namespace.1.tgz",
+	"generatedAt": "2026-09-23",
 	"upstreamProposal": "https://github.com/earendil-works/pi/issues/8834",
 	"install": {
 		"tierA_npm": "npm install -g pi-namespace-patch (registry.npmjs.org, trusted publishing; registry version X.Y.Z-namespace.N — may exceed the release suffix after burnt-slot re-publishes)",
@@ -17,11 +17,11 @@
 		"tierC_script": "bash apply.sh [target-dir]"
 	},
 	"verification": {
-		"version": "pi --version -> 0.87.0+namespace.1",
-		"tests": "329 passed (skills 47, prompt-templates 97, resource-loader 47, package-manager 126, version-check 12 — +1 prompt-templates diagnostics (upstream #9354) and +1 resource-loader vs the 0.86.1 base)",
+		"version": "pi --version -> 0.87.1+namespace.1",
+		"tests": "329 passed (skills 47, prompt-templates 97, resource-loader 47, package-manager 126, version-check 12 — unchanged vs the 0.87.0 base)",
 		"check": "exit 0 (full chain incl. biome --error-on-warnings, tsgo, shrinkwrap + install-lock); build + lockfiles-public gates green; zero workspace overlays",
 		"consumer": "solidforge-pi master (pi.namespace: solidforge) — https://github.com/maskshell/solidforge-pi"
 	},
 	"tracking": "PATCH-TRACKING.md (same directory); release monitor: .github/workflows/namespace-patch-tracker.yml on fork main",
-	"packageVersion": "0.87.0+namespace.1"
+	"packageVersion": "0.87.1+namespace.1"
 }

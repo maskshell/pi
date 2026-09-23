@@ -1,4 +1,4 @@
-From a254fd7501f472b717f3a8403a568fe87a2b140d Mon Sep 17 00:00:00 2001
+From 3ace605a1517ca664a6a2024c668819cd0b1d5d9 Mon Sep 17 00:00:00 2001
 From: Analyser <analyser@gmail.com>
 Date: Sun, 6 Sep 2026 20:21:18 +0800
 Subject: [PATCH] patch: update-banner compares core versions (fork-stamped
