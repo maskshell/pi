@@ -8,8 +8,10 @@ in this fork; the only automated step is the release monitor.
 ## Roles
 
 - **Upstream**: earendil-works/pi (releases `vX.Y.Z`).
-- **Fork**: maskshell/pi. `main` mirrors upstream main (sole fork-specific
-  file: `.github/workflows/namespace-patch-tracker.yml`). The patch lives on
+- **Fork**: maskshell/pi. `main` mirrors upstream main (fork-specific
+  files: `.github/workflows/namespace-patch-tracker.yml` and
+  `.github/workflows/publish-namespace-patch.yml`; the latter is also
+  carried on `namespace-patch` — see step 4). The patch lives on
   `namespace-patch` as: [1] feature commit, [2] fork-fix commits (recorded in
   `MANIFEST.json → forkFixCommit`; currently the update-banner core-version
   compare), [3] version-stamp commit,
@@ -41,9 +43,14 @@ tag (`v*` pattern) triggers a guaranteed-red run (`gh workflow disable
 
 Prerequisite secrets (repo settings): `DEEPSEEK_API_KEY` (the L2 agent's
 provider). Release cut + upstream comment stay manual steps 4/6 below
-(P3); the npm alias publish is automated: the `release: published` event
-triggers the publish workflow (manual dispatch with a `revision` input
-for burnt-slot re-publishes). Merge of the pipeline PR remains the
+(P3); the npm alias publish is automated: the namespace release tag push
+triggers the publish workflow. The workflow file must exist at the TAGGED
+COMMIT (`on: push: tags` resolves it there), so `mechanical-rebase.sh`
+restores it onto every re-based branch alongside `patch/`; `release:
+published` events never deliver in this repo (0 runs ever — do not rely on
+that trigger). Manual dispatch with a `revision` input remains for
+burnt-slot re-publishes; duplicate auto triggers exit green via the
+script's idempotent collision path. Merge of the pipeline PR remains the
 human/agent gate.
 
 PR merge policy: the pipeline PR (`namespace-patch-next` → `namespace-patch`)

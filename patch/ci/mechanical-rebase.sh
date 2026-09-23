@@ -72,6 +72,12 @@ if git ls-files --unmerged | grep -q . || git rev-parse -q --verify CHERRY_PICK_
 else
 	# Capture the artifact dir before switching: the release tag has no patch/
 	rm -rf /tmp/patch-orig && cp -r patch /tmp/patch-orig
+	# Same for the fork-only publish workflow: `on: push: tags` resolves the
+	# workflow file AT THE TAGGED COMMIT (release events never deliver in this
+	# repo), and release tags live on namespace-patch. Without this restore
+	# every re-based branch would lose the tag-push publish trigger.
+	mkdir -p /tmp/fork-wf-orig
+	cp .github/workflows/publish-namespace-patch.yml /tmp/fork-wf-orig/ 2>/dev/null || true
 	FEATURE_SHA="$(jq -r .featureCommit patch/MANIFEST.json)"
 	FIX_SHA="$(jq -r '.forkFixCommit // empty' patch/MANIFEST.json)"
 	git checkout -q -B "$BRANCH" "$NEW_TAG"
@@ -79,6 +85,10 @@ else
 	# release tag carries none of it; only the .patch files and MANIFEST are
 	# regenerated below. Restoring just MANIFEST once silently dropped the rest.
 	cp -r /tmp/patch-orig/. patch/
+	if [ -f /tmp/fork-wf-orig/publish-namespace-patch.yml ]; then
+		mkdir -p .github/workflows
+		cp /tmp/fork-wf-orig/publish-namespace-patch.yml .github/workflows/
+	fi
 	# Fork-fix commits ride the feature chain: one cherry-pick sequence so an
 	# L2 resolution + `cherry-pick --continue` finishes the whole chain.
 	if ! git cherry-pick $FEATURE_SHA $FIX_SHA; then
