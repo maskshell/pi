@@ -249,8 +249,22 @@ REG_FLAG=("--registry=$NPM_REGISTRY")
 if [ -n "${GITHUB_ACTIONS:-}" ]; then
 	REG_FLAG=()
 fi
-npm publish "${REG_FLAG[@]}" --tag latest $PROVENANCE ${DRY_RUN:+--dry-run} "$VARIANT"
-echo ">> publish ${DRY_RUN:+(dry-run) }done: ${NPM_NAME}@${VERSION}"
+# E409 fallthrough: an idempotent re-dispatch can hit a slot its own earlier
+# run already claimed — "Cannot publish over previously staged version"
+# (that run died mid-flight; a staged packument 404s on `npm view`, so the
+# collision abort above cannot see it) or "cannot modify pre-existing
+# version" (fully published, propagation caught up). The slot's content is
+# this same release either way, so fall through to the registry verification
+# below instead of failing; any other publish error stays fatal.
+PUBLOG="$STAGE/publish.log"
+if npm publish "${REG_FLAG[@]}" --tag latest $PROVENANCE ${DRY_RUN:+--dry-run} "$VARIANT" 2>&1 | tee "$PUBLOG"; then
+	echo ">> publish ${DRY_RUN:+(dry-run) }done: ${NPM_NAME}@${VERSION}"
+elif grep -qE 'previously staged version|cannot modify pre-existing version' "$PUBLOG"; then
+	echo ">> publish hit E409 (slot already claimed by an earlier dispatch of this release) — verifying the published slot instead" >&2
+else
+	cat "$PUBLOG" >&2
+	exit 1
+fi
 
 if [ -n "$DRY_RUN" ]; then
 	exit 0
@@ -258,24 +272,29 @@ fi
 
 # Post-publish registry verification — the file-install path cannot catch a
 # broken shrinkwrap (npm re-resolves deps from ranges); only a registry
-# install exercises it. Retry generously: read replicas can lag fresh
-# publishes by several minutes (the 0.86.0-namespace.1 publish exhausted
-# the original 8x30s window and failed the run after a successful publish).
+# install exercises it. Retry with BACKOFF: read replicas lag fresh
+# publishes by minutes, and a publish that died mid-flight leaves the slot
+# npm-STAGED — notarget for well beyond any fixed window we would tolerate
+# (0.86.0-namespace.1 outran 8x30s; 0.87.0-namespace.1 outran 20x30s).
+# Schedule: 5x30s + 5x60s + 10x150s ≈ 33 min before declaring failure.
 echo ">> registry verification: install ${NPM_NAME}@${VERSION} from npmjs"
 RDIR="$STAGE/registry-verify"
 i=0
 until mkdir "$RDIR" 2>/dev/null; do RDIR="$RDIR-$i"; i=$((i+1)); done
 VLOG="$STAGE/registry-install.log"
 ok=0
+delay=30
 for attempt in $(seq 1 20); do
 	# --prefer-online: the collision-abort `npm view` above cached a 404
 	# packument for this exact version on the runner; a cached resolution
 	# fails every retry within the job. Force packument revalidation.
 	if ( cd "$RDIR" && npm install --prefer-online --no-audit --no-fund --registry="$NPM_REGISTRY" "${NPM_NAME}@${VERSION}" >"$VLOG" 2>&1 ); then ok=1; break; fi
-	echo "   attempt $attempt failed — tail of install log:"; tail -5 "$VLOG" | sed 's/^/     /'; sleep 30
+	echo "   attempt $attempt failed (next in ${delay}s) — tail of install log:"; tail -5 "$VLOG" | sed 's/^/     /'
+	sleep "$delay"
+	case "$attempt" in 5) delay=60 ;; 10) delay=150 ;; esac
 done
 if [ "$ok" != 1 ]; then
-	echo "!! REGISTRY INSTALL FAILED for ${NPM_NAME}@${VERSION} — do not announce; investigate" >&2
+	echo "!! REGISTRY INSTALL FAILED for ${NPM_NAME}@${VERSION} after ${attempt} attempts (~33 min) — the slot may be npm-STAGED (clears in >1h; 0.87.0-namespace.1 did) — check the npm versions page before burning a REV slot; do not announce" >&2
 	exit 1
 fi
 GOT="$($RDIR/node_modules/.bin/pi --version)"
