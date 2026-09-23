@@ -17,8 +17,8 @@
 		"tierC_script": "bash apply.sh [target-dir]"
 	},
 	"verification": {
-		"version": "pi --version -> 0.87.0+namespace.1",
-		"tests": "329 passed (skills 47, prompt-templates 97, resource-loader 47, package-manager 126, version-check 12 — +1 prompt-templates diagnostics (upstream #9354) and +1 resource-loader vs the 0.86.1 base)",
+		"version": "pi --version -> 0.87.1+namespace.1",
+		"tests": "329 passed (skills 47, prompt-templates 97, resource-loader 47, package-manager 126, version-check 12 — unchanged vs the 0.87.0 base)",
 		"check": "exit 0 (full chain incl. biome --error-on-warnings, tsgo, shrinkwrap + install-lock); build + lockfiles-public gates green; zero workspace overlays",
 		"consumer": "solidforge-pi master (pi.namespace: solidforge) — https://github.com/maskshell/solidforge-pi"
 	},
