@@ -199,8 +199,15 @@ VERSION="$(python3 -c "import json; print(json.load(open('$PKG/package.json'))['
 
 # Collision abort: an existing version slot means a publish already
 # happened — never silently bump (idempotent dispatches must not fork
-# revisions); rerun with REV=<n+1> if that slot is broken.
+# revisions); rerun with REV=<n+1> if that slot is broken. Auto triggers
+# (tag push / release event, IDEMPOTENT=1 from the workflow) exit GREEN
+# instead: a duplicate auto run is a no-op, not an outage — the sibling
+# run that claimed the slot owns its registry verification.
 if npm view "${NPM_NAME}@${VERSION}" version --registry="$NPM_REGISTRY" >/dev/null 2>&1; then
+	if [ -n "${IDEMPOTENT:-}" ]; then
+		echo ">> ${NPM_NAME}@${VERSION} already published — idempotent no-op (auto trigger)"
+		exit 0
+	fi
 	echo "!! ${NPM_NAME}@${VERSION} is already published — rerun with REV=<next> if this slot is broken" >&2
 	exit 1
 fi
