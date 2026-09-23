@@ -14,10 +14,21 @@ name: publish-namespace-patch
 #   environment: npm-publish
 #
 # Fork-specific file on main (with FORK.md and namespace-patch-tracker.yml).
+#
+# Trigger note: the `release: published` event has NEVER delivered here (0
+# release-event runs ever; every publish so far was a manual dispatch),
+# while tag pushes do deliver (upstream's Build Binaries fired on every
+# namespace `v*` tag until it was disabled in the fork). The primary
+# trigger is therefore the tag push; the release trigger stays as a
+# belt-and-braces secondary — duplicate runs are serialized by the
+# concurrency group and exit green via the script's idempotent collision
+# path (auto triggers only; manual dispatch keeps the hard abort).
 
 on:
   release:
     types: [published]
+  push:
+    tags: ["v*-namespace.*"]
   workflow_dispatch:
     inputs:
       release_tag:
@@ -41,6 +52,11 @@ jobs:
   publish-npm:
     runs-on: ubuntu-latest
     environment: npm-publish
+    env:
+      # Auto runs (tag push / release event) must be idempotent: a duplicate
+      # trigger that finds its slot already published exits green instead of
+      # paging anyone; manual dispatches keep the hard collision abort.
+      IDEMPOTENT: ${{ github.event_name != 'workflow_dispatch' && '1' || '' }}
     steps:
       - name: Checkout patch scripts (namespace-patch)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -70,7 +86,7 @@ jobs:
       - name: Resolve release tag + download asset
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.release_tag }}
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.release_tag || github.ref_name }}
         run: |
           set -euo pipefail
           TAG="${RELEASE_TAG}"
@@ -82,9 +98,18 @@ jobs:
             *) echo "refusing: ${TAG} is not a namespace release tag"; exit 1 ;;
           esac
           echo "publishing npm alias for release ${TAG}"
-          mkdir -p /tmp/pub
-          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" \
-            --pattern "earendil-works-pi-coding-agent-*.tgz" --dir /tmp/pub
+          # A tag-push run can start while the release's assets are still
+          # uploading (release creation is tag-ref first, assets after) —
+          # retry instead of racing.
+          ok=0
+          for i in $(seq 1 12); do
+            rm -rf /tmp/pub && mkdir -p /tmp/pub
+            if gh release download "$TAG" --repo "$GITHUB_REPOSITORY" \
+              --pattern "earendil-works-pi-coding-agent-*.tgz" --dir /tmp/pub; then ok=1; break; fi
+            echo "   assets for ${TAG} not ready (attempt $i/12) — retrying in 10s"
+            sleep 10
+          done
+          [ "$ok" = 1 ] || { echo "!! assets for ${TAG} unavailable after 2 min"; exit 1; }
 
       - name: Publish (trusted publishing, OIDC)
         env:
