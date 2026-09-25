@@ -8,11 +8,15 @@
 - Added classifier support to `ModelRuntime`, including `classify()`, classifier model accessors, runtime-resolved authentication, and the built-in TypeSafe `jev-latest` model.
 - Added `types=chat,image,classifier` to pi.dev model catalog requests so remote refreshes overlay every supported model type; entries of unknown model types are ignored.
 - Added the `provider_stream_event` extension event for observing parsed provider events before normalization, with an opt-in `/debug-provider` example viewer ([#9784](https://github.com/earendil-works/pi/issues/9784)).
+- Added a show/hide toggle (`H`) in HTML exports for custom messages marked `display: false`. Messages remain hidden by default and can also be revealed from the sidebar ([#8896](https://github.com/earendil-works/pi/issues/8896)).
 
 ### Fixed
 
 - Fixed X11 clipboard text being misidentified as an image when the clipboard owner accepts unadvertised image targets ([#9786](https://github.com/earendil-works/pi/issues/9786)).
 - Prevented managed git packages from automatically installing Pi peer dependencies and added warnings for extension packages that list host-provided modules in `dependencies` ([#9863](https://github.com/earendil-works/pi/issues/9863)).
+- Fixed pinned git extensions loaded with `-e` continuing to use the first downloaded commit after the ref changes ([#9982](https://github.com/earendil-works/pi/issues/9982)).
+- Fixed `RpcClient` skipping the next event listener when a listener unsubscribes while handling an event, which could make `waitForIdle()` time out after `collectEvents()` ([#9990](https://github.com/earendil-works/pi/issues/9990)).
+- Fixed full-file `read` calls rendering as `:1` when models send `null` for omitted `offset` and `limit` ([#9996](https://github.com/earendil-works/pi/issues/9996)).
 
 ## [0.87.1] - 2026-09-22
 
