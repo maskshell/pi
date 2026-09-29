@@ -1,6 +1,11 @@
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import { DEFAULT_MAX_AGENT_RETRY_DELAY_MS, type Model, type Transport } from "@earendil-works/pi-ai";
-import type { TuiMode as RendererTuiMode, ScrollViewScrollbar, TerminalCapabilities } from "@earendil-works/pi-tui";
+import type {
+	TuiMode as RendererTuiMode,
+	ScrollViewScrollbar,
+	TerminalCapabilities,
+	WheelScrollLines,
+} from "@earendil-works/pi-tui";
 import { randomUUID } from "crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { dirname, join } from "path";
@@ -86,6 +91,22 @@ export interface WarningSettings {
 	anthropicExtraUsage?: boolean; // default: true
 }
 
+/**
+ * How the codemode tool presents tools while it is active.
+ * - `on`: declared tools that scripts can call get their codemode declaration appended to their
+ *   description; the codemode description lists only the tools without `direct` exposure.
+ * - `only`: the codemode description lists every tool scripts can call, and active `direct` tools are
+ *   not declared to the model.
+ */
+export type CodemodeMode = "on" | "only";
+
+export interface CodemodeSettings {
+	/** Default: `on`. */
+	mode?: CodemodeMode;
+	/** Estimated tokens (characters / 4) the codemode description may spend on tool declarations. Default: 3000. */
+	inlineBudget?: number;
+}
+
 export type DefaultProjectTrust = "ask" | "always" | "never";
 
 export type TransportSetting = Transport;
@@ -151,6 +172,7 @@ export interface Settings {
 	showHardwareCursor?: boolean; // Show terminal cursor while still positioning it for IME
 	markdown?: MarkdownSettings;
 	warnings?: WarningSettings;
+	codemode?: CodemodeSettings;
 	sessionDir?: string; // Custom session storage directory (same format as --session-dir CLI flag)
 	httpProxy?: string; // Proxy URL applied as HTTP_PROXY and HTTPS_PROXY for Pi-managed HTTP clients
 	httpIdleTimeoutMs?: number; // HTTP header/body idle timeout in milliseconds; 0 disables it
@@ -160,6 +182,7 @@ export interface Settings {
 	fullscreenExitOutput?: FullscreenExitOutput; // default: "transcript"; no effect in regular TUI mode
 	fullscreenScrollbar?: ScrollViewScrollbar; // default: "auto"; no effect in regular TUI mode
 	fullscreenCopyOnSelect?: boolean; // default: true; no effect in regular TUI mode
+	fullscreenWheelScrollLines?: WheelScrollLines; // default: "auto"; lines per wheel event, 1-100
 }
 
 function isMergeableObject(value: unknown): value is Record<string, unknown> {
@@ -497,6 +520,11 @@ export class SettingsManager {
 		}
 
 		return settings as Settings;
+	}
+
+	/** A copy of the effective settings: global and project settings merged, with overrides. */
+	getSettings(): Settings {
+		return structuredClone(this.settings);
 	}
 
 	getGlobalSettings(): Settings {
@@ -1300,6 +1328,20 @@ export class SettingsManager {
 	setFullscreenCopyOnSelect(enabled: boolean): void {
 		this.globalSettings.fullscreenCopyOnSelect = enabled;
 		this.markModified("fullscreenCopyOnSelect");
+		this.save();
+	}
+
+	getFullscreenWheelScrollLines(): WheelScrollLines {
+		const lines = this.settings.fullscreenWheelScrollLines;
+		return typeof lines === "number" && Number.isFinite(lines)
+			? Math.max(1, Math.min(100, Math.floor(lines)))
+			: "auto";
+	}
+
+	setFullscreenWheelScrollLines(lines: WheelScrollLines): void {
+		this.globalSettings.fullscreenWheelScrollLines =
+			lines === "auto" ? lines : Math.max(1, Math.min(100, Math.floor(lines)));
+		this.markModified("fullscreenWheelScrollLines");
 		this.save();
 	}
 
