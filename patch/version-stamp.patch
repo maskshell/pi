@@ -1,33 +1,160 @@
-From 639d248ac73d4094281074f66e40b29b8a4d1777 Mon Sep 17 00:00:00 2001
+From bdd8256f6e6b0b1db62f205dca459add09a7cdf3 Mon Sep 17 00:00:00 2001
 From: patch-repair-agent <agent@maskshell.github>
-Date: Wed, 23 Sep 2026 10:41:21 +0000
-Subject: [PATCH] patch: version stamp 0.87.1-namespace.1 (fork build
+Date: Wed, 30 Sep 2026 10:37:49 +0000
+Subject: [PATCH] patch: version stamp 0.99.1-namespace.1 (fork build
  identification)
 
 ---
- package-lock.json                             | 11210 ++++++++--------
+ .github/workflows/publish-namespace-patch.yml |   117 +
+ package-lock.json                             | 11822 ++++++++--------
  packages/agent/package.json                   |     2 +-
  packages/ai/package.json                      |     2 +-
  packages/chord/package.json                   |     2 +-
  packages/client/package.json                  |     2 +-
- .../install-lock/package-lock.json            |    30 +-
+ packages/codemode/package.json                |     2 +-
+ .../install-lock/package-lock.json            |    38 +-
  .../coding-agent/install-lock/package.json    |     4 +-
- packages/coding-agent/npm-shrinkwrap.json     |    24 +-
+ packages/coding-agent/npm-shrinkwrap.json     |    32 +-
  packages/coding-agent/package.json            |     2 +-
  packages/durable/package.json                 |     2 +-
  packages/evals/package.json                   |     2 +-
+ packages/mcp/package.json                     |     2 +-
  packages/protocol/package.json                |     2 +-
  packages/server/package.json                  |     2 +-
  .../session-backends/sqlite-node/package.json |     2 +-
  packages/telemetry/package.json               |     2 +-
  packages/tui/package.json                     |     2 +-
- 16 files changed, 5625 insertions(+), 5667 deletions(-)
+ 19 files changed, 6058 insertions(+), 5983 deletions(-)
+ create mode 100644 .github/workflows/publish-namespace-patch.yml
 
+diff --git a/.github/workflows/publish-namespace-patch.yml b/.github/workflows/publish-namespace-patch.yml
+new file mode 100644
+index 000000000..df694177a
+--- /dev/null
++++ b/.github/workflows/publish-namespace-patch.yml
+@@ -0,0 +1,117 @@
++name: publish-namespace-patch
++
++# npm publication of a namespace release under the unscoped alias
++# `pi-namespace-patch`, via npm Trusted Publishing (OIDC): no local tokens,
++# no OTP. Derives the publish variant from the GitHub release asset with
++# patch/ci/publish-npm.sh (namespace-patch branch) — the released artifact
++# is never rebuilt. The script publishes a prerelease-form version
++# (X.Y.Z-namespace.N) with sibling pins stripped; see its header for why.
++#
++# Trusted publisher record (npmjs.com -> package settings), required before
++# the first OIDC publish:
++#   repository: maskshell/pi
++#   workflow:   .github/workflows/publish-namespace-patch.yml
++#   environment: npm-publish
++#
++# Fork-specific file on main (with FORK.md and namespace-patch-tracker.yml).
++#
++# Trigger note: the `release: published` event has NEVER delivered here (0
++# release-event runs ever; every publish so far was a manual dispatch),
++# while tag pushes do deliver (upstream's Build Binaries fired on every
++# namespace `v*` tag until it was disabled in the fork). The primary
++# trigger is therefore the tag push; the release trigger stays as a
++# belt-and-braces secondary — duplicate runs are serialized by the
++# concurrency group and exit green via the script's idempotent collision
++# path (auto triggers only; manual dispatch keeps the hard abort).
++
++on:
++  release:
++    types: [published]
++  push:
++    tags: ["v*-namespace.*"]
++  workflow_dispatch:
++    inputs:
++      release_tag:
++        description: "Release tag to publish (e.g. v0.85.1-namespace.1; empty = latest)"
++        required: false
++        default: ""
++      revision:
++        description: "Force npm prerelease revision (e.g. 2 -> 0.85.1-namespace.2) when a version slot is burnt"
++        required: false
++        default: ""
++
++permissions:
++  contents: read
++  id-token: write
++
++concurrency:
++  group: publish-namespace-patch
++  cancel-in-progress: false
++
++jobs:
++  publish-npm:
++    runs-on: ubuntu-latest
++    environment: npm-publish
++    env:
++      # Auto runs (tag push / release event) must be idempotent: a duplicate
++      # trigger that finds its slot already published exits green instead of
++      # paging anyone; manual dispatches keep the hard collision abort.
++      IDEMPOTENT: ${{ github.event_name != 'workflow_dispatch' && '1' || '' }}
++    steps:
++      - name: Checkout patch scripts (namespace-patch)
++        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
++        with:
++          ref: namespace-patch
++
++      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
++        with:
++          node-version: 24
++          registry-url: 'https://registry.npmjs.org'
++
++      # Trusted publishing (OIDC): npm is pinned to the version upstream's
++      # publish job uses (npm@latest = 12.x regresses to ENEEDAUTH before
++      # ever attempting the OIDC exchange), and setup-node's registry-url
++      # anchors the default registry so npm's OIDC short-circuit engages.
++      - name: Ensure npm supports trusted publishing
++        run: |
++          npm install -g npm@11.16.0 --ignore-scripts >/dev/null 2>&1
++          echo "active npm:  $(npm --version)"
++          if [ -n "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ] && [ -n "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]; then
++            echo "OIDC env: present"
++          else
++            echo "OIDC env: ABSENT — check the job's id-token: write permission"
++            exit 1
++          fi
++
++      - name: Resolve release tag + download asset
++        env:
++          GH_TOKEN: ${{ github.token }}
++          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.release_tag || github.ref_name }}
++        run: |
++          set -euo pipefail
++          TAG="${RELEASE_TAG}"
++          if [ -z "$TAG" ]; then
++            TAG=$(gh api "repos/${GITHUB_REPOSITORY}/releases/latest" --jq .tag_name)
++          fi
++          case "$TAG" in
++            *-namespace.*) ;;
++            *) echo "refusing: ${TAG} is not a namespace release tag"; exit 1 ;;
++          esac
++          echo "publishing npm alias for release ${TAG}"
++          # A tag-push run can start while the release's assets are still
++          # uploading (release creation is tag-ref first, assets after) —
++          # retry instead of racing.
++          ok=0
++          for i in $(seq 1 12); do
++            rm -rf /tmp/pub && mkdir -p /tmp/pub
++            if gh release download "$TAG" --repo "$GITHUB_REPOSITORY" \
++              --pattern "earendil-works-pi-coding-agent-*.tgz" --dir /tmp/pub; then ok=1; break; fi
++            echo "   assets for ${TAG} not ready (attempt $i/12) — retrying in 10s"
++            sleep 10
++          done
++          [ "$ok" = 1 ] || { echo "!! assets for ${TAG} unavailable after 2 min"; exit 1; }
++
++      - name: Publish (trusted publishing, OIDC)
++        env:
++          REV: ${{ inputs.revision }}
++        run: bash patch/ci/publish-npm.sh /tmp/pub/earendil-works-pi-coding-agent-*.tgz
 diff --git a/package-lock.json b/package-lock.json
-index a4b5de131..5c79e02e5 100644
+index 40fad3ada..05deea401 100644
 --- a/package-lock.json
 +++ b/package-lock.json
-@@ -1,5627 +1,5585 @@
+@@ -1,5933 +1,5891 @@
  {
 -	"name": "pi-monorepo",
 -	"version": "0.0.3",
@@ -50,12 +177,10 @@ index a4b5de131..5c79e02e5 100644
 -				"@anthropic-ai/sandbox-runtime": "0.0.26",
 -				"@biomejs/biome": "2.3.5",
 -				"@types/node": "22.19.19",
--				"@typescript/native-preview": "7.0.0-dev.20260120.1",
 -				"esbuild": "0.28.2",
 -				"husky": "9.1.7",
 -				"shx": "0.4.0",
--				"tsx": "4.22.1",
--				"typescript": "5.9.3"
+-				"typescript": "7.0.2"
 -			},
 -			"engines": {
 -				"node": ">=22.19.0"
@@ -743,9 +868,9 @@ index a4b5de131..5c79e02e5 100644
 -			}
 -		},
 -		"node_modules/@earendil-works/gondolin/node_modules/undici": {
--			"version": "6.28.0",
--			"resolved": "https://registry.npmjs.org/undici/-/undici-6.28.0.tgz",
--			"integrity": "sha512-LIY910g9TI13YS95lrMFrs8Rm/u/irgHeTWoKCoteeJ04CUJ92eEfj0rVn+7VKMPBpUPiUoBKfhNyLI23EE/KA==",
+-			"version": "6.29.0",
+-			"resolved": "https://registry.npmjs.org/undici/-/undici-6.29.0.tgz",
+-			"integrity": "sha512-R+RODBqp6i2pPflGdq+xIOUkl+RNfGgHwoinecKu/JCuf2uO06cOKoDbI2P7Dn6KcswdKwrczbU6IYJ6K8X+wg==",
 -			"license": "MIT",
 -			"engines": {
 -				"node": ">=18.17"
@@ -763,6 +888,10 @@ index a4b5de131..5c79e02e5 100644
 -			"resolved": "packages/client",
 -			"link": true
 -		},
+-		"node_modules/@earendil-works/pi-codemode": {
+-			"resolved": "packages/codemode",
+-			"link": true
+-		},
 -		"node_modules/@earendil-works/pi-coding-agent": {
 -			"resolved": "packages/coding-agent",
 -			"link": true
@@ -773,6 +902,10 @@ index a4b5de131..5c79e02e5 100644
 -		},
 -		"node_modules/@earendil-works/pi-evals": {
 -			"resolved": "packages/evals",
+-			"link": true
+-		},
+-		"node_modules/@earendil-works/pi-mcp": {
+-			"resolved": "packages/mcp",
 -			"link": true
 -		},
 -		"node_modules/@earendil-works/pi-protocol": {
@@ -1865,29 +1998,27 @@ index a4b5de131..5c79e02e5 100644
 -			"dev": true,
 -			"license": "MIT"
 -		},
--		"node_modules/@typescript/native-preview": {
--			"version": "7.0.0-dev.20260120.1",
--			"resolved": "https://registry.npmjs.org/@typescript/native-preview/-/native-preview-7.0.0-dev.20260120.1.tgz",
--			"integrity": "sha512-nnEf37C9ue7OBRnF2zmV/OCBmV5Y7T/K4mCHa+nxgiXcF/1w8sA0cgdFl+gHQ0mysqUJ+Bu5btAMeWgpLyjrgg==",
+-		"node_modules/@typescript/typescript-aix-ppc64": {
+-			"version": "7.0.2",
+-			"resolved": "https://registry.npmjs.org/@typescript/typescript-aix-ppc64/-/typescript-aix-ppc64-7.0.2.tgz",
+-			"integrity": "sha512-MTKKkWB7p/0E9xi1d1tHtZ5PiLkGEMIq88pK2CubZjOsLtYTLqhgIgi6zepFa+9GHZ6h05NMCkQxGKiPXMxXtQ==",
+-			"cpu": [
+-				"ppc64"
+-			],
 -			"dev": true,
 -			"license": "Apache-2.0",
--			"bin": {
--				"tsgo": "bin/tsgo.js"
--			},
--			"optionalDependencies": {
--				"@typescript/native-preview-darwin-arm64": "7.0.0-dev.20260120.1",
--				"@typescript/native-preview-darwin-x64": "7.0.0-dev.20260120.1",
--				"@typescript/native-preview-linux-arm": "7.0.0-dev.20260120.1",
--				"@typescript/native-preview-linux-arm64": "7.0.0-dev.20260120.1",
--				"@typescript/native-preview-linux-x64": "7.0.0-dev.20260120.1",
--				"@typescript/native-preview-win32-arm64": "7.0.0-dev.20260120.1",
--				"@typescript/native-preview-win32-x64": "7.0.0-dev.20260120.1"
+-			"optional": true,
+-			"os": [
+-				"aix"
+-			],
+-			"engines": {
+-				"node": ">=16.20.0"
 -			}
 -		},
--		"node_modules/@typescript/native-preview-darwin-arm64": {
--			"version": "7.0.0-dev.20260120.1",
--			"resolved": "https://registry.npmjs.org/@typescript/native-preview-darwin-arm64/-/native-preview-darwin-arm64-7.0.0-dev.20260120.1.tgz",
--			"integrity": "sha512-r3pWFuR2H7mn6ScwpH5jJljKQqKto0npVuJSk6pRwFwexpTyxOGmJTZJ1V0AWiisaNxU2+CNAqWFJSJYIE/QTg==",
+-		"node_modules/@typescript/typescript-darwin-arm64": {
+-			"version": "7.0.2",
+-			"resolved": "https://registry.npmjs.org/@typescript/typescript-darwin-arm64/-/typescript-darwin-arm64-7.0.2.tgz",
+-			"integrity": "sha512-gowzar9MwS/aRWp6f3a4KUqzRjAZjOsmGNCM6LcTgXum+dBfgsBVMN+AgvOCCbguXyick6LJhpBszxMebJ8syA==",
 -			"cpu": [
 -				"arm64"
 -			],
@@ -1896,12 +2027,15 @@ index a4b5de131..5c79e02e5 100644
 -			"optional": true,
 -			"os": [
 -				"darwin"
--			]
+-			],
+-			"engines": {
+-				"node": ">=16.20.0"
+-			}
 -		},
--		"node_modules/@typescript/native-preview-darwin-x64": {
--			"version": "7.0.0-dev.20260120.1",
--			"resolved": "https://registry.npmjs.org/@typescript/native-preview-darwin-x64/-/native-preview-darwin-x64-7.0.0-dev.20260120.1.tgz",
--			"integrity": "sha512-cuC1+wLbUP+Ip2UT94G134fqRdp5w3b3dhcCO6/FQ4yXxvRNyv/WK+upHBUFDaeSOeHgDTyO9/QFYUWwC4If1A==",
+-		"node_modules/@typescript/typescript-darwin-x64": {
+-			"version": "7.0.2",
+-			"resolved": "https://registry.npmjs.org/@typescript/typescript-darwin-x64/-/typescript-darwin-x64-7.0.2.tgz",
+-			"integrity": "sha512-SZ9xZInqApNlNGc9s0W1VSsktYSOe9cFqNOIqmN1Gs8SmkjKZYFt017G4VwPxASInODuAdbTW7sXiFUf893RgA==",
 -			"cpu": [
 -				"x64"
 -			],
@@ -1910,12 +2044,49 @@ index a4b5de131..5c79e02e5 100644
 -			"optional": true,
 -			"os": [
 -				"darwin"
--			]
+-			],
+-			"engines": {
+-				"node": ">=16.20.0"
+-			}
 -		},
--		"node_modules/@typescript/native-preview-linux-arm": {
--			"version": "7.0.0-dev.20260120.1",
--			"resolved": "https://registry.npmjs.org/@typescript/native-preview-linux-arm/-/native-preview-linux-arm-7.0.0-dev.20260120.1.tgz",
--			"integrity": "sha512-vN6OYVySol/kQZjJGmAzd6L30SyVlCgmCXS8WjUYtE5clN0YrzQHop16RK29fYZHMxpkOniVBtRPxUYQANZBlQ==",
+-		"node_modules/@typescript/typescript-freebsd-arm64": {
+-			"version": "7.0.2",
+-			"resolved": "https://registry.npmjs.org/@typescript/typescript-freebsd-arm64/-/typescript-freebsd-arm64-7.0.2.tgz",
+-			"integrity": "sha512-W5NH4y/J0plIIS5b2xvTEkU7JFxyqdMAOgf+Ilhl0vHQXKO5dZoxd+C/jEtq56c4F3wk71RB4BMRQ2XdI+bwYQ==",
+-			"cpu": [
+-				"arm64"
+-			],
+-			"dev": true,
+-			"license": "Apache-2.0",
+-			"optional": true,
+-			"os": [
+-				"freebsd"
+-			],
+-			"engines": {
+-				"node": ">=16.20.0"
+-			}
+-		},
+-		"node_modules/@typescript/typescript-freebsd-x64": {
+-			"version": "7.0.2",
+-			"resolved": "https://registry.npmjs.org/@typescript/typescript-freebsd-x64/-/typescript-freebsd-x64-7.0.2.tgz",
+-			"integrity": "sha512-UMGDx5sTpzNw3WiPebH7l90IWfJggEd+egHt/q6p7/Cm3zqoV7VxkGXt+3DxPIw8CcmvAB0j3sVVfbhX+M4Tpw==",
+-			"cpu": [
+-				"x64"
+-			],
+-			"dev": true,
+-			"license": "Apache-2.0",
+-			"optional": true,
+-			"os": [
+-				"freebsd"
+-			],
+-			"engines": {
+-				"node": ">=16.20.0"
+-			}
+-		},
+-		"node_modules/@typescript/typescript-linux-arm": {
+-			"version": "7.0.2",
+-			"resolved": "https://registry.npmjs.org/@typescript/typescript-linux-arm/-/typescript-linux-arm-7.0.2.tgz",
+-			"integrity": "sha512-gffT3xPz9sR7j/YJExkyPntrI0P2EP9XbOyWzth2/Gs0RstK+90RBcO0ncXoXy/beYll1SXw846Nf2zdnEz0QQ==",
 -			"cpu": [
 -				"arm"
 -			],
@@ -1924,12 +2095,15 @@ index a4b5de131..5c79e02e5 100644
 -			"optional": true,
 -			"os": [
 -				"linux"
--			]
+-			],
+-			"engines": {
+-				"node": ">=16.20.0"
+-			}
 -		},
--		"node_modules/@typescript/native-preview-linux-arm64": {
--			"version": "7.0.0-dev.20260120.1",
--			"resolved": "https://registry.npmjs.org/@typescript/native-preview-linux-arm64/-/native-preview-linux-arm64-7.0.0-dev.20260120.1.tgz",
--			"integrity": "sha512-zZGvEGY7wcHYefMZ87KNmvjN3NLIhsCMHEpHZiGCS3khKf+8z6ZsanrzCjOTodvL01VPyBzHxV1EtkSxAcLiQg==",
+-		"node_modules/@typescript/typescript-linux-arm64": {
+-			"version": "7.0.2",
+-			"resolved": "https://registry.npmjs.org/@typescript/typescript-linux-arm64/-/typescript-linux-arm64-7.0.2.tgz",
+-			"integrity": "sha512-Qh4eU4/y3yDjnfjjyPYihMj5/ODIlmt+Bzu17OI+fiSRDW57QmU5SiN63exPRNJPKUzcc1INa1NXdrJ+MqHjUQ==",
 -			"cpu": [
 -				"arm64"
 -			],
@@ -1938,12 +2112,100 @@ index a4b5de131..5c79e02e5 100644
 -			"optional": true,
 -			"os": [
 -				"linux"
--			]
+-			],
+-			"engines": {
+-				"node": ">=16.20.0"
+-			}
 -		},
--		"node_modules/@typescript/native-preview-linux-x64": {
--			"version": "7.0.0-dev.20260120.1",
--			"resolved": "https://registry.npmjs.org/@typescript/native-preview-linux-x64/-/native-preview-linux-x64-7.0.0-dev.20260120.1.tgz",
--			"integrity": "sha512-JBfNhWd/asd5MDeS3VgRvE24pGKBkmvLub6tsux6ypr+Yhy+o0WaAEzVpmlRYZUqss2ai5tvOu4dzPBXzZAtFw==",
+-		"node_modules/@typescript/typescript-linux-loong64": {
+-			"version": "7.0.2",
+-			"resolved": "https://registry.npmjs.org/@typescript/typescript-linux-loong64/-/typescript-linux-loong64-7.0.2.tgz",
+-			"integrity": "sha512-uEHck9i8hoAzXPiYRib1O7miOnz23SxIeVl6F4LXox+qov1K35jHcEW6VHKvZI+pyvl7fZEP4MCU5LYvIq1GuQ==",
+-			"cpu": [
+-				"loong64"
+-			],
+-			"dev": true,
+-			"license": "Apache-2.0",
+-			"optional": true,
+-			"os": [
+-				"linux"
+-			],
+-			"engines": {
+-				"node": ">=16.20.0"
+-			}
+-		},
+-		"node_modules/@typescript/typescript-linux-mips64el": {
+-			"version": "7.0.2",
+-			"resolved": "https://registry.npmjs.org/@typescript/typescript-linux-mips64el/-/typescript-linux-mips64el-7.0.2.tgz",
+-			"integrity": "sha512-R4KvAMnE43W5Qeqb0Ly56O3mWMWIAgsMyz36DCaycd5nbg/9kzm0liw3JocfRqyJY0KPmzFjbswozXyW0DnIYA==",
+-			"cpu": [
+-				"mips64el"
+-			],
+-			"dev": true,
+-			"license": "Apache-2.0",
+-			"optional": true,
+-			"os": [
+-				"linux"
+-			],
+-			"engines": {
+-				"node": ">=16.20.0"
+-			}
+-		},
+-		"node_modules/@typescript/typescript-linux-ppc64": {
+-			"version": "7.0.2",
+-			"resolved": "https://registry.npmjs.org/@typescript/typescript-linux-ppc64/-/typescript-linux-ppc64-7.0.2.tgz",
+-			"integrity": "sha512-DORx5b3sd/4S7eayxm4FQv+A7CrkUIGRaHiwI8oiHTAI1fAPWhF4J0vAlkC8biAlHSVVwxMQ3tjZ2/DVbnQiiA==",
+-			"cpu": [
+-				"ppc64"
+-			],
+-			"dev": true,
+-			"license": "Apache-2.0",
+-			"optional": true,
+-			"os": [
+-				"linux"
+-			],
+-			"engines": {
+-				"node": ">=16.20.0"
+-			}
+-		},
+-		"node_modules/@typescript/typescript-linux-riscv64": {
+-			"version": "7.0.2",
+-			"resolved": "https://registry.npmjs.org/@typescript/typescript-linux-riscv64/-/typescript-linux-riscv64-7.0.2.tgz",
+-			"integrity": "sha512-wf0jqEDOjrPRnKwYRyyJDRo11KMbvMFrU+q4zqKyChODBzvlkbhNQfKvLxQCcwTpdDaXSHZTVuh0JoCrKCUMHQ==",
+-			"cpu": [
+-				"riscv64"
+-			],
+-			"dev": true,
+-			"license": "Apache-2.0",
+-			"optional": true,
+-			"os": [
+-				"linux"
+-			],
+-			"engines": {
+-				"node": ">=16.20.0"
+-			}
+-		},
+-		"node_modules/@typescript/typescript-linux-s390x": {
+-			"version": "7.0.2",
+-			"resolved": "https://registry.npmjs.org/@typescript/typescript-linux-s390x/-/typescript-linux-s390x-7.0.2.tgz",
+-			"integrity": "sha512-IkwJc3L7yhytWd/ewjyxNDfOmswCm9GWMJT/ue/dU4aZNbwZeYAetq42VyLmsmSjvoX7z74X6ZaYCtzAr0EuGw==",
+-			"cpu": [
+-				"s390x"
+-			],
+-			"dev": true,
+-			"license": "Apache-2.0",
+-			"optional": true,
+-			"os": [
+-				"linux"
+-			],
+-			"engines": {
+-				"node": ">=16.20.0"
+-			}
+-		},
+-		"node_modules/@typescript/typescript-linux-x64": {
+-			"version": "7.0.2",
+-			"resolved": "https://registry.npmjs.org/@typescript/typescript-linux-x64/-/typescript-linux-x64-7.0.2.tgz",
+-			"integrity": "sha512-EYdf2cNg7rgCWJnxCdJ+F3V39O8ihb37eHAu1LK8oAFizgTQbPOK7zHHXbPt8rX24COqODXeI3sIf0fCXG7H/A==",
 -			"cpu": [
 -				"x64"
 -			],
@@ -1952,12 +2214,100 @@ index a4b5de131..5c79e02e5 100644
 -			"optional": true,
 -			"os": [
 -				"linux"
--			]
+-			],
+-			"engines": {
+-				"node": ">=16.20.0"
+-			}
 -		},
--		"node_modules/@typescript/native-preview-win32-arm64": {
--			"version": "7.0.0-dev.20260120.1",
--			"resolved": "https://registry.npmjs.org/@typescript/native-preview-win32-arm64/-/native-preview-win32-arm64-7.0.0-dev.20260120.1.tgz",
--			"integrity": "sha512-tTndRtYCq2xwgE0VkTi9ACNiJaV43+PqvBqCxk8ceYi3X36Ve+CCnwlZfZJ4k9NxZthtrAwF/kUmpC9iIYbq1w==",
+-		"node_modules/@typescript/typescript-netbsd-arm64": {
+-			"version": "7.0.2",
+-			"resolved": "https://registry.npmjs.org/@typescript/typescript-netbsd-arm64/-/typescript-netbsd-arm64-7.0.2.tgz",
+-			"integrity": "sha512-+polYF4MF04aPpO5FTkHran9yUQDSXqy5GiSDKpsll5jy3l3+g9QLhpf39T+ePtefhXLOGrLl0QIjkQP6VnelA==",
+-			"cpu": [
+-				"arm64"
+-			],
+-			"dev": true,
+-			"license": "Apache-2.0",
+-			"optional": true,
+-			"os": [
+-				"netbsd"
+-			],
+-			"engines": {
+-				"node": ">=16.20.0"
+-			}
+-		},
+-		"node_modules/@typescript/typescript-netbsd-x64": {
+-			"version": "7.0.2",
+-			"resolved": "https://registry.npmjs.org/@typescript/typescript-netbsd-x64/-/typescript-netbsd-x64-7.0.2.tgz",
+-			"integrity": "sha512-8YIT0EHM/3dq10ZOVF/A7pc/YSMtbcecct4rWtexrnSCHOPcpC2KTLXfTCR6vDpnSiY12heNb1GiN/wu+T/FyA==",
+-			"cpu": [
+-				"x64"
+-			],
+-			"dev": true,
+-			"license": "Apache-2.0",
+-			"optional": true,
+-			"os": [
+-				"netbsd"
+-			],
+-			"engines": {
+-				"node": ">=16.20.0"
+-			}
+-		},
+-		"node_modules/@typescript/typescript-openbsd-arm64": {
+-			"version": "7.0.2",
+-			"resolved": "https://registry.npmjs.org/@typescript/typescript-openbsd-arm64/-/typescript-openbsd-arm64-7.0.2.tgz",
+-			"integrity": "sha512-APT8+ClYnuYm1u9+kgGXoMj2VzWzcymwh2gNSQVySHfkRDGOTVkoWLjCmOQSaO+PoqQ57B0flRp9SA+7GnnkzQ==",
+-			"cpu": [
+-				"arm64"
+-			],
+-			"dev": true,
+-			"license": "Apache-2.0",
+-			"optional": true,
+-			"os": [
+-				"openbsd"
+-			],
+-			"engines": {
+-				"node": ">=16.20.0"
+-			}
+-		},
+-		"node_modules/@typescript/typescript-openbsd-x64": {
+-			"version": "7.0.2",
+-			"resolved": "https://registry.npmjs.org/@typescript/typescript-openbsd-x64/-/typescript-openbsd-x64-7.0.2.tgz",
+-			"integrity": "sha512-yX7s+Q0Dln0Dt9tEzZsAjXXR/+ytBM7AlglaqyeMPxQszJ1JhlJdZ6jLA+IzldHtflX81em7lDao1xXu+aRRkg==",
+-			"cpu": [
+-				"x64"
+-			],
+-			"dev": true,
+-			"license": "Apache-2.0",
+-			"optional": true,
+-			"os": [
+-				"openbsd"
+-			],
+-			"engines": {
+-				"node": ">=16.20.0"
+-			}
+-		},
+-		"node_modules/@typescript/typescript-sunos-x64": {
+-			"version": "7.0.2",
+-			"resolved": "https://registry.npmjs.org/@typescript/typescript-sunos-x64/-/typescript-sunos-x64-7.0.2.tgz",
+-			"integrity": "sha512-dLJDGaLZ1D4HPQn62u1n8mBDkJREwMsAkCdkwd4Ieqw+x3TUyTsqY0YiBCtE6H6OzzgGk3iuZ3vFWRS+E8/d1g==",
+-			"cpu": [
+-				"x64"
+-			],
+-			"dev": true,
+-			"license": "Apache-2.0",
+-			"optional": true,
+-			"os": [
+-				"sunos"
+-			],
+-			"engines": {
+-				"node": ">=16.20.0"
+-			}
+-		},
+-		"node_modules/@typescript/typescript-win32-arm64": {
+-			"version": "7.0.2",
+-			"resolved": "https://registry.npmjs.org/@typescript/typescript-win32-arm64/-/typescript-win32-arm64-7.0.2.tgz",
+-			"integrity": "sha512-Gyl1Vy6OsWesLzmq+EP0Fb7b4Nid5232AvcA2SFcdYreldpNtYFFofPjnt62y9hQy7VTaZp65ICJjuAQRaVcIQ==",
 -			"cpu": [
 -				"arm64"
 -			],
@@ -1966,12 +2316,15 @@ index a4b5de131..5c79e02e5 100644
 -			"optional": true,
 -			"os": [
 -				"win32"
--			]
+-			],
+-			"engines": {
+-				"node": ">=16.20.0"
+-			}
 -		},
--		"node_modules/@typescript/native-preview-win32-x64": {
--			"version": "7.0.0-dev.20260120.1",
--			"resolved": "https://registry.npmjs.org/@typescript/native-preview-win32-x64/-/native-preview-win32-x64-7.0.0-dev.20260120.1.tgz",
--			"integrity": "sha512-oZia7hFL6k9pVepfonuPI86Jmyz6WlJKR57tWCDwRNmpA7odxuTq1PbvcYgy1z4+wHF1nnKKJY0PMAiq6ac18w==",
+-		"node_modules/@typescript/typescript-win32-x64": {
+-			"version": "7.0.2",
+-			"resolved": "https://registry.npmjs.org/@typescript/typescript-win32-x64/-/typescript-win32-x64-7.0.2.tgz",
+-			"integrity": "sha512-0BQ3HkAHHlKLSp1qRvf3SUhGpGsDuhB/jgFw75guyqbxJqEaS0Cw/VFO8i2nHglJUzQCRtMMR/IBAKE3ETMC4g==",
 -			"cpu": [
 -				"x64"
 -			],
@@ -1980,7 +2333,10 @@ index a4b5de131..5c79e02e5 100644
 -			"optional": true,
 -			"os": [
 -				"win32"
--			]
+-			],
+-			"engines": {
+-				"node": ">=16.20.0"
+-			}
 -		},
 -		"node_modules/@vitest-evals/core": {
 -			"version": "0.15.0",
@@ -2003,14 +2359,14 @@ index a4b5de131..5c79e02e5 100644
 -			}
 -		},
 -		"node_modules/@vitest/coverage-v8": {
--			"version": "4.1.9",
--			"resolved": "https://registry.npmjs.org/@vitest/coverage-v8/-/coverage-v8-4.1.9.tgz",
--			"integrity": "sha512-G9/lgqibheLVBDRuya45EbsEXTYcWoSG+TLg7i2axuzx0Eq62eXn+aWXyaVdV5vKvFSWd6ywcX8hA7la9Pvu8g==",
+-			"version": "4.1.11",
+-			"resolved": "https://registry.npmjs.org/@vitest/coverage-v8/-/coverage-v8-4.1.11.tgz",
+-			"integrity": "sha512-8MVGEFnJIcdGjcbfKmeq8z0pZHH0JlVtoVZH9Q/qwUp6wyFnEJUBMrw9DCaj+ra3vShGmhavjalMIhPNxZAUcw==",
 -			"dev": true,
 -			"license": "MIT",
 -			"dependencies": {
 -				"@bcoe/v8-coverage": "^1.0.2",
--				"@vitest/utils": "4.1.9",
+-				"@vitest/utils": "4.1.11",
 -				"ast-v8-to-istanbul": "^1.0.0",
 -				"istanbul-lib-coverage": "^3.2.2",
 -				"istanbul-lib-report": "^3.0.1",
@@ -2024,8 +2380,8 @@ index a4b5de131..5c79e02e5 100644
 -				"url": "https://opencollective.com/vitest"
 -			},
 -			"peerDependencies": {
--				"@vitest/browser": "4.1.9",
--				"vitest": "4.1.9"
+-				"@vitest/browser": "4.1.11",
+-				"vitest": "4.1.11"
 -			},
 -			"peerDependenciesMeta": {
 -				"@vitest/browser": {
@@ -2034,16 +2390,16 @@ index a4b5de131..5c79e02e5 100644
 -			}
 -		},
 -		"node_modules/@vitest/expect": {
--			"version": "4.1.9",
--			"resolved": "https://registry.npmjs.org/@vitest/expect/-/expect-4.1.9.tgz",
--			"integrity": "sha512-vl/rYsUKcBr3SnQn166+XR5ZQcgMx3DQhFWdfli/cWpLnLUmbxZvyrJZotLFUryib+LtArYMSTJ5RbQ57ZqrlA==",
+-			"version": "4.1.11",
+-			"resolved": "https://registry.npmjs.org/@vitest/expect/-/expect-4.1.11.tgz",
+-			"integrity": "sha512-VX2x5vNJXET47KAFzwERI+KRMtTTCSWTfSMKsW7JsUsXV4psq++e3DvZpuTDOpHcxytiDs6p2nhVb2tVDiiUYw==",
 -			"dev": true,
 -			"license": "MIT",
 -			"dependencies": {
 -				"@standard-schema/spec": "^1.1.0",
 -				"@types/chai": "^5.2.2",
--				"@vitest/spy": "4.1.9",
--				"@vitest/utils": "4.1.9",
+-				"@vitest/spy": "4.1.11",
+-				"@vitest/utils": "4.1.11",
 -				"chai": "^6.2.2",
 -				"tinyrainbow": "^3.1.0"
 -			},
@@ -2052,13 +2408,13 @@ index a4b5de131..5c79e02e5 100644
 -			}
 -		},
 -		"node_modules/@vitest/mocker": {
--			"version": "4.1.9",
--			"resolved": "https://registry.npmjs.org/@vitest/mocker/-/mocker-4.1.9.tgz",
--			"integrity": "sha512-EVkXzBjrPGM+cK8/ANWgBrkUCfJfb38/EfTSO8h7pWvKkyPkpWxvR7BkD2MyItMF62C97zAEoqdpUixwR/e+Rw==",
+-			"version": "4.1.11",
+-			"resolved": "https://registry.npmjs.org/@vitest/mocker/-/mocker-4.1.11.tgz",
+-			"integrity": "sha512-2XJVD55d1o5AZous5CCGKS74g/riOj9odEt2bQpCVZeblHyHdnMeFl4jl0XjU21stf4mbjUkew2eXQZt65g5CQ==",
 -			"dev": true,
 -			"license": "MIT",
 -			"dependencies": {
--				"@vitest/spy": "4.1.9",
+-				"@vitest/spy": "4.1.11",
 -				"estree-walker": "^3.0.3",
 -				"magic-string": "^0.30.21"
 -			},
@@ -2079,9 +2435,9 @@ index a4b5de131..5c79e02e5 100644
 -			}
 -		},
 -		"node_modules/@vitest/pretty-format": {
--			"version": "4.1.9",
--			"resolved": "https://registry.npmjs.org/@vitest/pretty-format/-/pretty-format-4.1.9.tgz",
--			"integrity": "sha512-s0iufns3iIFitdgm+YR7g1whCAaGtXz459VS9/PqyKDEEFgYIhsHOQmXgIgDuYCt7DeQmiZT0Qe2OA2p4ZPu5A==",
+-			"version": "4.1.11",
+-			"resolved": "https://registry.npmjs.org/@vitest/pretty-format/-/pretty-format-4.1.11.tgz",
+-			"integrity": "sha512-yiZzPbGTS9Sr/JpFl8zHrcIkAofNbFV6k21vIgQN/cY/oxZeXhJv5sc/MBJ5jFKWmWs+oJHw0UXLZjmf931+Vw==",
 -			"dev": true,
 -			"license": "MIT",
 -			"dependencies": {
@@ -2092,13 +2448,13 @@ index a4b5de131..5c79e02e5 100644
 -			}
 -		},
 -		"node_modules/@vitest/runner": {
--			"version": "4.1.9",
--			"resolved": "https://registry.npmjs.org/@vitest/runner/-/runner-4.1.9.tgz",
--			"integrity": "sha512-KXLMDtc7oe70+3mJfGrPUWPesswH+3sTxAMAMl8DG7I8IUQT4XW718dY5ID3vPUcmlu27CcKfY4P3h3I29SLJg==",
+-			"version": "4.1.11",
+-			"resolved": "https://registry.npmjs.org/@vitest/runner/-/runner-4.1.11.tgz",
+-			"integrity": "sha512-LztvUgdwMNJMIkj3hQnnxiC2Xy1zNxq928W/xhjCLaNCzqTZOudjwbQf6v9IntZGPw132i2Lq2rgTRZHD3JHNw==",
 -			"dev": true,
 -			"license": "MIT",
 -			"dependencies": {
--				"@vitest/utils": "4.1.9",
+-				"@vitest/utils": "4.1.11",
 -				"pathe": "^2.0.3"
 -			},
 -			"funding": {
@@ -2106,14 +2462,14 @@ index a4b5de131..5c79e02e5 100644
 -			}
 -		},
 -		"node_modules/@vitest/snapshot": {
--			"version": "4.1.9",
--			"resolved": "https://registry.npmjs.org/@vitest/snapshot/-/snapshot-4.1.9.tgz",
--			"integrity": "sha512-Jc7RKGNBo8Z28WYIm0Niej4xdSPByRf6mU58VpHQkd6Zh05rlnA+twjbK5HyeIGHxrzsc3mJgS43uM0CZKzaIA==",
+-			"version": "4.1.11",
+-			"resolved": "https://registry.npmjs.org/@vitest/snapshot/-/snapshot-4.1.11.tgz",
+-			"integrity": "sha512-pN7ikn1ON7h8ee4gIAp4AzyK+zBtJPzVbqOgu5LCEh4VaJVbPQcgYQYJIMGQPXVeJJq1fnfazis7a5pFNPahog==",
 -			"dev": true,
 -			"license": "MIT",
 -			"dependencies": {
--				"@vitest/pretty-format": "4.1.9",
--				"@vitest/utils": "4.1.9",
+-				"@vitest/pretty-format": "4.1.11",
+-				"@vitest/utils": "4.1.11",
 -				"magic-string": "^0.30.21",
 -				"pathe": "^2.0.3"
 -			},
@@ -2122,9 +2478,9 @@ index a4b5de131..5c79e02e5 100644
 -			}
 -		},
 -		"node_modules/@vitest/spy": {
--			"version": "4.1.9",
--			"resolved": "https://registry.npmjs.org/@vitest/spy/-/spy-4.1.9.tgz",
--			"integrity": "sha512-fHpsS6mIi+PiEW+vcRVOMkX1oSaPKne3VOclSFICPcGOmfKgXPU5iAah+wcNcj2xPrCCmfq99IDGf+EojhhvhA==",
+-			"version": "4.1.11",
+-			"resolved": "https://registry.npmjs.org/@vitest/spy/-/spy-4.1.11.tgz",
+-			"integrity": "sha512-apNa/prQy2qCeywhnixOHPRCgGNhvg7T4Dapfl1GahLp/R+uhBm5cPyFoNVyqsNd2h1nJxL6BqqdIjiABL60YA==",
 -			"dev": true,
 -			"license": "MIT",
 -			"funding": {
@@ -2132,13 +2488,13 @@ index a4b5de131..5c79e02e5 100644
 -			}
 -		},
 -		"node_modules/@vitest/utils": {
--			"version": "4.1.9",
--			"resolved": "https://registry.npmjs.org/@vitest/utils/-/utils-4.1.9.tgz",
--			"integrity": "sha512-A51o8ymO5PpqlWNnBP9ZHPXDIpuMtTLlGSjN7la4US+LJzoUMyhwjA5QXlm39JexgwHKW4Xjs8Z2d3dLCXOeuA==",
+-			"version": "4.1.11",
+-			"resolved": "https://registry.npmjs.org/@vitest/utils/-/utils-4.1.11.tgz",
+-			"integrity": "sha512-zTCVGpyFsGWBhllOyKlTw/vnr6D9qxsfSDyfbyZmTyjHw5N/VuvzHpHoQjm2ZJzn4RJgx5w4r7V0er69CmLgPQ==",
 -			"dev": true,
 -			"license": "MIT",
 -			"dependencies": {
--				"@vitest/pretty-format": "4.1.9",
+-				"@vitest/pretty-format": "4.1.11",
 -				"convert-source-map": "^2.0.0",
 -				"tinyrainbow": "^3.1.0"
 -			},
@@ -4085,6 +4441,7 @@ index a4b5de131..5c79e02e5 100644
 -			"version": "6.40.0",
 -			"resolved": "https://registry.npmjs.org/openai/-/openai-6.40.0.tgz",
 -			"integrity": "sha512-MWtTjd/gQt4jpbji61NTgFWJLoY/PdRJ6wG9/ZDRMYNMlBKrCrSlkLI+KgHP1vR1qT6LKSAyAqIxno6lcK9JiA==",
+-			"dev": true,
 -			"license": "Apache-2.0",
 -			"peerDependencies": {
 -				"ws": "^8.18.0",
@@ -4344,6 +4701,12 @@ index a4b5de131..5c79e02e5 100644
 -					"url": "https://feross.org/support"
 -				}
 -			],
+-			"license": "MIT"
+-		},
+-		"node_modules/quickjs-wasi": {
+-			"version": "3.6.2",
+-			"resolved": "https://registry.npmjs.org/quickjs-wasi/-/quickjs-wasi-3.6.2.tgz",
+-			"integrity": "sha512-FCqGtGOrMgzUiIrMNMA2YnsOxCNwo31dzqXvclXUC6xeT35NJLKXQJsvbeCTjvoFAwZgEAPg8U6+KAPDGXn8Mg==",
 -			"license": "MIT"
 -		},
 -		"node_modules/rc": {
@@ -4890,25 +5253,6 @@ index a4b5de131..5c79e02e5 100644
 -			"integrity": "sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w==",
 -			"license": "0BSD"
 -		},
--		"node_modules/tsx": {
--			"version": "4.22.1",
--			"resolved": "https://registry.npmjs.org/tsx/-/tsx-4.22.1.tgz",
--			"integrity": "sha512-TvncJykhxAzFCk0VQZKBTClall4Pm7qXDSodb6uxi8QFa8X8mT6ABjxxsQ2opDRYxG7AzcRWXaFtruz5HJKuWg==",
--			"dev": true,
--			"license": "MIT",
--			"dependencies": {
--				"esbuild": "~0.28.0"
--			},
--			"bin": {
--				"tsx": "dist/cli.mjs"
--			},
--			"engines": {
--				"node": ">=18.0.0"
--			},
--			"optionalDependencies": {
--				"fsevents": "~2.3.3"
--			}
--		},
 -		"node_modules/tunnel-agent": {
 -			"version": "0.6.0",
 -			"resolved": "https://registry.npmjs.org/tunnel-agent/-/tunnel-agent-0.6.0.tgz",
@@ -4935,17 +5279,38 @@ index a4b5de131..5c79e02e5 100644
 -			"license": "MIT"
 -		},
 -		"node_modules/typescript": {
--			"version": "5.9.3",
--			"resolved": "https://registry.npmjs.org/typescript/-/typescript-5.9.3.tgz",
--			"integrity": "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==",
+-			"version": "7.0.2",
+-			"resolved": "https://registry.npmjs.org/typescript/-/typescript-7.0.2.tgz",
+-			"integrity": "sha512-8FYau96o3NKOhbjKi/qNvG/W5jhzxkbdm5sj9AbZ/5T5sWqn3hJgLfGx27sRKZWTvyzCP8dLRBTf5tBTSRVUNA==",
 -			"dev": true,
 -			"license": "Apache-2.0",
 -			"bin": {
--				"tsc": "bin/tsc",
--				"tsserver": "bin/tsserver"
+-				"tsc": "bin/tsc"
 -			},
 -			"engines": {
--				"node": ">=14.17"
+-				"node": ">=16.20.0"
+-			},
+-			"optionalDependencies": {
+-				"@typescript/typescript-aix-ppc64": "7.0.2",
+-				"@typescript/typescript-darwin-arm64": "7.0.2",
+-				"@typescript/typescript-darwin-x64": "7.0.2",
+-				"@typescript/typescript-freebsd-arm64": "7.0.2",
+-				"@typescript/typescript-freebsd-x64": "7.0.2",
+-				"@typescript/typescript-linux-arm": "7.0.2",
+-				"@typescript/typescript-linux-arm64": "7.0.2",
+-				"@typescript/typescript-linux-loong64": "7.0.2",
+-				"@typescript/typescript-linux-mips64el": "7.0.2",
+-				"@typescript/typescript-linux-ppc64": "7.0.2",
+-				"@typescript/typescript-linux-riscv64": "7.0.2",
+-				"@typescript/typescript-linux-s390x": "7.0.2",
+-				"@typescript/typescript-linux-x64": "7.0.2",
+-				"@typescript/typescript-netbsd-arm64": "7.0.2",
+-				"@typescript/typescript-netbsd-x64": "7.0.2",
+-				"@typescript/typescript-openbsd-arm64": "7.0.2",
+-				"@typescript/typescript-openbsd-x64": "7.0.2",
+-				"@typescript/typescript-sunos-x64": "7.0.2",
+-				"@typescript/typescript-win32-arm64": "7.0.2",
+-				"@typescript/typescript-win32-x64": "7.0.2"
 -			}
 -		},
 -		"node_modules/undici": {
@@ -5075,19 +5440,19 @@ index a4b5de131..5c79e02e5 100644
 -			}
 -		},
 -		"node_modules/vitest": {
--			"version": "4.1.9",
--			"resolved": "https://registry.npmjs.org/vitest/-/vitest-4.1.9.tgz",
--			"integrity": "sha512-nE3/LEyc0z87uHYLZebqCUOaJr2hdtuPp7BQ4BosVFnfltxgAvMG08NyrSGlPpOUWvR27c5flSmYFTNr78L9GQ==",
+-			"version": "4.1.11",
+-			"resolved": "https://registry.npmjs.org/vitest/-/vitest-4.1.11.tgz",
+-			"integrity": "sha512-fhACrNXUidIbGSBr5FlbuBkO7VWC1ZyLl0DO4CU2DrQoAPxX84Ysxs+HeGQpii5lZWV1Q4gBZTTu49mF+A6Edw==",
 -			"dev": true,
 -			"license": "MIT",
 -			"dependencies": {
--				"@vitest/expect": "4.1.9",
--				"@vitest/mocker": "4.1.9",
--				"@vitest/pretty-format": "4.1.9",
--				"@vitest/runner": "4.1.9",
--				"@vitest/snapshot": "4.1.9",
--				"@vitest/spy": "4.1.9",
--				"@vitest/utils": "4.1.9",
+-				"@vitest/expect": "4.1.11",
+-				"@vitest/mocker": "4.1.11",
+-				"@vitest/pretty-format": "4.1.11",
+-				"@vitest/runner": "4.1.11",
+-				"@vitest/snapshot": "4.1.11",
+-				"@vitest/spy": "4.1.11",
+-				"@vitest/utils": "4.1.11",
 -				"es-module-lexer": "^2.0.0",
 -				"expect-type": "^1.3.0",
 -				"magic-string": "^0.30.21",
@@ -5115,12 +5480,12 @@ index a4b5de131..5c79e02e5 100644
 -				"@edge-runtime/vm": "*",
 -				"@opentelemetry/api": "^1.9.0",
 -				"@types/node": "^20.0.0 || ^22.0.0 || >=24.0.0",
--				"@vitest/browser-playwright": "4.1.9",
--				"@vitest/browser-preview": "4.1.9",
--				"@vitest/browser-webdriverio": "4.1.9",
--				"@vitest/coverage-istanbul": "4.1.9",
--				"@vitest/coverage-v8": "4.1.9",
--				"@vitest/ui": "4.1.9",
+-				"@vitest/browser-playwright": "4.1.11",
+-				"@vitest/browser-preview": "4.1.11",
+-				"@vitest/browser-webdriverio": "4.1.11",
+-				"@vitest/coverage-istanbul": "4.1.11",
+-				"@vitest/coverage-v8": "4.1.11",
+-				"@vitest/ui": "4.1.11",
 -				"happy-dom": "*",
 -				"jsdom": "*",
 -				"vite": "^6.0.0 || ^7.0.0 || ^8.0.0"
@@ -5310,12 +5675,12 @@ index a4b5de131..5c79e02e5 100644
 -		},
 -		"packages/agent": {
 -			"name": "@earendil-works/pi-agent-core",
--			"version": "0.87.1",
+-			"version": "0.99.1",
 -			"license": "MIT",
 -			"dependencies": {
--				"@earendil-works/chord": "^0.87.1",
--				"@earendil-works/pi-ai": "^0.87.1",
--				"@earendil-works/pi-telemetry": "^0.87.1",
+-				"@earendil-works/chord": "^0.99.1",
+-				"@earendil-works/pi-ai": "^0.99.1",
+-				"@earendil-works/pi-telemetry": "^0.99.1",
 -				"diff": "8.0.4",
 -				"ignore": "7.0.8",
 -				"typebox": "1.3.27",
@@ -5323,9 +5688,8 @@ index a4b5de131..5c79e02e5 100644
 -			},
 -			"devDependencies": {
 -				"@types/node": "22.19.19",
--				"@vitest/coverage-v8": "4.1.9",
--				"typescript": "5.9.3",
--				"vitest": "4.1.9"
+-				"@vitest/coverage-v8": "4.1.11",
+-				"vitest": "4.1.11"
 -			},
 -			"engines": {
 -				"node": ">=22.19.0"
@@ -5340,17 +5704,17 @@ index a4b5de131..5c79e02e5 100644
 -		},
 -		"packages/ai": {
 -			"name": "@earendil-works/pi-ai",
--			"version": "0.87.1",
+-			"version": "0.99.1",
 -			"license": "MIT",
 -			"dependencies": {
 -				"@anthropic-ai/sdk": "0.124.0",
 -				"@aws-sdk/client-bedrock-runtime": "3.1127.0",
--				"@earendil-works/pi-telemetry": "^0.87.1",
+-				"@earendil-works/pi-telemetry": "^0.99.1",
 -				"@google/genai": "2.21.0",
 -				"@smithy/node-http-handler": "4.12.1",
 -				"http-proxy-agent": "9.1.0",
 -				"https-proxy-agent": "9.1.0",
--				"openai": "6.40.0",
+-				"openai": "7.19.0",
 -				"partial-json": "0.1.7",
 -				"typebox": "1.3.27"
 -			},
@@ -5360,7 +5724,7 @@ index a4b5de131..5c79e02e5 100644
 -			"devDependencies": {
 -				"@types/node": "22.19.19",
 -				"canvas": "3.2.3",
--				"vitest": "4.1.9"
+-				"vitest": "4.1.11"
 -			},
 -			"engines": {
 -				"node": ">=22.19.0"
@@ -5389,16 +5753,53 @@ index a4b5de131..5c79e02e5 100644
 -				"node": ">= 20"
 -			}
 -		},
+-		"packages/ai/node_modules/openai": {
+-			"version": "7.19.0",
+-			"resolved": "https://registry.npmjs.org/openai/-/openai-7.19.0.tgz",
+-			"integrity": "sha512-MX2s3u2L5racTO0CC/SWpCOasJQBCJrqLKXK+l82cAhdeF8mPMBEe/gxMm0ZFa2xpKpOFLRjxv5afYEZbBXmbQ==",
+-			"license": "Apache-2.0",
+-			"engines": {
+-				"node": ">=22.0.0"
+-			},
+-			"peerDependencies": {
+-				"@aws-sdk/credential-provider-node": ">=3.972.0 <4",
+-				"@smithy/hash-node": ">=4.3.0 <5",
+-				"@smithy/signature-v4": ">=5.4.0 <6",
+-				"undici": ">=5 <9",
+-				"ws": "^8.21.0",
+-				"zod": "^3.25 || ^4.0"
+-			},
+-			"peerDependenciesMeta": {
+-				"@aws-sdk/credential-provider-node": {
+-					"optional": true
+-				},
+-				"@smithy/hash-node": {
+-					"optional": true
+-				},
+-				"@smithy/signature-v4": {
+-					"optional": true
+-				},
+-				"undici": {
+-					"optional": true
+-				},
+-				"ws": {
+-					"optional": true
+-				},
+-				"zod": {
+-					"optional": true
+-				}
+-			}
+-		},
 -		"packages/chord": {
 -			"name": "@earendil-works/chord",
--			"version": "0.87.1",
+-			"version": "0.99.1",
 -			"license": "MIT",
 -			"dependencies": {
 -				"esbuild": "0.28.2"
 -			},
 -			"devDependencies": {
 -				"shx": "0.4.0",
--				"vitest": "4.1.9"
+-				"vitest": "4.1.11"
 -			},
 -			"engines": {
 -				"node": ">=22.19.0"
@@ -5406,15 +5807,30 @@ index a4b5de131..5c79e02e5 100644
 -		},
 -		"packages/client": {
 -			"name": "@earendil-works/pi-client",
--			"version": "0.87.1",
+-			"version": "0.99.1",
 -			"license": "MIT",
 -			"dependencies": {
--				"@earendil-works/chord": "^0.87.1",
--				"@earendil-works/pi-protocol": "^0.87.1"
+-				"@earendil-works/chord": "^0.99.1",
+-				"@earendil-works/pi-protocol": "^0.99.1"
 -			},
 -			"devDependencies": {
 -				"shx": "0.4.0",
--				"vitest": "4.1.9"
+-				"vitest": "4.1.11"
+-			},
+-			"engines": {
+-				"node": ">=22.19.0"
+-			}
+-		},
+-		"packages/codemode": {
+-			"name": "@earendil-works/pi-codemode",
+-			"version": "0.99.1",
+-			"license": "MIT",
+-			"dependencies": {
+-				"quickjs-wasi": "3.6.2"
+-			},
+-			"devDependencies": {
+-				"shx": "0.4.0",
+-				"vitest": "4.1.11"
 -			},
 -			"engines": {
 -				"node": ">=22.19.0"
@@ -5422,13 +5838,15 @@ index a4b5de131..5c79e02e5 100644
 -		},
 -		"packages/coding-agent": {
 -			"name": "@earendil-works/pi-coding-agent",
--			"version": "0.87.1",
+-			"version": "0.99.1",
 -			"license": "MIT",
 -			"dependencies": {
--				"@earendil-works/chord": "^0.87.1",
--				"@earendil-works/pi-agent-core": "^0.87.1",
--				"@earendil-works/pi-ai": "^0.87.1",
--				"@earendil-works/pi-tui": "^0.87.1",
+-				"@earendil-works/chord": "^0.99.1",
+-				"@earendil-works/pi-agent-core": "^0.99.1",
+-				"@earendil-works/pi-ai": "^0.99.1",
+-				"@earendil-works/pi-codemode": "^0.99.1",
+-				"@earendil-works/pi-mcp": "^0.99.1",
+-				"@earendil-works/pi-tui": "^0.99.1",
 -				"@silvia-odwyer/photon-node": "0.3.4",
 -				"chalk": "6.0.0",
 -				"cross-spawn": "7.0.6",
@@ -5440,6 +5858,7 @@ index a4b5de131..5c79e02e5 100644
 -				"jiti": "2.7.0",
 -				"minimatch": "10.2.6",
 -				"proper-lockfile": "4.1.2",
+-				"quickjs-wasi": "3.6.2",
 -				"semver": "7.8.5",
 -				"typebox": "1.3.27",
 -				"undici": "8.10.2",
@@ -5449,9 +5868,9 @@ index a4b5de131..5c79e02e5 100644
 -				"pi": "dist/bundle/cli.js"
 -			},
 -			"devDependencies": {
--				"@earendil-works/pi-client": "^0.87.1",
--				"@earendil-works/pi-protocol": "^0.87.1",
--				"@earendil-works/pi-server": "^0.87.1",
+-				"@earendil-works/pi-client": "^0.99.1",
+-				"@earendil-works/pi-protocol": "^0.99.1",
+-				"@earendil-works/pi-server": "^0.99.1",
 -				"@types/cross-spawn": "6.0.6",
 -				"@types/hosted-git-info": "3.0.5",
 -				"@types/node": "22.19.19",
@@ -5459,8 +5878,7 @@ index a4b5de131..5c79e02e5 100644
 -				"@types/semver": "7.7.1",
 -				"marked": "18.0.11",
 -				"shx": "0.4.0",
--				"typescript": "5.9.3",
--				"vitest": "4.1.9"
+-				"vitest": "4.1.11"
 -			},
 -			"engines": {
 -				"node": ">=22.19.0"
@@ -5468,32 +5886,32 @@ index a4b5de131..5c79e02e5 100644
 -		},
 -		"packages/coding-agent/examples/extensions/custom-provider-anthropic": {
 -			"name": "pi-extension-custom-provider-anthropic",
--			"version": "0.87.1",
+-			"version": "0.99.1",
 -			"dependencies": {
 -				"@anthropic-ai/sdk": "0.52.0"
 -			}
 -		},
 -		"packages/coding-agent/examples/extensions/custom-provider-gitlab-duo": {
 -			"name": "pi-extension-custom-provider-gitlab-duo",
--			"version": "0.87.1"
+-			"version": "0.99.1"
 -		},
 -		"packages/coding-agent/examples/extensions/gondolin": {
 -			"name": "pi-extension-gondolin",
--			"version": "0.87.1",
+-			"version": "0.99.1",
 -			"dependencies": {
 -				"@earendil-works/gondolin": "0.12.0"
 -			}
 -		},
 -		"packages/coding-agent/examples/extensions/sandbox": {
 -			"name": "pi-extension-sandbox",
--			"version": "1.17.1",
+-			"version": "0.99.1",
 -			"dependencies": {
 -				"@anthropic-ai/sandbox-runtime": "0.0.26"
 -			}
 -		},
 -		"packages/coding-agent/examples/extensions/with-deps": {
 -			"name": "pi-extension-with-deps",
--			"version": "0.87.1",
+-			"version": "0.99.1",
 -			"dependencies": {
 -				"ms": "2.1.3"
 -			},
@@ -5547,15 +5965,15 @@ index a4b5de131..5c79e02e5 100644
 -		},
 -		"packages/durable": {
 -			"name": "@earendil-works/pi-durable",
--			"version": "0.87.1",
+-			"version": "0.99.1",
 -			"license": "MIT",
 -			"dependencies": {
--				"@earendil-works/chord": "^0.87.1",
--				"@earendil-works/pi-ai": "^0.87.1"
+-				"@earendil-works/chord": "^0.99.1",
+-				"@earendil-works/pi-ai": "^0.99.1"
 -			},
 -			"devDependencies": {
 -				"shx": "0.4.0",
--				"vitest": "4.1.9"
+-				"vitest": "4.1.11"
 -			},
 -			"engines": {
 -				"node": ">=22.19.0"
@@ -5563,30 +5981,45 @@ index a4b5de131..5c79e02e5 100644
 -		},
 -		"packages/evals": {
 -			"name": "@earendil-works/pi-evals",
--			"version": "0.87.1",
+-			"version": "0.99.1",
 -			"devDependencies": {
--				"@earendil-works/pi-ai": "^0.87.1",
--				"@earendil-works/pi-coding-agent": "^0.87.1",
+-				"@earendil-works/pi-ai": "^0.99.1",
+-				"@earendil-works/pi-coding-agent": "^0.99.1",
 -				"@types/node": "22.19.19",
 -				"@vitest-evals/core": "0.15.0",
 -				"autoevals": "0.3.0",
 -				"shx": "0.4.0",
--				"typescript": "5.9.3",
--				"vitest": "4.1.9",
+-				"vitest": "4.1.11",
 -				"vitest-evals": "0.15.0"
+-			}
+-		},
+-		"packages/mcp": {
+-			"name": "@earendil-works/pi-mcp",
+-			"version": "0.99.1",
+-			"license": "MIT",
+-			"dependencies": {
+-				"cross-spawn": "7.0.6"
+-			},
+-			"devDependencies": {
+-				"@types/cross-spawn": "6.0.6",
+-				"shx": "0.4.0",
+-				"vitest": "4.1.11"
+-			},
+-			"engines": {
+-				"node": ">=22.19.0"
 -			}
 -		},
 -		"packages/protocol": {
 -			"name": "@earendil-works/pi-protocol",
--			"version": "0.87.1",
+-			"version": "0.99.1",
 -			"license": "MIT",
 -			"dependencies": {
--				"@earendil-works/chord": "^0.87.1",
+-				"@earendil-works/chord": "^0.99.1",
 -				"typebox": "1.3.27"
 -			},
 -			"devDependencies": {
 -				"shx": "0.4.0",
--				"vitest": "4.1.9"
+-				"vitest": "4.1.11"
 -			},
 -			"engines": {
 -				"node": ">=22.19.0"
@@ -5594,16 +6027,16 @@ index a4b5de131..5c79e02e5 100644
 -		},
 -		"packages/server": {
 -			"name": "@earendil-works/pi-server",
--			"version": "0.87.1",
+-			"version": "0.99.1",
 -			"license": "MIT",
 -			"dependencies": {
--				"@earendil-works/chord": "^0.87.1",
--				"@earendil-works/pi-agent-core": "^0.87.1",
--				"@earendil-works/pi-protocol": "^0.87.1"
+-				"@earendil-works/chord": "^0.99.1",
+-				"@earendil-works/pi-agent-core": "^0.99.1",
+-				"@earendil-works/pi-protocol": "^0.99.1"
 -			},
 -			"devDependencies": {
 -				"shx": "0.4.0",
--				"vitest": "4.1.9"
+-				"vitest": "4.1.11"
 -			},
 -			"engines": {
 -				"node": ">=22.19.0"
@@ -5611,15 +6044,15 @@ index a4b5de131..5c79e02e5 100644
 -		},
 -		"packages/session-backends/sqlite-node": {
 -			"name": "@earendil-works/pi-session-backend-sqlite-node",
--			"version": "0.87.1",
+-			"version": "0.99.1",
 -			"license": "MIT",
 -			"dependencies": {
--				"@earendil-works/pi-agent-core": "^0.87.1",
--				"@earendil-works/pi-ai": "^0.87.1"
+-				"@earendil-works/pi-agent-core": "^0.99.1",
+-				"@earendil-works/pi-ai": "^0.99.1"
 -			},
 -			"devDependencies": {
--				"@vitest/coverage-v8": "4.1.9",
--				"vitest": "4.1.9"
+-				"@vitest/coverage-v8": "4.1.11",
+-				"vitest": "4.1.11"
 -			},
 -			"engines": {
 -				"node": ">=22.19.0"
@@ -5627,11 +6060,11 @@ index a4b5de131..5c79e02e5 100644
 -		},
 -		"packages/telemetry": {
 -			"name": "@earendil-works/pi-telemetry",
--			"version": "0.87.1",
+-			"version": "0.99.1",
 -			"license": "MIT",
 -			"devDependencies": {
 -				"@types/node": "22.19.19",
--				"vitest": "4.1.9"
+-				"vitest": "4.1.11"
 -			},
 -			"engines": {
 -				"node": ">=22.19.0"
@@ -5639,7 +6072,7 @@ index a4b5de131..5c79e02e5 100644
 -		},
 -		"packages/tui": {
 -			"name": "@earendil-works/pi-tui",
--			"version": "0.87.1",
+-			"version": "0.99.1",
 -			"license": "MIT",
 -			"dependencies": {
 -				"get-east-asian-width": "1.6.0",
@@ -5676,12 +6109,10 @@ index a4b5de131..5c79e02e5 100644
 +        "@anthropic-ai/sandbox-runtime": "0.0.26",
 +        "@biomejs/biome": "2.3.5",
 +        "@types/node": "22.19.19",
-+        "@typescript/native-preview": "7.0.0-dev.20260120.1",
 +        "esbuild": "0.28.2",
 +        "husky": "9.1.7",
 +        "shx": "0.4.0",
-+        "tsx": "4.22.1",
-+        "typescript": "5.9.3"
++        "typescript": "7.0.2"
 +      },
 +      "engines": {
 +        "node": ">=22.19.0"
@@ -6369,9 +6800,9 @@ index a4b5de131..5c79e02e5 100644
 +      }
 +    },
 +    "node_modules/@earendil-works/gondolin/node_modules/undici": {
-+      "version": "6.28.0",
-+      "resolved": "https://registry.npmjs.org/undici/-/undici-6.28.0.tgz",
-+      "integrity": "sha512-LIY910g9TI13YS95lrMFrs8Rm/u/irgHeTWoKCoteeJ04CUJ92eEfj0rVn+7VKMPBpUPiUoBKfhNyLI23EE/KA==",
++      "version": "6.29.0",
++      "resolved": "https://registry.npmjs.org/undici/-/undici-6.29.0.tgz",
++      "integrity": "sha512-R+RODBqp6i2pPflGdq+xIOUkl+RNfGgHwoinecKu/JCuf2uO06cOKoDbI2P7Dn6KcswdKwrczbU6IYJ6K8X+wg==",
 +      "license": "MIT",
 +      "engines": {
 +        "node": ">=18.17"
@@ -6389,6 +6820,10 @@ index a4b5de131..5c79e02e5 100644
 +      "resolved": "packages/client",
 +      "link": true
 +    },
++    "node_modules/@earendil-works/pi-codemode": {
++      "resolved": "packages/codemode",
++      "link": true
++    },
 +    "node_modules/@earendil-works/pi-coding-agent": {
 +      "resolved": "packages/coding-agent",
 +      "link": true
@@ -6399,6 +6834,10 @@ index a4b5de131..5c79e02e5 100644
 +    },
 +    "node_modules/@earendil-works/pi-evals": {
 +      "resolved": "packages/evals",
++      "link": true
++    },
++    "node_modules/@earendil-works/pi-mcp": {
++      "resolved": "packages/mcp",
 +      "link": true
 +    },
 +    "node_modules/@earendil-works/pi-protocol": {
@@ -7491,29 +7930,27 @@ index a4b5de131..5c79e02e5 100644
 +      "dev": true,
 +      "license": "MIT"
 +    },
-+    "node_modules/@typescript/native-preview": {
-+      "version": "7.0.0-dev.20260120.1",
-+      "resolved": "https://registry.npmjs.org/@typescript/native-preview/-/native-preview-7.0.0-dev.20260120.1.tgz",
-+      "integrity": "sha512-nnEf37C9ue7OBRnF2zmV/OCBmV5Y7T/K4mCHa+nxgiXcF/1w8sA0cgdFl+gHQ0mysqUJ+Bu5btAMeWgpLyjrgg==",
++    "node_modules/@typescript/typescript-aix-ppc64": {
++      "version": "7.0.2",
++      "resolved": "https://registry.npmjs.org/@typescript/typescript-aix-ppc64/-/typescript-aix-ppc64-7.0.2.tgz",
++      "integrity": "sha512-MTKKkWB7p/0E9xi1d1tHtZ5PiLkGEMIq88pK2CubZjOsLtYTLqhgIgi6zepFa+9GHZ6h05NMCkQxGKiPXMxXtQ==",
++      "cpu": [
++        "ppc64"
++      ],
 +      "dev": true,
 +      "license": "Apache-2.0",
-+      "bin": {
-+        "tsgo": "bin/tsgo.js"
-+      },
-+      "optionalDependencies": {
-+        "@typescript/native-preview-darwin-arm64": "7.0.0-dev.20260120.1",
-+        "@typescript/native-preview-darwin-x64": "7.0.0-dev.20260120.1",
-+        "@typescript/native-preview-linux-arm": "7.0.0-dev.20260120.1",
-+        "@typescript/native-preview-linux-arm64": "7.0.0-dev.20260120.1",
-+        "@typescript/native-preview-linux-x64": "7.0.0-dev.20260120.1",
-+        "@typescript/native-preview-win32-arm64": "7.0.0-dev.20260120.1",
-+        "@typescript/native-preview-win32-x64": "7.0.0-dev.20260120.1"
++      "optional": true,
++      "os": [
++        "aix"
++      ],
++      "engines": {
++        "node": ">=16.20.0"
 +      }
 +    },
-+    "node_modules/@typescript/native-preview-darwin-arm64": {
-+      "version": "7.0.0-dev.20260120.1",
-+      "resolved": "https://registry.npmjs.org/@typescript/native-preview-darwin-arm64/-/native-preview-darwin-arm64-7.0.0-dev.20260120.1.tgz",
-+      "integrity": "sha512-r3pWFuR2H7mn6ScwpH5jJljKQqKto0npVuJSk6pRwFwexpTyxOGmJTZJ1V0AWiisaNxU2+CNAqWFJSJYIE/QTg==",
++    "node_modules/@typescript/typescript-darwin-arm64": {
++      "version": "7.0.2",
++      "resolved": "https://registry.npmjs.org/@typescript/typescript-darwin-arm64/-/typescript-darwin-arm64-7.0.2.tgz",
++      "integrity": "sha512-gowzar9MwS/aRWp6f3a4KUqzRjAZjOsmGNCM6LcTgXum+dBfgsBVMN+AgvOCCbguXyick6LJhpBszxMebJ8syA==",
 +      "cpu": [
 +        "arm64"
 +      ],
@@ -7522,12 +7959,15 @@ index a4b5de131..5c79e02e5 100644
 +      "optional": true,
 +      "os": [
 +        "darwin"
-+      ]
++      ],
++      "engines": {
++        "node": ">=16.20.0"
++      }
 +    },
-+    "node_modules/@typescript/native-preview-darwin-x64": {
-+      "version": "7.0.0-dev.20260120.1",
-+      "resolved": "https://registry.npmjs.org/@typescript/native-preview-darwin-x64/-/native-preview-darwin-x64-7.0.0-dev.20260120.1.tgz",
-+      "integrity": "sha512-cuC1+wLbUP+Ip2UT94G134fqRdp5w3b3dhcCO6/FQ4yXxvRNyv/WK+upHBUFDaeSOeHgDTyO9/QFYUWwC4If1A==",
++    "node_modules/@typescript/typescript-darwin-x64": {
++      "version": "7.0.2",
++      "resolved": "https://registry.npmjs.org/@typescript/typescript-darwin-x64/-/typescript-darwin-x64-7.0.2.tgz",
++      "integrity": "sha512-SZ9xZInqApNlNGc9s0W1VSsktYSOe9cFqNOIqmN1Gs8SmkjKZYFt017G4VwPxASInODuAdbTW7sXiFUf893RgA==",
 +      "cpu": [
 +        "x64"
 +      ],
@@ -7536,12 +7976,49 @@ index a4b5de131..5c79e02e5 100644
 +      "optional": true,
 +      "os": [
 +        "darwin"
-+      ]
++      ],
++      "engines": {
++        "node": ">=16.20.0"
++      }
 +    },
-+    "node_modules/@typescript/native-preview-linux-arm": {
-+      "version": "7.0.0-dev.20260120.1",
-+      "resolved": "https://registry.npmjs.org/@typescript/native-preview-linux-arm/-/native-preview-linux-arm-7.0.0-dev.20260120.1.tgz",
-+      "integrity": "sha512-vN6OYVySol/kQZjJGmAzd6L30SyVlCgmCXS8WjUYtE5clN0YrzQHop16RK29fYZHMxpkOniVBtRPxUYQANZBlQ==",
++    "node_modules/@typescript/typescript-freebsd-arm64": {
++      "version": "7.0.2",
++      "resolved": "https://registry.npmjs.org/@typescript/typescript-freebsd-arm64/-/typescript-freebsd-arm64-7.0.2.tgz",
++      "integrity": "sha512-W5NH4y/J0plIIS5b2xvTEkU7JFxyqdMAOgf+Ilhl0vHQXKO5dZoxd+C/jEtq56c4F3wk71RB4BMRQ2XdI+bwYQ==",
++      "cpu": [
++        "arm64"
++      ],
++      "dev": true,
++      "license": "Apache-2.0",
++      "optional": true,
++      "os": [
++        "freebsd"
++      ],
++      "engines": {
++        "node": ">=16.20.0"
++      }
++    },
++    "node_modules/@typescript/typescript-freebsd-x64": {
++      "version": "7.0.2",
++      "resolved": "https://registry.npmjs.org/@typescript/typescript-freebsd-x64/-/typescript-freebsd-x64-7.0.2.tgz",
++      "integrity": "sha512-UMGDx5sTpzNw3WiPebH7l90IWfJggEd+egHt/q6p7/Cm3zqoV7VxkGXt+3DxPIw8CcmvAB0j3sVVfbhX+M4Tpw==",
++      "cpu": [
++        "x64"
++      ],
++      "dev": true,
++      "license": "Apache-2.0",
++      "optional": true,
++      "os": [
++        "freebsd"
++      ],
++      "engines": {
++        "node": ">=16.20.0"
++      }
++    },
++    "node_modules/@typescript/typescript-linux-arm": {
++      "version": "7.0.2",
++      "resolved": "https://registry.npmjs.org/@typescript/typescript-linux-arm/-/typescript-linux-arm-7.0.2.tgz",
++      "integrity": "sha512-gffT3xPz9sR7j/YJExkyPntrI0P2EP9XbOyWzth2/Gs0RstK+90RBcO0ncXoXy/beYll1SXw846Nf2zdnEz0QQ==",
 +      "cpu": [
 +        "arm"
 +      ],
@@ -7550,12 +8027,15 @@ index a4b5de131..5c79e02e5 100644
 +      "optional": true,
 +      "os": [
 +        "linux"
-+      ]
++      ],
++      "engines": {
++        "node": ">=16.20.0"
++      }
 +    },
-+    "node_modules/@typescript/native-preview-linux-arm64": {
-+      "version": "7.0.0-dev.20260120.1",
-+      "resolved": "https://registry.npmjs.org/@typescript/native-preview-linux-arm64/-/native-preview-linux-arm64-7.0.0-dev.20260120.1.tgz",
-+      "integrity": "sha512-zZGvEGY7wcHYefMZ87KNmvjN3NLIhsCMHEpHZiGCS3khKf+8z6ZsanrzCjOTodvL01VPyBzHxV1EtkSxAcLiQg==",
++    "node_modules/@typescript/typescript-linux-arm64": {
++      "version": "7.0.2",
++      "resolved": "https://registry.npmjs.org/@typescript/typescript-linux-arm64/-/typescript-linux-arm64-7.0.2.tgz",
++      "integrity": "sha512-Qh4eU4/y3yDjnfjjyPYihMj5/ODIlmt+Bzu17OI+fiSRDW57QmU5SiN63exPRNJPKUzcc1INa1NXdrJ+MqHjUQ==",
 +      "cpu": [
 +        "arm64"
 +      ],
@@ -7564,12 +8044,100 @@ index a4b5de131..5c79e02e5 100644
 +      "optional": true,
 +      "os": [
 +        "linux"
-+      ]
++      ],
++      "engines": {
++        "node": ">=16.20.0"
++      }
 +    },
-+    "node_modules/@typescript/native-preview-linux-x64": {
-+      "version": "7.0.0-dev.20260120.1",
-+      "resolved": "https://registry.npmjs.org/@typescript/native-preview-linux-x64/-/native-preview-linux-x64-7.0.0-dev.20260120.1.tgz",
-+      "integrity": "sha512-JBfNhWd/asd5MDeS3VgRvE24pGKBkmvLub6tsux6ypr+Yhy+o0WaAEzVpmlRYZUqss2ai5tvOu4dzPBXzZAtFw==",
++    "node_modules/@typescript/typescript-linux-loong64": {
++      "version": "7.0.2",
++      "resolved": "https://registry.npmjs.org/@typescript/typescript-linux-loong64/-/typescript-linux-loong64-7.0.2.tgz",
++      "integrity": "sha512-uEHck9i8hoAzXPiYRib1O7miOnz23SxIeVl6F4LXox+qov1K35jHcEW6VHKvZI+pyvl7fZEP4MCU5LYvIq1GuQ==",
++      "cpu": [
++        "loong64"
++      ],
++      "dev": true,
++      "license": "Apache-2.0",
++      "optional": true,
++      "os": [
++        "linux"
++      ],
++      "engines": {
++        "node": ">=16.20.0"
++      }
++    },
++    "node_modules/@typescript/typescript-linux-mips64el": {
++      "version": "7.0.2",
++      "resolved": "https://registry.npmjs.org/@typescript/typescript-linux-mips64el/-/typescript-linux-mips64el-7.0.2.tgz",
++      "integrity": "sha512-R4KvAMnE43W5Qeqb0Ly56O3mWMWIAgsMyz36DCaycd5nbg/9kzm0liw3JocfRqyJY0KPmzFjbswozXyW0DnIYA==",
++      "cpu": [
++        "mips64el"
++      ],
++      "dev": true,
++      "license": "Apache-2.0",
++      "optional": true,
++      "os": [
++        "linux"
++      ],
++      "engines": {
++        "node": ">=16.20.0"
++      }
++    },
++    "node_modules/@typescript/typescript-linux-ppc64": {
++      "version": "7.0.2",
++      "resolved": "https://registry.npmjs.org/@typescript/typescript-linux-ppc64/-/typescript-linux-ppc64-7.0.2.tgz",
++      "integrity": "sha512-DORx5b3sd/4S7eayxm4FQv+A7CrkUIGRaHiwI8oiHTAI1fAPWhF4J0vAlkC8biAlHSVVwxMQ3tjZ2/DVbnQiiA==",
++      "cpu": [
++        "ppc64"
++      ],
++      "dev": true,
++      "license": "Apache-2.0",
++      "optional": true,
++      "os": [
++        "linux"
++      ],
++      "engines": {
++        "node": ">=16.20.0"
++      }
++    },
++    "node_modules/@typescript/typescript-linux-riscv64": {
++      "version": "7.0.2",
++      "resolved": "https://registry.npmjs.org/@typescript/typescript-linux-riscv64/-/typescript-linux-riscv64-7.0.2.tgz",
++      "integrity": "sha512-wf0jqEDOjrPRnKwYRyyJDRo11KMbvMFrU+q4zqKyChODBzvlkbhNQfKvLxQCcwTpdDaXSHZTVuh0JoCrKCUMHQ==",
++      "cpu": [
++        "riscv64"
++      ],
++      "dev": true,
++      "license": "Apache-2.0",
++      "optional": true,
++      "os": [
++        "linux"
++      ],
++      "engines": {
++        "node": ">=16.20.0"
++      }
++    },
++    "node_modules/@typescript/typescript-linux-s390x": {
++      "version": "7.0.2",
++      "resolved": "https://registry.npmjs.org/@typescript/typescript-linux-s390x/-/typescript-linux-s390x-7.0.2.tgz",
++      "integrity": "sha512-IkwJc3L7yhytWd/ewjyxNDfOmswCm9GWMJT/ue/dU4aZNbwZeYAetq42VyLmsmSjvoX7z74X6ZaYCtzAr0EuGw==",
++      "cpu": [
++        "s390x"
++      ],
++      "dev": true,
++      "license": "Apache-2.0",
++      "optional": true,
++      "os": [
++        "linux"
++      ],
++      "engines": {
++        "node": ">=16.20.0"
++      }
++    },
++    "node_modules/@typescript/typescript-linux-x64": {
++      "version": "7.0.2",
++      "resolved": "https://registry.npmjs.org/@typescript/typescript-linux-x64/-/typescript-linux-x64-7.0.2.tgz",
++      "integrity": "sha512-EYdf2cNg7rgCWJnxCdJ+F3V39O8ihb37eHAu1LK8oAFizgTQbPOK7zHHXbPt8rX24COqODXeI3sIf0fCXG7H/A==",
 +      "cpu": [
 +        "x64"
 +      ],
@@ -7578,12 +8146,100 @@ index a4b5de131..5c79e02e5 100644
 +      "optional": true,
 +      "os": [
 +        "linux"
-+      ]
++      ],
++      "engines": {
++        "node": ">=16.20.0"
++      }
 +    },
-+    "node_modules/@typescript/native-preview-win32-arm64": {
-+      "version": "7.0.0-dev.20260120.1",
-+      "resolved": "https://registry.npmjs.org/@typescript/native-preview-win32-arm64/-/native-preview-win32-arm64-7.0.0-dev.20260120.1.tgz",
-+      "integrity": "sha512-tTndRtYCq2xwgE0VkTi9ACNiJaV43+PqvBqCxk8ceYi3X36Ve+CCnwlZfZJ4k9NxZthtrAwF/kUmpC9iIYbq1w==",
++    "node_modules/@typescript/typescript-netbsd-arm64": {
++      "version": "7.0.2",
++      "resolved": "https://registry.npmjs.org/@typescript/typescript-netbsd-arm64/-/typescript-netbsd-arm64-7.0.2.tgz",
++      "integrity": "sha512-+polYF4MF04aPpO5FTkHran9yUQDSXqy5GiSDKpsll5jy3l3+g9QLhpf39T+ePtefhXLOGrLl0QIjkQP6VnelA==",
++      "cpu": [
++        "arm64"
++      ],
++      "dev": true,
++      "license": "Apache-2.0",
++      "optional": true,
++      "os": [
++        "netbsd"
++      ],
++      "engines": {
++        "node": ">=16.20.0"
++      }
++    },
++    "node_modules/@typescript/typescript-netbsd-x64": {
++      "version": "7.0.2",
++      "resolved": "https://registry.npmjs.org/@typescript/typescript-netbsd-x64/-/typescript-netbsd-x64-7.0.2.tgz",
++      "integrity": "sha512-8YIT0EHM/3dq10ZOVF/A7pc/YSMtbcecct4rWtexrnSCHOPcpC2KTLXfTCR6vDpnSiY12heNb1GiN/wu+T/FyA==",
++      "cpu": [
++        "x64"
++      ],
++      "dev": true,
++      "license": "Apache-2.0",
++      "optional": true,
++      "os": [
++        "netbsd"
++      ],
++      "engines": {
++        "node": ">=16.20.0"
++      }
++    },
++    "node_modules/@typescript/typescript-openbsd-arm64": {
++      "version": "7.0.2",
++      "resolved": "https://registry.npmjs.org/@typescript/typescript-openbsd-arm64/-/typescript-openbsd-arm64-7.0.2.tgz",
++      "integrity": "sha512-APT8+ClYnuYm1u9+kgGXoMj2VzWzcymwh2gNSQVySHfkRDGOTVkoWLjCmOQSaO+PoqQ57B0flRp9SA+7GnnkzQ==",
++      "cpu": [
++        "arm64"
++      ],
++      "dev": true,
++      "license": "Apache-2.0",
++      "optional": true,
++      "os": [
++        "openbsd"
++      ],
++      "engines": {
++        "node": ">=16.20.0"
++      }
++    },
++    "node_modules/@typescript/typescript-openbsd-x64": {
++      "version": "7.0.2",
++      "resolved": "https://registry.npmjs.org/@typescript/typescript-openbsd-x64/-/typescript-openbsd-x64-7.0.2.tgz",
++      "integrity": "sha512-yX7s+Q0Dln0Dt9tEzZsAjXXR/+ytBM7AlglaqyeMPxQszJ1JhlJdZ6jLA+IzldHtflX81em7lDao1xXu+aRRkg==",
++      "cpu": [
++        "x64"
++      ],
++      "dev": true,
++      "license": "Apache-2.0",
++      "optional": true,
++      "os": [
++        "openbsd"
++      ],
++      "engines": {
++        "node": ">=16.20.0"
++      }
++    },
++    "node_modules/@typescript/typescript-sunos-x64": {
++      "version": "7.0.2",
++      "resolved": "https://registry.npmjs.org/@typescript/typescript-sunos-x64/-/typescript-sunos-x64-7.0.2.tgz",
++      "integrity": "sha512-dLJDGaLZ1D4HPQn62u1n8mBDkJREwMsAkCdkwd4Ieqw+x3TUyTsqY0YiBCtE6H6OzzgGk3iuZ3vFWRS+E8/d1g==",
++      "cpu": [
++        "x64"
++      ],
++      "dev": true,
++      "license": "Apache-2.0",
++      "optional": true,
++      "os": [
++        "sunos"
++      ],
++      "engines": {
++        "node": ">=16.20.0"
++      }
++    },
++    "node_modules/@typescript/typescript-win32-arm64": {
++      "version": "7.0.2",
++      "resolved": "https://registry.npmjs.org/@typescript/typescript-win32-arm64/-/typescript-win32-arm64-7.0.2.tgz",
++      "integrity": "sha512-Gyl1Vy6OsWesLzmq+EP0Fb7b4Nid5232AvcA2SFcdYreldpNtYFFofPjnt62y9hQy7VTaZp65ICJjuAQRaVcIQ==",
 +      "cpu": [
 +        "arm64"
 +      ],
@@ -7592,12 +8248,15 @@ index a4b5de131..5c79e02e5 100644
 +      "optional": true,
 +      "os": [
 +        "win32"
-+      ]
++      ],
++      "engines": {
++        "node": ">=16.20.0"
++      }
 +    },
-+    "node_modules/@typescript/native-preview-win32-x64": {
-+      "version": "7.0.0-dev.20260120.1",
-+      "resolved": "https://registry.npmjs.org/@typescript/native-preview-win32-x64/-/native-preview-win32-x64-7.0.0-dev.20260120.1.tgz",
-+      "integrity": "sha512-oZia7hFL6k9pVepfonuPI86Jmyz6WlJKR57tWCDwRNmpA7odxuTq1PbvcYgy1z4+wHF1nnKKJY0PMAiq6ac18w==",
++    "node_modules/@typescript/typescript-win32-x64": {
++      "version": "7.0.2",
++      "resolved": "https://registry.npmjs.org/@typescript/typescript-win32-x64/-/typescript-win32-x64-7.0.2.tgz",
++      "integrity": "sha512-0BQ3HkAHHlKLSp1qRvf3SUhGpGsDuhB/jgFw75guyqbxJqEaS0Cw/VFO8i2nHglJUzQCRtMMR/IBAKE3ETMC4g==",
 +      "cpu": [
 +        "x64"
 +      ],
@@ -7606,7 +8265,10 @@ index a4b5de131..5c79e02e5 100644
 +      "optional": true,
 +      "os": [
 +        "win32"
-+      ]
++      ],
++      "engines": {
++        "node": ">=16.20.0"
++      }
 +    },
 +    "node_modules/@vitest-evals/core": {
 +      "version": "0.15.0",
@@ -7629,14 +8291,14 @@ index a4b5de131..5c79e02e5 100644
 +      }
 +    },
 +    "node_modules/@vitest/coverage-v8": {
-+      "version": "4.1.9",
-+      "resolved": "https://registry.npmjs.org/@vitest/coverage-v8/-/coverage-v8-4.1.9.tgz",
-+      "integrity": "sha512-G9/lgqibheLVBDRuya45EbsEXTYcWoSG+TLg7i2axuzx0Eq62eXn+aWXyaVdV5vKvFSWd6ywcX8hA7la9Pvu8g==",
++      "version": "4.1.11",
++      "resolved": "https://registry.npmjs.org/@vitest/coverage-v8/-/coverage-v8-4.1.11.tgz",
++      "integrity": "sha512-8MVGEFnJIcdGjcbfKmeq8z0pZHH0JlVtoVZH9Q/qwUp6wyFnEJUBMrw9DCaj+ra3vShGmhavjalMIhPNxZAUcw==",
 +      "dev": true,
 +      "license": "MIT",
 +      "dependencies": {
 +        "@bcoe/v8-coverage": "^1.0.2",
-+        "@vitest/utils": "4.1.9",
++        "@vitest/utils": "4.1.11",
 +        "ast-v8-to-istanbul": "^1.0.0",
 +        "istanbul-lib-coverage": "^3.2.2",
 +        "istanbul-lib-report": "^3.0.1",
@@ -7650,8 +8312,8 @@ index a4b5de131..5c79e02e5 100644
 +        "url": "https://opencollective.com/vitest"
 +      },
 +      "peerDependencies": {
-+        "@vitest/browser": "4.1.9",
-+        "vitest": "4.1.9"
++        "@vitest/browser": "4.1.11",
++        "vitest": "4.1.11"
 +      },
 +      "peerDependenciesMeta": {
 +        "@vitest/browser": {
@@ -7660,16 +8322,16 @@ index a4b5de131..5c79e02e5 100644
 +      }
 +    },
 +    "node_modules/@vitest/expect": {
-+      "version": "4.1.9",
-+      "resolved": "https://registry.npmjs.org/@vitest/expect/-/expect-4.1.9.tgz",
-+      "integrity": "sha512-vl/rYsUKcBr3SnQn166+XR5ZQcgMx3DQhFWdfli/cWpLnLUmbxZvyrJZotLFUryib+LtArYMSTJ5RbQ57ZqrlA==",
++      "version": "4.1.11",
++      "resolved": "https://registry.npmjs.org/@vitest/expect/-/expect-4.1.11.tgz",
++      "integrity": "sha512-VX2x5vNJXET47KAFzwERI+KRMtTTCSWTfSMKsW7JsUsXV4psq++e3DvZpuTDOpHcxytiDs6p2nhVb2tVDiiUYw==",
 +      "dev": true,
 +      "license": "MIT",
 +      "dependencies": {
 +        "@standard-schema/spec": "^1.1.0",
 +        "@types/chai": "^5.2.2",
-+        "@vitest/spy": "4.1.9",
-+        "@vitest/utils": "4.1.9",
++        "@vitest/spy": "4.1.11",
++        "@vitest/utils": "4.1.11",
 +        "chai": "^6.2.2",
 +        "tinyrainbow": "^3.1.0"
 +      },
@@ -7678,13 +8340,13 @@ index a4b5de131..5c79e02e5 100644
 +      }
 +    },
 +    "node_modules/@vitest/mocker": {
-+      "version": "4.1.9",
-+      "resolved": "https://registry.npmjs.org/@vitest/mocker/-/mocker-4.1.9.tgz",
-+      "integrity": "sha512-EVkXzBjrPGM+cK8/ANWgBrkUCfJfb38/EfTSO8h7pWvKkyPkpWxvR7BkD2MyItMF62C97zAEoqdpUixwR/e+Rw==",
++      "version": "4.1.11",
++      "resolved": "https://registry.npmjs.org/@vitest/mocker/-/mocker-4.1.11.tgz",
++      "integrity": "sha512-2XJVD55d1o5AZous5CCGKS74g/riOj9odEt2bQpCVZeblHyHdnMeFl4jl0XjU21stf4mbjUkew2eXQZt65g5CQ==",
 +      "dev": true,
 +      "license": "MIT",
 +      "dependencies": {
-+        "@vitest/spy": "4.1.9",
++        "@vitest/spy": "4.1.11",
 +        "estree-walker": "^3.0.3",
 +        "magic-string": "^0.30.21"
 +      },
@@ -7705,9 +8367,9 @@ index a4b5de131..5c79e02e5 100644
 +      }
 +    },
 +    "node_modules/@vitest/pretty-format": {
-+      "version": "4.1.9",
-+      "resolved": "https://registry.npmjs.org/@vitest/pretty-format/-/pretty-format-4.1.9.tgz",
-+      "integrity": "sha512-s0iufns3iIFitdgm+YR7g1whCAaGtXz459VS9/PqyKDEEFgYIhsHOQmXgIgDuYCt7DeQmiZT0Qe2OA2p4ZPu5A==",
++      "version": "4.1.11",
++      "resolved": "https://registry.npmjs.org/@vitest/pretty-format/-/pretty-format-4.1.11.tgz",
++      "integrity": "sha512-yiZzPbGTS9Sr/JpFl8zHrcIkAofNbFV6k21vIgQN/cY/oxZeXhJv5sc/MBJ5jFKWmWs+oJHw0UXLZjmf931+Vw==",
 +      "dev": true,
 +      "license": "MIT",
 +      "dependencies": {
@@ -7718,13 +8380,13 @@ index a4b5de131..5c79e02e5 100644
 +      }
 +    },
 +    "node_modules/@vitest/runner": {
-+      "version": "4.1.9",
-+      "resolved": "https://registry.npmjs.org/@vitest/runner/-/runner-4.1.9.tgz",
-+      "integrity": "sha512-KXLMDtc7oe70+3mJfGrPUWPesswH+3sTxAMAMl8DG7I8IUQT4XW718dY5ID3vPUcmlu27CcKfY4P3h3I29SLJg==",
++      "version": "4.1.11",
++      "resolved": "https://registry.npmjs.org/@vitest/runner/-/runner-4.1.11.tgz",
++      "integrity": "sha512-LztvUgdwMNJMIkj3hQnnxiC2Xy1zNxq928W/xhjCLaNCzqTZOudjwbQf6v9IntZGPw132i2Lq2rgTRZHD3JHNw==",
 +      "dev": true,
 +      "license": "MIT",
 +      "dependencies": {
-+        "@vitest/utils": "4.1.9",
++        "@vitest/utils": "4.1.11",
 +        "pathe": "^2.0.3"
 +      },
 +      "funding": {
@@ -7732,14 +8394,14 @@ index a4b5de131..5c79e02e5 100644
 +      }
 +    },
 +    "node_modules/@vitest/snapshot": {
-+      "version": "4.1.9",
-+      "resolved": "https://registry.npmjs.org/@vitest/snapshot/-/snapshot-4.1.9.tgz",
-+      "integrity": "sha512-Jc7RKGNBo8Z28WYIm0Niej4xdSPByRf6mU58VpHQkd6Zh05rlnA+twjbK5HyeIGHxrzsc3mJgS43uM0CZKzaIA==",
++      "version": "4.1.11",
++      "resolved": "https://registry.npmjs.org/@vitest/snapshot/-/snapshot-4.1.11.tgz",
++      "integrity": "sha512-pN7ikn1ON7h8ee4gIAp4AzyK+zBtJPzVbqOgu5LCEh4VaJVbPQcgYQYJIMGQPXVeJJq1fnfazis7a5pFNPahog==",
 +      "dev": true,
 +      "license": "MIT",
 +      "dependencies": {
-+        "@vitest/pretty-format": "4.1.9",
-+        "@vitest/utils": "4.1.9",
++        "@vitest/pretty-format": "4.1.11",
++        "@vitest/utils": "4.1.11",
 +        "magic-string": "^0.30.21",
 +        "pathe": "^2.0.3"
 +      },
@@ -7748,9 +8410,9 @@ index a4b5de131..5c79e02e5 100644
 +      }
 +    },
 +    "node_modules/@vitest/spy": {
-+      "version": "4.1.9",
-+      "resolved": "https://registry.npmjs.org/@vitest/spy/-/spy-4.1.9.tgz",
-+      "integrity": "sha512-fHpsS6mIi+PiEW+vcRVOMkX1oSaPKne3VOclSFICPcGOmfKgXPU5iAah+wcNcj2xPrCCmfq99IDGf+EojhhvhA==",
++      "version": "4.1.11",
++      "resolved": "https://registry.npmjs.org/@vitest/spy/-/spy-4.1.11.tgz",
++      "integrity": "sha512-apNa/prQy2qCeywhnixOHPRCgGNhvg7T4Dapfl1GahLp/R+uhBm5cPyFoNVyqsNd2h1nJxL6BqqdIjiABL60YA==",
 +      "dev": true,
 +      "license": "MIT",
 +      "funding": {
@@ -7758,13 +8420,13 @@ index a4b5de131..5c79e02e5 100644
 +      }
 +    },
 +    "node_modules/@vitest/utils": {
-+      "version": "4.1.9",
-+      "resolved": "https://registry.npmjs.org/@vitest/utils/-/utils-4.1.9.tgz",
-+      "integrity": "sha512-A51o8ymO5PpqlWNnBP9ZHPXDIpuMtTLlGSjN7la4US+LJzoUMyhwjA5QXlm39JexgwHKW4Xjs8Z2d3dLCXOeuA==",
++      "version": "4.1.11",
++      "resolved": "https://registry.npmjs.org/@vitest/utils/-/utils-4.1.11.tgz",
++      "integrity": "sha512-zTCVGpyFsGWBhllOyKlTw/vnr6D9qxsfSDyfbyZmTyjHw5N/VuvzHpHoQjm2ZJzn4RJgx5w4r7V0er69CmLgPQ==",
 +      "dev": true,
 +      "license": "MIT",
 +      "dependencies": {
-+        "@vitest/pretty-format": "4.1.9",
++        "@vitest/pretty-format": "4.1.11",
 +        "convert-source-map": "^2.0.0",
 +        "tinyrainbow": "^3.1.0"
 +      },
@@ -9711,6 +10373,7 @@ index a4b5de131..5c79e02e5 100644
 +      "version": "6.40.0",
 +      "resolved": "https://registry.npmjs.org/openai/-/openai-6.40.0.tgz",
 +      "integrity": "sha512-MWtTjd/gQt4jpbji61NTgFWJLoY/PdRJ6wG9/ZDRMYNMlBKrCrSlkLI+KgHP1vR1qT6LKSAyAqIxno6lcK9JiA==",
++      "dev": true,
 +      "license": "Apache-2.0",
 +      "peerDependencies": {
 +        "ws": "^8.18.0",
@@ -9970,6 +10633,12 @@ index a4b5de131..5c79e02e5 100644
 +          "url": "https://feross.org/support"
 +        }
 +      ],
++      "license": "MIT"
++    },
++    "node_modules/quickjs-wasi": {
++      "version": "3.6.2",
++      "resolved": "https://registry.npmjs.org/quickjs-wasi/-/quickjs-wasi-3.6.2.tgz",
++      "integrity": "sha512-FCqGtGOrMgzUiIrMNMA2YnsOxCNwo31dzqXvclXUC6xeT35NJLKXQJsvbeCTjvoFAwZgEAPg8U6+KAPDGXn8Mg==",
 +      "license": "MIT"
 +    },
 +    "node_modules/rc": {
@@ -10516,25 +11185,6 @@ index a4b5de131..5c79e02e5 100644
 +      "integrity": "sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w==",
 +      "license": "0BSD"
 +    },
-+    "node_modules/tsx": {
-+      "version": "4.22.1",
-+      "resolved": "https://registry.npmjs.org/tsx/-/tsx-4.22.1.tgz",
-+      "integrity": "sha512-TvncJykhxAzFCk0VQZKBTClall4Pm7qXDSodb6uxi8QFa8X8mT6ABjxxsQ2opDRYxG7AzcRWXaFtruz5HJKuWg==",
-+      "dev": true,
-+      "license": "MIT",
-+      "dependencies": {
-+        "esbuild": "~0.28.0"
-+      },
-+      "bin": {
-+        "tsx": "dist/cli.mjs"
-+      },
-+      "engines": {
-+        "node": ">=18.0.0"
-+      },
-+      "optionalDependencies": {
-+        "fsevents": "~2.3.3"
-+      }
-+    },
 +    "node_modules/tunnel-agent": {
 +      "version": "0.6.0",
 +      "resolved": "https://registry.npmjs.org/tunnel-agent/-/tunnel-agent-0.6.0.tgz",
@@ -10561,17 +11211,38 @@ index a4b5de131..5c79e02e5 100644
 +      "license": "MIT"
 +    },
 +    "node_modules/typescript": {
-+      "version": "5.9.3",
-+      "resolved": "https://registry.npmjs.org/typescript/-/typescript-5.9.3.tgz",
-+      "integrity": "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==",
++      "version": "7.0.2",
++      "resolved": "https://registry.npmjs.org/typescript/-/typescript-7.0.2.tgz",
++      "integrity": "sha512-8FYau96o3NKOhbjKi/qNvG/W5jhzxkbdm5sj9AbZ/5T5sWqn3hJgLfGx27sRKZWTvyzCP8dLRBTf5tBTSRVUNA==",
 +      "dev": true,
 +      "license": "Apache-2.0",
 +      "bin": {
-+        "tsc": "bin/tsc",
-+        "tsserver": "bin/tsserver"
++        "tsc": "bin/tsc"
 +      },
 +      "engines": {
-+        "node": ">=14.17"
++        "node": ">=16.20.0"
++      },
++      "optionalDependencies": {
++        "@typescript/typescript-aix-ppc64": "7.0.2",
++        "@typescript/typescript-darwin-arm64": "7.0.2",
++        "@typescript/typescript-darwin-x64": "7.0.2",
++        "@typescript/typescript-freebsd-arm64": "7.0.2",
++        "@typescript/typescript-freebsd-x64": "7.0.2",
++        "@typescript/typescript-linux-arm": "7.0.2",
++        "@typescript/typescript-linux-arm64": "7.0.2",
++        "@typescript/typescript-linux-loong64": "7.0.2",
++        "@typescript/typescript-linux-mips64el": "7.0.2",
++        "@typescript/typescript-linux-ppc64": "7.0.2",
++        "@typescript/typescript-linux-riscv64": "7.0.2",
++        "@typescript/typescript-linux-s390x": "7.0.2",
++        "@typescript/typescript-linux-x64": "7.0.2",
++        "@typescript/typescript-netbsd-arm64": "7.0.2",
++        "@typescript/typescript-netbsd-x64": "7.0.2",
++        "@typescript/typescript-openbsd-arm64": "7.0.2",
++        "@typescript/typescript-openbsd-x64": "7.0.2",
++        "@typescript/typescript-sunos-x64": "7.0.2",
++        "@typescript/typescript-win32-arm64": "7.0.2",
++        "@typescript/typescript-win32-x64": "7.0.2"
 +      }
 +    },
 +    "node_modules/undici": {
@@ -10701,19 +11372,19 @@ index a4b5de131..5c79e02e5 100644
 +      }
 +    },
 +    "node_modules/vitest": {
-+      "version": "4.1.9",
-+      "resolved": "https://registry.npmjs.org/vitest/-/vitest-4.1.9.tgz",
-+      "integrity": "sha512-nE3/LEyc0z87uHYLZebqCUOaJr2hdtuPp7BQ4BosVFnfltxgAvMG08NyrSGlPpOUWvR27c5flSmYFTNr78L9GQ==",
++      "version": "4.1.11",
++      "resolved": "https://registry.npmjs.org/vitest/-/vitest-4.1.11.tgz",
++      "integrity": "sha512-fhACrNXUidIbGSBr5FlbuBkO7VWC1ZyLl0DO4CU2DrQoAPxX84Ysxs+HeGQpii5lZWV1Q4gBZTTu49mF+A6Edw==",
 +      "dev": true,
 +      "license": "MIT",
 +      "dependencies": {
-+        "@vitest/expect": "4.1.9",
-+        "@vitest/mocker": "4.1.9",
-+        "@vitest/pretty-format": "4.1.9",
-+        "@vitest/runner": "4.1.9",
-+        "@vitest/snapshot": "4.1.9",
-+        "@vitest/spy": "4.1.9",
-+        "@vitest/utils": "4.1.9",
++        "@vitest/expect": "4.1.11",
++        "@vitest/mocker": "4.1.11",
++        "@vitest/pretty-format": "4.1.11",
++        "@vitest/runner": "4.1.11",
++        "@vitest/snapshot": "4.1.11",
++        "@vitest/spy": "4.1.11",
++        "@vitest/utils": "4.1.11",
 +        "es-module-lexer": "^2.0.0",
 +        "expect-type": "^1.3.0",
 +        "magic-string": "^0.30.21",
@@ -10741,12 +11412,12 @@ index a4b5de131..5c79e02e5 100644
 +        "@edge-runtime/vm": "*",
 +        "@opentelemetry/api": "^1.9.0",
 +        "@types/node": "^20.0.0 || ^22.0.0 || >=24.0.0",
-+        "@vitest/browser-playwright": "4.1.9",
-+        "@vitest/browser-preview": "4.1.9",
-+        "@vitest/browser-webdriverio": "4.1.9",
-+        "@vitest/coverage-istanbul": "4.1.9",
-+        "@vitest/coverage-v8": "4.1.9",
-+        "@vitest/ui": "4.1.9",
++        "@vitest/browser-playwright": "4.1.11",
++        "@vitest/browser-preview": "4.1.11",
++        "@vitest/browser-webdriverio": "4.1.11",
++        "@vitest/coverage-istanbul": "4.1.11",
++        "@vitest/coverage-v8": "4.1.11",
++        "@vitest/ui": "4.1.11",
 +        "happy-dom": "*",
 +        "jsdom": "*",
 +        "vite": "^6.0.0 || ^7.0.0 || ^8.0.0"
@@ -10936,12 +11607,12 @@ index a4b5de131..5c79e02e5 100644
 +    },
 +    "packages/agent": {
 +      "name": "@earendil-works/pi-agent-core",
-+      "version": "0.87.1+namespace.1",
++      "version": "0.99.1+namespace.1",
 +      "license": "MIT",
 +      "dependencies": {
-+        "@earendil-works/chord": "^0.87.1",
-+        "@earendil-works/pi-ai": "^0.87.1",
-+        "@earendil-works/pi-telemetry": "^0.87.1",
++        "@earendil-works/chord": "^0.99.1",
++        "@earendil-works/pi-ai": "^0.99.1",
++        "@earendil-works/pi-telemetry": "^0.99.1",
 +        "diff": "8.0.4",
 +        "ignore": "7.0.8",
 +        "typebox": "1.3.27",
@@ -10949,9 +11620,8 @@ index a4b5de131..5c79e02e5 100644
 +      },
 +      "devDependencies": {
 +        "@types/node": "22.19.19",
-+        "@vitest/coverage-v8": "4.1.9",
-+        "typescript": "5.9.3",
-+        "vitest": "4.1.9"
++        "@vitest/coverage-v8": "4.1.11",
++        "vitest": "4.1.11"
 +      },
 +      "engines": {
 +        "node": ">=22.19.0"
@@ -10959,17 +11629,17 @@ index a4b5de131..5c79e02e5 100644
 +    },
 +    "packages/ai": {
 +      "name": "@earendil-works/pi-ai",
-+      "version": "0.87.1+namespace.1",
++      "version": "0.99.1+namespace.1",
 +      "license": "MIT",
 +      "dependencies": {
 +        "@anthropic-ai/sdk": "0.124.0",
 +        "@aws-sdk/client-bedrock-runtime": "3.1127.0",
-+        "@earendil-works/pi-telemetry": "^0.87.1",
++        "@earendil-works/pi-telemetry": "^0.99.1",
 +        "@google/genai": "2.21.0",
 +        "@smithy/node-http-handler": "4.12.1",
 +        "http-proxy-agent": "9.1.0",
 +        "https-proxy-agent": "9.1.0",
-+        "openai": "6.40.0",
++        "openai": "7.19.0",
 +        "partial-json": "0.1.7",
 +        "typebox": "1.3.27"
 +      },
@@ -10979,7 +11649,7 @@ index a4b5de131..5c79e02e5 100644
 +      "devDependencies": {
 +        "@types/node": "22.19.19",
 +        "canvas": "3.2.3",
-+        "vitest": "4.1.9"
++        "vitest": "4.1.11"
 +      },
 +      "engines": {
 +        "node": ">=22.19.0"
@@ -11008,16 +11678,53 @@ index a4b5de131..5c79e02e5 100644
 +        "node": ">= 20"
 +      }
 +    },
++    "packages/ai/node_modules/openai": {
++      "version": "7.19.0",
++      "resolved": "https://registry.npmjs.org/openai/-/openai-7.19.0.tgz",
++      "integrity": "sha512-MX2s3u2L5racTO0CC/SWpCOasJQBCJrqLKXK+l82cAhdeF8mPMBEe/gxMm0ZFa2xpKpOFLRjxv5afYEZbBXmbQ==",
++      "license": "Apache-2.0",
++      "engines": {
++        "node": ">=22.0.0"
++      },
++      "peerDependencies": {
++        "@aws-sdk/credential-provider-node": ">=3.972.0 <4",
++        "@smithy/hash-node": ">=4.3.0 <5",
++        "@smithy/signature-v4": ">=5.4.0 <6",
++        "undici": ">=5 <9",
++        "ws": "^8.21.0",
++        "zod": "^3.25 || ^4.0"
++      },
++      "peerDependenciesMeta": {
++        "@aws-sdk/credential-provider-node": {
++          "optional": true
++        },
++        "@smithy/hash-node": {
++          "optional": true
++        },
++        "@smithy/signature-v4": {
++          "optional": true
++        },
++        "undici": {
++          "optional": true
++        },
++        "ws": {
++          "optional": true
++        },
++        "zod": {
++          "optional": true
++        }
++      }
++    },
 +    "packages/chord": {
 +      "name": "@earendil-works/chord",
-+      "version": "0.87.1+namespace.1",
++      "version": "0.99.1+namespace.1",
 +      "license": "MIT",
 +      "dependencies": {
 +        "esbuild": "0.28.2"
 +      },
 +      "devDependencies": {
 +        "shx": "0.4.0",
-+        "vitest": "4.1.9"
++        "vitest": "4.1.11"
 +      },
 +      "engines": {
 +        "node": ">=22.19.0"
@@ -11025,15 +11732,30 @@ index a4b5de131..5c79e02e5 100644
 +    },
 +    "packages/client": {
 +      "name": "@earendil-works/pi-client",
-+      "version": "0.87.1+namespace.1",
++      "version": "0.99.1+namespace.1",
 +      "license": "MIT",
 +      "dependencies": {
-+        "@earendil-works/chord": "^0.87.1",
-+        "@earendil-works/pi-protocol": "^0.87.1"
++        "@earendil-works/chord": "^0.99.1",
++        "@earendil-works/pi-protocol": "^0.99.1"
 +      },
 +      "devDependencies": {
 +        "shx": "0.4.0",
-+        "vitest": "4.1.9"
++        "vitest": "4.1.11"
++      },
++      "engines": {
++        "node": ">=22.19.0"
++      }
++    },
++    "packages/codemode": {
++      "name": "@earendil-works/pi-codemode",
++      "version": "0.99.1+namespace.1",
++      "license": "MIT",
++      "dependencies": {
++        "quickjs-wasi": "3.6.2"
++      },
++      "devDependencies": {
++        "shx": "0.4.0",
++        "vitest": "4.1.11"
 +      },
 +      "engines": {
 +        "node": ">=22.19.0"
@@ -11041,13 +11763,15 @@ index a4b5de131..5c79e02e5 100644
 +    },
 +    "packages/coding-agent": {
 +      "name": "@earendil-works/pi-coding-agent",
-+      "version": "0.87.1+namespace.1",
++      "version": "0.99.1+namespace.1",
 +      "license": "MIT",
 +      "dependencies": {
-+        "@earendil-works/chord": "^0.87.1",
-+        "@earendil-works/pi-agent-core": "^0.87.1",
-+        "@earendil-works/pi-ai": "^0.87.1",
-+        "@earendil-works/pi-tui": "^0.87.1",
++        "@earendil-works/chord": "^0.99.1",
++        "@earendil-works/pi-agent-core": "^0.99.1",
++        "@earendil-works/pi-ai": "^0.99.1",
++        "@earendil-works/pi-codemode": "^0.99.1",
++        "@earendil-works/pi-mcp": "^0.99.1",
++        "@earendil-works/pi-tui": "^0.99.1",
 +        "@silvia-odwyer/photon-node": "0.3.4",
 +        "chalk": "6.0.0",
 +        "cross-spawn": "7.0.6",
@@ -11059,6 +11783,7 @@ index a4b5de131..5c79e02e5 100644
 +        "jiti": "2.7.0",
 +        "minimatch": "10.2.6",
 +        "proper-lockfile": "4.1.2",
++        "quickjs-wasi": "3.6.2",
 +        "semver": "7.8.5",
 +        "typebox": "1.3.27",
 +        "undici": "8.10.2",
@@ -11068,9 +11793,9 @@ index a4b5de131..5c79e02e5 100644
 +        "pi": "dist/bundle/cli.js"
 +      },
 +      "devDependencies": {
-+        "@earendil-works/pi-client": "^0.87.1",
-+        "@earendil-works/pi-protocol": "^0.87.1",
-+        "@earendil-works/pi-server": "^0.87.1",
++        "@earendil-works/pi-client": "^0.99.1",
++        "@earendil-works/pi-protocol": "^0.99.1",
++        "@earendil-works/pi-server": "^0.99.1",
 +        "@types/cross-spawn": "6.0.6",
 +        "@types/hosted-git-info": "3.0.5",
 +        "@types/node": "22.19.19",
@@ -11078,8 +11803,7 @@ index a4b5de131..5c79e02e5 100644
 +        "@types/semver": "7.7.1",
 +        "marked": "18.0.11",
 +        "shx": "0.4.0",
-+        "typescript": "5.9.3",
-+        "vitest": "4.1.9"
++        "vitest": "4.1.11"
 +      },
 +      "engines": {
 +        "node": ">=22.19.0"
@@ -11087,32 +11811,32 @@ index a4b5de131..5c79e02e5 100644
 +    },
 +    "packages/coding-agent/examples/extensions/custom-provider-anthropic": {
 +      "name": "pi-extension-custom-provider-anthropic",
-+      "version": "0.87.1",
++      "version": "0.99.1",
 +      "dependencies": {
 +        "@anthropic-ai/sdk": "0.52.0"
 +      }
 +    },
 +    "packages/coding-agent/examples/extensions/custom-provider-gitlab-duo": {
 +      "name": "pi-extension-custom-provider-gitlab-duo",
-+      "version": "0.87.1"
++      "version": "0.99.1"
 +    },
 +    "packages/coding-agent/examples/extensions/gondolin": {
 +      "name": "pi-extension-gondolin",
-+      "version": "0.87.1",
++      "version": "0.99.1",
 +      "dependencies": {
 +        "@earendil-works/gondolin": "0.12.0"
 +      }
 +    },
 +    "packages/coding-agent/examples/extensions/sandbox": {
 +      "name": "pi-extension-sandbox",
-+      "version": "1.17.1",
++      "version": "0.99.1",
 +      "dependencies": {
 +        "@anthropic-ai/sandbox-runtime": "0.0.26"
 +      }
 +    },
 +    "packages/coding-agent/examples/extensions/with-deps": {
 +      "name": "pi-extension-with-deps",
-+      "version": "0.87.1",
++      "version": "0.99.1",
 +      "dependencies": {
 +        "ms": "2.1.3"
 +      },
@@ -11131,15 +11855,15 @@ index a4b5de131..5c79e02e5 100644
 +    },
 +    "packages/durable": {
 +      "name": "@earendil-works/pi-durable",
-+      "version": "0.87.1+namespace.1",
++      "version": "0.99.1+namespace.1",
 +      "license": "MIT",
 +      "dependencies": {
-+        "@earendil-works/chord": "^0.87.1",
-+        "@earendil-works/pi-ai": "^0.87.1"
++        "@earendil-works/chord": "^0.99.1",
++        "@earendil-works/pi-ai": "^0.99.1"
 +      },
 +      "devDependencies": {
 +        "shx": "0.4.0",
-+        "vitest": "4.1.9"
++        "vitest": "4.1.11"
 +      },
 +      "engines": {
 +        "node": ">=22.19.0"
@@ -11147,30 +11871,45 @@ index a4b5de131..5c79e02e5 100644
 +    },
 +    "packages/evals": {
 +      "name": "@earendil-works/pi-evals",
-+      "version": "0.87.1+namespace.1",
++      "version": "0.99.1+namespace.1",
 +      "devDependencies": {
-+        "@earendil-works/pi-ai": "^0.87.1",
-+        "@earendil-works/pi-coding-agent": "^0.87.1",
++        "@earendil-works/pi-ai": "^0.99.1",
++        "@earendil-works/pi-coding-agent": "^0.99.1",
 +        "@types/node": "22.19.19",
 +        "@vitest-evals/core": "0.15.0",
 +        "autoevals": "0.3.0",
 +        "shx": "0.4.0",
-+        "typescript": "5.9.3",
-+        "vitest": "4.1.9",
++        "vitest": "4.1.11",
 +        "vitest-evals": "0.15.0"
++      }
++    },
++    "packages/mcp": {
++      "name": "@earendil-works/pi-mcp",
++      "version": "0.99.1+namespace.1",
++      "license": "MIT",
++      "dependencies": {
++        "cross-spawn": "7.0.6"
++      },
++      "devDependencies": {
++        "@types/cross-spawn": "6.0.6",
++        "shx": "0.4.0",
++        "vitest": "4.1.11"
++      },
++      "engines": {
++        "node": ">=22.19.0"
 +      }
 +    },
 +    "packages/protocol": {
 +      "name": "@earendil-works/pi-protocol",
-+      "version": "0.87.1+namespace.1",
++      "version": "0.99.1+namespace.1",
 +      "license": "MIT",
 +      "dependencies": {
-+        "@earendil-works/chord": "^0.87.1",
++        "@earendil-works/chord": "^0.99.1",
 +        "typebox": "1.3.27"
 +      },
 +      "devDependencies": {
 +        "shx": "0.4.0",
-+        "vitest": "4.1.9"
++        "vitest": "4.1.11"
 +      },
 +      "engines": {
 +        "node": ">=22.19.0"
@@ -11178,16 +11917,16 @@ index a4b5de131..5c79e02e5 100644
 +    },
 +    "packages/server": {
 +      "name": "@earendil-works/pi-server",
-+      "version": "0.87.1+namespace.1",
++      "version": "0.99.1+namespace.1",
 +      "license": "MIT",
 +      "dependencies": {
-+        "@earendil-works/chord": "^0.87.1",
-+        "@earendil-works/pi-agent-core": "^0.87.1",
-+        "@earendil-works/pi-protocol": "^0.87.1"
++        "@earendil-works/chord": "^0.99.1",
++        "@earendil-works/pi-agent-core": "^0.99.1",
++        "@earendil-works/pi-protocol": "^0.99.1"
 +      },
 +      "devDependencies": {
 +        "shx": "0.4.0",
-+        "vitest": "4.1.9"
++        "vitest": "4.1.11"
 +      },
 +      "engines": {
 +        "node": ">=22.19.0"
@@ -11195,15 +11934,15 @@ index a4b5de131..5c79e02e5 100644
 +    },
 +    "packages/session-backends/sqlite-node": {
 +      "name": "@earendil-works/pi-session-backend-sqlite-node",
-+      "version": "0.87.1+namespace.1",
++      "version": "0.99.1+namespace.1",
 +      "license": "MIT",
 +      "dependencies": {
-+        "@earendil-works/pi-agent-core": "^0.87.1",
-+        "@earendil-works/pi-ai": "^0.87.1"
++        "@earendil-works/pi-agent-core": "^0.99.1",
++        "@earendil-works/pi-ai": "^0.99.1"
 +      },
 +      "devDependencies": {
-+        "@vitest/coverage-v8": "4.1.9",
-+        "vitest": "4.1.9"
++        "@vitest/coverage-v8": "4.1.11",
++        "vitest": "4.1.11"
 +      },
 +      "engines": {
 +        "node": ">=22.19.0"
@@ -11211,11 +11950,11 @@ index a4b5de131..5c79e02e5 100644
 +    },
 +    "packages/telemetry": {
 +      "name": "@earendil-works/pi-telemetry",
-+      "version": "0.87.1+namespace.1",
++      "version": "0.99.1+namespace.1",
 +      "license": "MIT",
 +      "devDependencies": {
 +        "@types/node": "22.19.19",
-+        "vitest": "4.1.9"
++        "vitest": "4.1.11"
 +      },
 +      "engines": {
 +        "node": ">=22.19.0"
@@ -11223,7 +11962,7 @@ index a4b5de131..5c79e02e5 100644
 +    },
 +    "packages/tui": {
 +      "name": "@earendil-works/pi-tui",
-+      "version": "0.87.1+namespace.1",
++      "version": "0.99.1+namespace.1",
 +      "license": "MIT",
 +      "dependencies": {
 +        "get-east-asian-width": "1.6.0",
@@ -11241,72 +11980,84 @@ index a4b5de131..5c79e02e5 100644
 +}
 \ No newline at end of file
 diff --git a/packages/agent/package.json b/packages/agent/package.json
-index b2732d5d9..0ea7c16ae 100644
+index c983f53f0..3a9b4709f 100644
 --- a/packages/agent/package.json
 +++ b/packages/agent/package.json
 @@ -1,6 +1,6 @@
  {
  	"name": "@earendil-works/pi-agent-core",
--	"version": "0.87.1",
-+	"version": "0.87.1+namespace.1",
+-	"version": "0.99.1",
++	"version": "0.99.1+namespace.1",
  	"description": "General-purpose agent with transport abstraction, state management, and attachment support",
  	"type": "module",
  	"main": "./dist/index.js",
 diff --git a/packages/ai/package.json b/packages/ai/package.json
-index d129d2e16..aedf9a245 100644
+index 99e1ca54c..9fb4a3d35 100644
 --- a/packages/ai/package.json
 +++ b/packages/ai/package.json
 @@ -1,6 +1,6 @@
  {
  	"name": "@earendil-works/pi-ai",
--	"version": "0.87.1",
-+	"version": "0.87.1+namespace.1",
+-	"version": "0.99.1",
++	"version": "0.99.1+namespace.1",
  	"description": "Unified LLM API with automatic model discovery and provider configuration",
  	"type": "module",
  	"main": "./dist/index.js",
 diff --git a/packages/chord/package.json b/packages/chord/package.json
-index 10dd4270f..5f334f0de 100644
+index f3e0a5f41..ac14e1f8c 100644
 --- a/packages/chord/package.json
 +++ b/packages/chord/package.json
 @@ -1,6 +1,6 @@
  {
  	"name": "@earendil-works/chord",
--	"version": "0.87.1",
-+	"version": "0.87.1+namespace.1",
+-	"version": "0.99.1",
++	"version": "0.99.1+namespace.1",
  	"description": "Application composition runtime for services, replicated state, RPC, and plugins",
  	"type": "module",
  	"main": "./dist/index.js",
 diff --git a/packages/client/package.json b/packages/client/package.json
-index 9104494a9..52a85abc8 100644
+index 577ce24a9..e3e4c5daa 100644
 --- a/packages/client/package.json
 +++ b/packages/client/package.json
 @@ -1,6 +1,6 @@
  {
  	"name": "@earendil-works/pi-client",
--	"version": "0.87.1",
-+	"version": "0.87.1+namespace.1",
+-	"version": "0.99.1",
++	"version": "0.99.1+namespace.1",
  	"description": "Transport-neutral client for remote pi sessions over framed CBOR bytes",
  	"type": "module",
  	"main": "./dist/index.js",
+diff --git a/packages/codemode/package.json b/packages/codemode/package.json
+index 73a7208d0..151beadc1 100644
+--- a/packages/codemode/package.json
++++ b/packages/codemode/package.json
+@@ -1,6 +1,6 @@
+ {
+ 	"name": "@earendil-works/pi-codemode",
+-	"version": "0.99.1",
++	"version": "0.99.1+namespace.1",
+ 	"description": "Sandboxed JavaScript execution where the only capability is calling injected tools",
+ 	"type": "module",
+ 	"main": "./dist/index.js",
 diff --git a/packages/coding-agent/install-lock/package-lock.json b/packages/coding-agent/install-lock/package-lock.json
-index 0eedd76e9..02df395d2 100644
+index 62a4d395e..9a95acea0 100644
 --- a/packages/coding-agent/install-lock/package-lock.json
 +++ b/packages/coding-agent/install-lock/package-lock.json
 @@ -1,14 +1,14 @@
  {
  	"name": "@earendil-works/pi-coding-agent-install",
--	"version": "0.87.1",
-+	"version": "0.87.1+namespace.1",
+-	"version": "0.99.1",
++	"version": "0.99.1+namespace.1",
  	"lockfileVersion": 3,
  	"requires": true,
  	"packages": {
  		"": {
  			"name": "@earendil-works/pi-coding-agent-install",
--			"version": "0.87.1",
-+			"version": "0.87.1+namespace.1",
+-			"version": "0.99.1",
++			"version": "0.99.1+namespace.1",
  			"dependencies": {
--				"@earendil-works/pi-coding-agent": "0.87.1"
-+				"@earendil-works/pi-coding-agent": "0.87.1+namespace.1"
+-				"@earendil-works/pi-coding-agent": "0.99.1"
++				"@earendil-works/pi-coding-agent": "0.99.1+namespace.1"
  			},
  			"engines": {
  				"node": ">=22.19.0"
@@ -11314,10 +12065,10 @@ index 0eedd76e9..02df395d2 100644
  			}
  		},
  		"node_modules/@earendil-works/chord": {
--			"version": "0.87.1",
--			"resolved": "https://registry.npmjs.org/@earendil-works/chord/-/chord-0.87.1.tgz",
-+			"version": "0.87.1+namespace.1",
-+			"resolved": "https://registry.npmjs.org/@earendil-works/chord/-/chord-0.87.1+namespace.1.tgz",
+-			"version": "0.99.1",
+-			"resolved": "https://registry.npmjs.org/@earendil-works/chord/-/chord-0.99.1.tgz",
++			"version": "0.99.1+namespace.1",
++			"resolved": "https://registry.npmjs.org/@earendil-works/chord/-/chord-0.99.1+namespace.1.tgz",
  			"license": "MIT",
  			"dependencies": {
  				"esbuild": "0.28.2"
@@ -11325,239 +12076,295 @@ index 0eedd76e9..02df395d2 100644
  			}
  		},
  		"node_modules/@earendil-works/pi-agent-core": {
--			"version": "0.87.1",
--			"resolved": "https://registry.npmjs.org/@earendil-works/pi-agent-core/-/pi-agent-core-0.87.1.tgz",
-+			"version": "0.87.1+namespace.1",
-+			"resolved": "https://registry.npmjs.org/@earendil-works/pi-agent-core/-/pi-agent-core-0.87.1+namespace.1.tgz",
+-			"version": "0.99.1",
+-			"resolved": "https://registry.npmjs.org/@earendil-works/pi-agent-core/-/pi-agent-core-0.99.1.tgz",
++			"version": "0.99.1+namespace.1",
++			"resolved": "https://registry.npmjs.org/@earendil-works/pi-agent-core/-/pi-agent-core-0.99.1+namespace.1.tgz",
  			"license": "MIT",
  			"dependencies": {
- 				"@earendil-works/chord": "^0.87.1",
+ 				"@earendil-works/chord": "^0.99.1",
 @@ -414,8 +414,8 @@
  			}
  		},
  		"node_modules/@earendil-works/pi-ai": {
--			"version": "0.87.1",
--			"resolved": "https://registry.npmjs.org/@earendil-works/pi-ai/-/pi-ai-0.87.1.tgz",
-+			"version": "0.87.1+namespace.1",
-+			"resolved": "https://registry.npmjs.org/@earendil-works/pi-ai/-/pi-ai-0.87.1+namespace.1.tgz",
+-			"version": "0.99.1",
+-			"resolved": "https://registry.npmjs.org/@earendil-works/pi-ai/-/pi-ai-0.99.1.tgz",
++			"version": "0.99.1+namespace.1",
++			"resolved": "https://registry.npmjs.org/@earendil-works/pi-ai/-/pi-ai-0.99.1+namespace.1.tgz",
  			"license": "MIT",
  			"dependencies": {
  				"@anthropic-ai/sdk": "0.124.0",
-@@ -460,8 +460,8 @@
+@@ -497,8 +497,8 @@
+ 			}
+ 		},
+ 		"node_modules/@earendil-works/pi-codemode": {
+-			"version": "0.99.1",
+-			"resolved": "https://registry.npmjs.org/@earendil-works/pi-codemode/-/pi-codemode-0.99.1.tgz",
++			"version": "0.99.1+namespace.1",
++			"resolved": "https://registry.npmjs.org/@earendil-works/pi-codemode/-/pi-codemode-0.99.1+namespace.1.tgz",
+ 			"license": "MIT",
+ 			"dependencies": {
+ 				"quickjs-wasi": "3.6.2"
+@@ -508,8 +508,8 @@
  			}
  		},
  		"node_modules/@earendil-works/pi-coding-agent": {
--			"version": "0.87.1",
--			"resolved": "https://registry.npmjs.org/@earendil-works/pi-coding-agent/-/pi-coding-agent-0.87.1.tgz",
-+			"version": "0.87.1+namespace.1",
-+			"resolved": "https://registry.npmjs.org/@earendil-works/pi-coding-agent/-/pi-coding-agent-0.87.1+namespace.1.tgz",
+-			"version": "0.99.1",
+-			"resolved": "https://registry.npmjs.org/@earendil-works/pi-coding-agent/-/pi-coding-agent-0.99.1.tgz",
++			"version": "0.99.1+namespace.1",
++			"resolved": "https://registry.npmjs.org/@earendil-works/pi-coding-agent/-/pi-coding-agent-0.99.1+namespace.1.tgz",
  			"license": "MIT",
  			"dependencies": {
- 				"@earendil-works/chord": "^0.87.1",
-@@ -492,16 +492,16 @@
+ 				"@earendil-works/chord": "^0.99.1",
+@@ -543,8 +543,8 @@
+ 			}
+ 		},
+ 		"node_modules/@earendil-works/pi-mcp": {
+-			"version": "0.99.1",
+-			"resolved": "https://registry.npmjs.org/@earendil-works/pi-mcp/-/pi-mcp-0.99.1.tgz",
++			"version": "0.99.1+namespace.1",
++			"resolved": "https://registry.npmjs.org/@earendil-works/pi-mcp/-/pi-mcp-0.99.1+namespace.1.tgz",
+ 			"license": "MIT",
+ 			"dependencies": {
+ 				"cross-spawn": "7.0.6"
+@@ -554,16 +554,16 @@
  			}
  		},
  		"node_modules/@earendil-works/pi-telemetry": {
--			"version": "0.87.1",
--			"resolved": "https://registry.npmjs.org/@earendil-works/pi-telemetry/-/pi-telemetry-0.87.1.tgz",
-+			"version": "0.87.1+namespace.1",
-+			"resolved": "https://registry.npmjs.org/@earendil-works/pi-telemetry/-/pi-telemetry-0.87.1+namespace.1.tgz",
+-			"version": "0.99.1",
+-			"resolved": "https://registry.npmjs.org/@earendil-works/pi-telemetry/-/pi-telemetry-0.99.1.tgz",
++			"version": "0.99.1+namespace.1",
++			"resolved": "https://registry.npmjs.org/@earendil-works/pi-telemetry/-/pi-telemetry-0.99.1+namespace.1.tgz",
  			"license": "MIT",
  			"engines": {
  				"node": ">=22.19.0"
  			}
  		},
  		"node_modules/@earendil-works/pi-tui": {
--			"version": "0.87.1",
--			"resolved": "https://registry.npmjs.org/@earendil-works/pi-tui/-/pi-tui-0.87.1.tgz",
-+			"version": "0.87.1+namespace.1",
-+			"resolved": "https://registry.npmjs.org/@earendil-works/pi-tui/-/pi-tui-0.87.1+namespace.1.tgz",
+-			"version": "0.99.1",
+-			"resolved": "https://registry.npmjs.org/@earendil-works/pi-tui/-/pi-tui-0.99.1.tgz",
++			"version": "0.99.1+namespace.1",
++			"resolved": "https://registry.npmjs.org/@earendil-works/pi-tui/-/pi-tui-0.99.1+namespace.1.tgz",
  			"license": "MIT",
  			"dependencies": {
  				"get-east-asian-width": "1.6.0",
 diff --git a/packages/coding-agent/install-lock/package.json b/packages/coding-agent/install-lock/package.json
-index fab383004..93cb87492 100644
+index 401214e48..9c3b8f451 100644
 --- a/packages/coding-agent/install-lock/package.json
 +++ b/packages/coding-agent/install-lock/package.json
 @@ -1,10 +1,10 @@
  {
  	"name": "@earendil-works/pi-coding-agent-install",
--	"version": "0.87.1",
-+	"version": "0.87.1+namespace.1",
+-	"version": "0.99.1",
++	"version": "0.99.1+namespace.1",
  	"private": true,
  	"description": "Lockfile root used by the Pi installer and updater.",
  	"dependencies": {
--		"@earendil-works/pi-coding-agent": "0.87.1"
-+		"@earendil-works/pi-coding-agent": "0.87.1+namespace.1"
+-		"@earendil-works/pi-coding-agent": "0.99.1"
++		"@earendil-works/pi-coding-agent": "0.99.1+namespace.1"
  	},
  	"overrides": {
  		"protobufjs": "7.6.6"
 diff --git a/packages/coding-agent/npm-shrinkwrap.json b/packages/coding-agent/npm-shrinkwrap.json
-index 5086a308c..be99fa611 100644
+index 477b40486..285785476 100644
 --- a/packages/coding-agent/npm-shrinkwrap.json
 +++ b/packages/coding-agent/npm-shrinkwrap.json
 @@ -1,12 +1,12 @@
  {
  	"name": "@earendil-works/pi-coding-agent",
--	"version": "0.87.1",
-+	"version": "0.87.1+namespace.1",
+-	"version": "0.99.1",
++	"version": "0.99.1+namespace.1",
  	"lockfileVersion": 3,
  	"requires": true,
  	"packages": {
  		"": {
  			"name": "@earendil-works/pi-coding-agent",
--			"version": "0.87.1",
-+			"version": "0.87.1+namespace.1",
+-			"version": "0.99.1",
++			"version": "0.99.1+namespace.1",
  			"license": "MIT",
  			"dependencies": {
- 				"@earendil-works/chord": "^0.87.1",
-@@ -408,8 +408,8 @@
+ 				"@earendil-works/chord": "^0.99.1",
+@@ -411,8 +411,8 @@
  			}
  		},
  		"node_modules/@earendil-works/chord": {
--			"version": "0.87.1",
--			"resolved": "https://registry.npmjs.org/@earendil-works/chord/-/chord-0.87.1.tgz",
-+			"version": "0.87.1+namespace.1",
-+			"resolved": "https://registry.npmjs.org/@earendil-works/chord/-/chord-0.87.1+namespace.1.tgz",
+-			"version": "0.99.1",
+-			"resolved": "https://registry.npmjs.org/@earendil-works/chord/-/chord-0.99.1.tgz",
++			"version": "0.99.1+namespace.1",
++			"resolved": "https://registry.npmjs.org/@earendil-works/chord/-/chord-0.99.1+namespace.1.tgz",
  			"license": "MIT",
  			"dependencies": {
  				"esbuild": "0.28.2"
-@@ -419,8 +419,8 @@
+@@ -422,8 +422,8 @@
  			}
  		},
  		"node_modules/@earendil-works/pi-agent-core": {
--			"version": "0.87.1",
--			"resolved": "https://registry.npmjs.org/@earendil-works/pi-agent-core/-/pi-agent-core-0.87.1.tgz",
-+			"version": "0.87.1+namespace.1",
-+			"resolved": "https://registry.npmjs.org/@earendil-works/pi-agent-core/-/pi-agent-core-0.87.1+namespace.1.tgz",
+-			"version": "0.99.1",
+-			"resolved": "https://registry.npmjs.org/@earendil-works/pi-agent-core/-/pi-agent-core-0.99.1.tgz",
++			"version": "0.99.1+namespace.1",
++			"resolved": "https://registry.npmjs.org/@earendil-works/pi-agent-core/-/pi-agent-core-0.99.1+namespace.1.tgz",
  			"license": "MIT",
  			"dependencies": {
- 				"@earendil-works/chord": "^0.87.1",
-@@ -436,8 +436,8 @@
+ 				"@earendil-works/chord": "^0.99.1",
+@@ -439,8 +439,8 @@
  			}
  		},
  		"node_modules/@earendil-works/pi-ai": {
--			"version": "0.87.1",
--			"resolved": "https://registry.npmjs.org/@earendil-works/pi-ai/-/pi-ai-0.87.1.tgz",
-+			"version": "0.87.1+namespace.1",
-+			"resolved": "https://registry.npmjs.org/@earendil-works/pi-ai/-/pi-ai-0.87.1+namespace.1.tgz",
+-			"version": "0.99.1",
+-			"resolved": "https://registry.npmjs.org/@earendil-works/pi-ai/-/pi-ai-0.99.1.tgz",
++			"version": "0.99.1+namespace.1",
++			"resolved": "https://registry.npmjs.org/@earendil-works/pi-ai/-/pi-ai-0.99.1+namespace.1.tgz",
  			"license": "MIT",
  			"dependencies": {
  				"@anthropic-ai/sdk": "0.124.0",
-@@ -482,16 +482,16 @@
+@@ -522,8 +522,8 @@
+ 			}
+ 		},
+ 		"node_modules/@earendil-works/pi-codemode": {
+-			"version": "0.99.1",
+-			"resolved": "https://registry.npmjs.org/@earendil-works/pi-codemode/-/pi-codemode-0.99.1.tgz",
++			"version": "0.99.1+namespace.1",
++			"resolved": "https://registry.npmjs.org/@earendil-works/pi-codemode/-/pi-codemode-0.99.1+namespace.1.tgz",
+ 			"license": "MIT",
+ 			"dependencies": {
+ 				"quickjs-wasi": "3.6.2"
+@@ -533,8 +533,8 @@
+ 			}
+ 		},
+ 		"node_modules/@earendil-works/pi-mcp": {
+-			"version": "0.99.1",
+-			"resolved": "https://registry.npmjs.org/@earendil-works/pi-mcp/-/pi-mcp-0.99.1.tgz",
++			"version": "0.99.1+namespace.1",
++			"resolved": "https://registry.npmjs.org/@earendil-works/pi-mcp/-/pi-mcp-0.99.1+namespace.1.tgz",
+ 			"license": "MIT",
+ 			"dependencies": {
+ 				"cross-spawn": "7.0.6"
+@@ -544,16 +544,16 @@
  			}
  		},
  		"node_modules/@earendil-works/pi-telemetry": {
--			"version": "0.87.1",
--			"resolved": "https://registry.npmjs.org/@earendil-works/pi-telemetry/-/pi-telemetry-0.87.1.tgz",
-+			"version": "0.87.1+namespace.1",
-+			"resolved": "https://registry.npmjs.org/@earendil-works/pi-telemetry/-/pi-telemetry-0.87.1+namespace.1.tgz",
+-			"version": "0.99.1",
+-			"resolved": "https://registry.npmjs.org/@earendil-works/pi-telemetry/-/pi-telemetry-0.99.1.tgz",
++			"version": "0.99.1+namespace.1",
++			"resolved": "https://registry.npmjs.org/@earendil-works/pi-telemetry/-/pi-telemetry-0.99.1+namespace.1.tgz",
  			"license": "MIT",
  			"engines": {
  				"node": ">=22.19.0"
  			}
  		},
  		"node_modules/@earendil-works/pi-tui": {
--			"version": "0.87.1",
--			"resolved": "https://registry.npmjs.org/@earendil-works/pi-tui/-/pi-tui-0.87.1.tgz",
-+			"version": "0.87.1+namespace.1",
-+			"resolved": "https://registry.npmjs.org/@earendil-works/pi-tui/-/pi-tui-0.87.1+namespace.1.tgz",
+-			"version": "0.99.1",
+-			"resolved": "https://registry.npmjs.org/@earendil-works/pi-tui/-/pi-tui-0.99.1.tgz",
++			"version": "0.99.1+namespace.1",
++			"resolved": "https://registry.npmjs.org/@earendil-works/pi-tui/-/pi-tui-0.99.1+namespace.1.tgz",
  			"license": "MIT",
  			"dependencies": {
  				"get-east-asian-width": "1.6.0",
 diff --git a/packages/coding-agent/package.json b/packages/coding-agent/package.json
-index 62c01de66..150960ea6 100644
+index 22b6fdcb4..4dbbb3e8a 100644
 --- a/packages/coding-agent/package.json
 +++ b/packages/coding-agent/package.json
 @@ -1,6 +1,6 @@
  {
  	"name": "@earendil-works/pi-coding-agent",
--	"version": "0.87.1",
-+	"version": "0.87.1+namespace.1",
+-	"version": "0.99.1",
++	"version": "0.99.1+namespace.1",
  	"description": "Coding agent CLI with read, bash, edit, write tools and session management",
  	"type": "module",
  	"piConfig": {
 diff --git a/packages/durable/package.json b/packages/durable/package.json
-index d5573dfb4..e61ed4e6e 100644
+index 0cc52f512..231b57a3c 100644
 --- a/packages/durable/package.json
 +++ b/packages/durable/package.json
 @@ -1,6 +1,6 @@
  {
  	"name": "@earendil-works/pi-durable",
--	"version": "0.87.1",
-+	"version": "0.87.1+namespace.1",
+-	"version": "0.99.1",
++	"version": "0.99.1+namespace.1",
  	"description": "Durable conversation, task, and document runtime for Pi",
  	"type": "module",
  	"main": "./dist/index.js",
 diff --git a/packages/evals/package.json b/packages/evals/package.json
-index f7056cbc7..90dca73bd 100644
+index 769915bb0..93bf29e85 100644
 --- a/packages/evals/package.json
 +++ b/packages/evals/package.json
 @@ -1,6 +1,6 @@
  {
  	"name": "@earendil-works/pi-evals",
--	"version": "0.87.1",
-+	"version": "0.87.1+namespace.1",
+-	"version": "0.99.1",
++	"version": "0.99.1+namespace.1",
  	"private": true,
  	"type": "module",
  	"scripts": {
+diff --git a/packages/mcp/package.json b/packages/mcp/package.json
+index a578b410f..0d4a3000d 100644
+--- a/packages/mcp/package.json
++++ b/packages/mcp/package.json
+@@ -1,6 +1,6 @@
+ {
+ 	"name": "@earendil-works/pi-mcp",
+-	"version": "0.99.1",
++	"version": "0.99.1+namespace.1",
+ 	"description": "Standalone Model Context Protocol client for pi and other applications",
+ 	"type": "module",
+ 	"main": "./dist/index.js",
 diff --git a/packages/protocol/package.json b/packages/protocol/package.json
-index 605655f2c..d0e9eca6e 100644
+index 5028d6c10..b93b315c0 100644
 --- a/packages/protocol/package.json
 +++ b/packages/protocol/package.json
 @@ -1,6 +1,6 @@
  {
  	"name": "@earendil-works/pi-protocol",
--	"version": "0.87.1",
-+	"version": "0.87.1+namespace.1",
+-	"version": "0.99.1",
++	"version": "0.99.1+namespace.1",
  	"description": "Transport-neutral CBOR protocol for remote pi sessions",
  	"type": "module",
  	"main": "./dist/index.js",
 diff --git a/packages/server/package.json b/packages/server/package.json
-index 36cae1657..e6ef06adb 100644
+index 8b2d06503..1c71c24e2 100644
 --- a/packages/server/package.json
 +++ b/packages/server/package.json
 @@ -1,6 +1,6 @@
  {
  	"name": "@earendil-works/pi-server",
--	"version": "0.87.1",
-+	"version": "0.87.1+namespace.1",
+-	"version": "0.99.1",
++	"version": "0.99.1+namespace.1",
  	"description": "experimental server package for pi",
  	"type": "module",
  	"main": "./dist/index.js",
 diff --git a/packages/session-backends/sqlite-node/package.json b/packages/session-backends/sqlite-node/package.json
-index dbc91b15e..88235aa1e 100644
+index e1cb3f604..7d9d9ab0a 100644
 --- a/packages/session-backends/sqlite-node/package.json
 +++ b/packages/session-backends/sqlite-node/package.json
 @@ -1,6 +1,6 @@
  {
  	"name": "@earendil-works/pi-session-backend-sqlite-node",
--	"version": "0.87.1",
-+	"version": "0.87.1+namespace.1",
+-	"version": "0.99.1",
++	"version": "0.99.1+namespace.1",
  	"description": "Node sqlite session backend for @earendil-works/pi-agent-core sessions",
  	"type": "module",
  	"main": "./dist/index.js",
 diff --git a/packages/telemetry/package.json b/packages/telemetry/package.json
-index 753286462..5d4d629bd 100644
+index b91100c85..4a3abdec6 100644
 --- a/packages/telemetry/package.json
 +++ b/packages/telemetry/package.json
 @@ -1,6 +1,6 @@
  {
  	"name": "@earendil-works/pi-telemetry",
--	"version": "0.87.1",
-+	"version": "0.87.1+namespace.1",
+-	"version": "0.99.1",
++	"version": "0.99.1+namespace.1",
  	"description": "Vendor-neutral telemetry contracts and typed schema utilities for pi",
  	"type": "module",
  	"main": "./dist/index.js",
 diff --git a/packages/tui/package.json b/packages/tui/package.json
-index 90e79d4e5..5276810a2 100644
+index 33218dd1d..11122254b 100644
 --- a/packages/tui/package.json
 +++ b/packages/tui/package.json
 @@ -1,6 +1,6 @@
  {
  	"name": "@earendil-works/pi-tui",
--	"version": "0.87.1",
-+	"version": "0.87.1+namespace.1",
+-	"version": "0.99.1",
++	"version": "0.99.1+namespace.1",
  	"description": "Terminal User Interface library with differential rendering for efficient text-based applications",
  	"type": "module",
  	"main": "dist/index.js",
