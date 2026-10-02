@@ -29,11 +29,12 @@ permissions:
   contents: write
   pull-requests: write
   issues: write
-  # Mirror pushes and the L2 branch push can carry upstream's workflow-file
-  # changes (e.g. build-binaries.yml); GitHub rejects those with
-  # "refusing to allow a GitHub App to create or update workflow ... without
-  # workflows permission" unless the token carries this.
-  workflows: write
+  # NOTE: GITHUB_TOKEN has NO `workflows` scope (PAT-only). When upstream
+  # modifies .github/workflows/* (e.g. build-binaries.yml in the v0.99.2
+  # era), pushes carrying that change are rejected for GITHUB_TOKEN:
+  # "refusing to allow a GitHub App to create or update workflow ...".
+  # Interim handling: mirror those syncs manually with a PAT; long-term use
+  # a PAT secret for the sync/L2 push steps.
 
 concurrency:
   group: namespace-patch-tracker
