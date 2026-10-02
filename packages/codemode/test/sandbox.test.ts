@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 import { afterEach, describe, expect, it } from "vitest";
 import { CodemodeSandbox, type CodemodeTool } from "../src/index.ts";
@@ -331,6 +332,22 @@ describe("tools", () => {
 		expect(aborted).toBe(true);
 	});
 
+	it("names close matches when a script reads a tool that does not exist", async () => {
+		const sandbox = createSandbox([echo, { name: "web-search", execute: () => "" }]);
+		const attempt = async (expression: string) => {
+			const result = await sandbox.execute(`return ${expression};`);
+			return result.ok ? result.value : result.error.message;
+		};
+		expect(await attempt("tools.Echo")).toBe(
+			'tools.Echo does not exist. Did you mean tools.echo? ALL_TOOLS lists every tool; searchTools(query) finds tools by topic. Check for a member with "Echo" in tools.',
+		);
+		expect(await attempt("tools.websearch")).toContain("Did you mean tools.web_search?");
+		expect(await attempt("tools.nothing")).toContain("Available: echo, web_search.");
+		expect(
+			await attempt("['echo' in tools, 'nothing' in tools, String(tools.toString), JSON.stringify(tools)]"),
+		).toEqual([true, false, "undefined", "{}"]);
+	});
+
 	it("supports register and unregister between executions", async () => {
 		const sandbox = createSandbox();
 		sandbox.registerTool(echo);
@@ -338,7 +355,7 @@ describe("tools", () => {
 		expect(sandbox.tools.map((tool) => tool.name)).toEqual(["echo"]);
 		expect(await sandbox.execute("return await tools.echo('a')")).toMatchObject({ ok: true, value: "a" });
 		expect(sandbox.unregisterTool("echo")).toBe(true);
-		expect(await sandbox.execute("return typeof tools.echo")).toMatchObject({ ok: true, value: "undefined" });
+		expect(await sandbox.execute("return 'echo' in tools")).toMatchObject({ ok: true, value: false });
 	});
 });
 
@@ -391,6 +408,15 @@ describe("store and load", () => {
 		});
 	});
 
+	it("explains oversized writes", async () => {
+		const sandbox = createSandbox();
+		const result = await sandbox.execute(`store("img", "x".repeat(300 * 1024));`);
+		expect(result.ok).toBe(false);
+		if (result.ok) return;
+		expect(result.error.message).toContain('store("img") value has 307202 characters of JSON');
+		expect(result.error.message).toContain("Show images with image()");
+	});
+
 	it("reserves the store and load names", () => {
 		const execute = () => undefined;
 		expect(() => new CodemodeSandbox({ globals: [{ name: "store", execute }] })).toThrow(/Invalid global/);
@@ -430,11 +456,28 @@ describe("globals", () => {
 			await models.list("classifier", undefined, 3);
 			await models.list();
 			try { models.extra = 1; } catch {}
-			return [Object.keys(models), await models.first("a", "ignored"), typeof models.extra];
+			return [Object.keys(models), await models.first("a", "ignored"), "extra" in models];
 		`);
-		expect(result).toMatchObject({ ok: true, value: [["list", "first"], "a", "undefined"] });
+		expect(result).toMatchObject({ ok: true, value: [["list", "first"], "a", false] });
 		// undefined array elements become null in the JSON round trip.
 		expect(seen).toEqual([["classifier", null, 3], []]);
+	});
+
+	it("names the members of a namespace when a script reads one that does not exist", async () => {
+		const execute = () => undefined;
+		const sandbox = new CodemodeSandbox({
+			globals: [
+				{ name: "models.classify", execute },
+				{ name: "models.generateImages", execute },
+			],
+		});
+		sandboxes.push(sandbox);
+		const result = await sandbox.execute("await models.generateImage();");
+		expect(result.ok).toBe(false);
+		if (result.ok) return;
+		expect(result.error.message).toBe(
+			'models.generateImage does not exist. Did you mean models.generateImages? Check for a member with "generateImage" in models.',
+		);
 	});
 
 	it("rejects invalid and reserved global names", () => {
@@ -561,6 +604,13 @@ describe("limits and lifetime", () => {
 		expect(result).toMatchObject({ ok: true, value: ["RangeError", true] });
 	});
 
+	it("accepts a worker path string", async () => {
+		const workerPath = fileURLToPath(new URL("../src/runtime/worker.ts", import.meta.url));
+		const sandbox = new CodemodeSandbox({ workerUrl: workerPath });
+		sandboxes.push(sandbox);
+		expect(await sandbox.execute("return 1")).toMatchObject({ ok: true, value: 1 });
+	});
+
 	it("reports a missing worker file as a sandbox error", async () => {
 		const sandbox = new CodemodeSandbox({ workerUrl: new URL("./does-not-exist.js", import.meta.url) });
 		sandboxes.push(sandbox);
@@ -632,8 +682,8 @@ describe("escape hatches", () => {
 			try { tools.echo = () => 'nope'; } catch {}
 			try { tools.extra = () => 'nope'; } catch {}
 			try { globalThis.tools = null; } catch {}
-			return [typeof tools.extra, await tools.echo('still')];
+			return ["extra" in tools, await tools.echo('still')];
 		`);
-		expect(result).toMatchObject({ ok: true, value: ["undefined", "still"] });
+		expect(result).toMatchObject({ ok: true, value: [false, "still"] });
 	});
 });
