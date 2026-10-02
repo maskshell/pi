@@ -33,8 +33,8 @@ permissions:
   # modifies .github/workflows/* (e.g. build-binaries.yml in the v0.99.2
   # era), pushes carrying that change are rejected for GITHUB_TOKEN:
   # "refusing to allow a GitHub App to create or update workflow ...".
-  # Interim handling: mirror those syncs manually with a PAT; long-term use
-  # a PAT secret for the sync/L2 push steps.
+  # The push steps fall back to the FORK_SYNC_PAT secret (fine-grained PAT,
+  # Contents+Workflows RW, this repo only) when that happens.
 
 concurrency:
   group: namespace-patch-tracker
@@ -53,6 +53,8 @@ jobs:
           fetch-depth: 0
 
       - name: Mirror-sync main with upstream/main (ahead-only)
+        env:
+          FORK_SYNC_PAT: ${{ secrets.FORK_SYNC_PAT }}
         run: |
           set -euo pipefail
           git config user.email "pi-namespace-pipeline@users.noreply.github.com"
@@ -73,7 +75,19 @@ jobs:
           MC=$(git commit-tree "$TREE" -p HEAD -p "$UP" \
             -m "mirror: sync main with upstream/main")
           git update-ref refs/heads/main "$MC"
-          git push origin main
+          # GITHUB_TOKEN first (its pushes don't cascade workflow events); on
+          # a workflow-file rejection fall back to FORK_SYNC_PAT (fine-grained
+          # PAT: Contents+Workflows RW on this repo only). No PAT/empty secret
+          # → surface the original error.
+          if ! git push origin main 2>/tmp/push.err; then
+            if grep -q "refusing to allow" /tmp/push.err && [ -n "${FORK_SYNC_PAT:-}" ]; then
+              echo ">> GITHUB_TOKEN push rejected (workflow-file change) — retrying with FORK_SYNC_PAT"
+              git push "https://x-access-token:${FORK_SYNC_PAT}@github.com/${GITHUB_REPOSITORY}.git" main
+            else
+              cat /tmp/push.err >&2
+              exit 1
+            fi
+          fi
           echo "synced: main now contains upstream/main@$UP (ahead-only)"
 
   detect:
@@ -195,13 +209,22 @@ jobs:
         if: success()
         env:
           GH_TOKEN: ${{ github.token }}
+          FORK_SYNC_PAT: ${{ secrets.FORK_SYNC_PAT }}
           TARGET: ${{ needs.detect.outputs.target_tag }}
           ISSUE: ${{ needs.detect.outputs.issue_number }}
         run: |
           set -euo pipefail
           ISSUE_LINE=""
           [ -n "$ISSUE" ] && ISSUE_LINE="Tracking issue: #$ISSUE."
-          git push -f origin namespace-patch-next
+          if ! git push -f origin namespace-patch-next 2>/tmp/push.err; then
+            if grep -q "refusing to allow" /tmp/push.err && [ -n "${FORK_SYNC_PAT:-}" ]; then
+              echo ">> GITHUB_TOKEN push rejected (workflow-file change) — retrying with FORK_SYNC_PAT"
+              git push -f "https://x-access-token:${FORK_SYNC_PAT}@github.com/${GITHUB_REPOSITORY}.git" namespace-patch-next
+            else
+              cat /tmp/push.err >&2
+              exit 1
+            fi
+          fi
           if gh pr list --repo "$GITHUB_REPOSITORY" --head namespace-patch-next --json number --jq 'length' | grep -q '^0$'; then
             BODY="Automated L1 mechanical re-base onto ${TARGET}: cherry-pick clean, version stamp + artifacts regenerated, all gates green (npm run check, five touched suites, build).
 
@@ -311,13 +334,22 @@ jobs:
         working-directory: /tmp/work
         env:
           GH_TOKEN: ${{ github.token }}
+          FORK_SYNC_PAT: ${{ secrets.FORK_SYNC_PAT }}
           TARGET: ${{ needs.detect.outputs.target_tag }}
           ISSUE: ${{ needs.detect.outputs.issue_number }}
         run: |
           set -euo pipefail
           ISSUE_LINE=""
           [ -n "$ISSUE" ] && ISSUE_LINE="Tracking issue: #$ISSUE."
-          git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" namespace-patch-next
+          if ! git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" namespace-patch-next 2>/tmp/push.err; then
+            if grep -q "refusing to allow" /tmp/push.err && [ -n "${FORK_SYNC_PAT:-}" ]; then
+              echo ">> GITHUB_TOKEN push rejected (workflow-file change) — retrying with FORK_SYNC_PAT"
+              git push -f "https://x-access-token:${FORK_SYNC_PAT}@github.com/${GITHUB_REPOSITORY}.git" namespace-patch-next
+            else
+              cat /tmp/push.err >&2
+              exit 1
+            fi
+          fi
           if gh pr list --repo "$GITHUB_REPOSITORY" --head namespace-patch-next --json number --jq 'length' | grep -q '^0$'; then
             BODY="L1 failed; the L2 agent (pinned to the currently-released patched pi) resolved it and the pipeline re-verified all gates green.
 
