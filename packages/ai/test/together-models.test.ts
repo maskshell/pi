@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { getModel } from "../src/compat.ts";
 import { findEnvKeys, getEnvApiKey } from "../src/env-api-keys.ts";
-import { MODELS } from "../src/models.generated.ts";
 
 const originalTogetherApiKey = process.env.TOGETHER_API_KEY;
 
@@ -44,36 +43,38 @@ describe("Together models", () => {
 	});
 
 	it("models Together reasoning controls from the Together API surface", () => {
-		// The Together catalog churns with upstream releases (models.dev is fetched at
-		// build time), so sample each request-shaping tier dynamically instead of
-		// pinning model IDs. The tiers map to the reasoning branches in
-		// src/api/openai-completions.ts: OpenAI-style reasoning_effort, the
-		// Together-native reasoning toggle, and reasoning without controllable effort.
-		const chatModels = Object.values(MODELS.together);
+		const gptOss = getModel("together", "openai/gpt-oss-120b");
+		expect(gptOss.thinkingLevelMap).toEqual({
+			off: null,
+			minimal: null,
+			low: "low",
+			medium: "medium",
+			high: "high",
+			max: null,
+			xhigh: null,
+		});
+		expect(gptOss.compat).toMatchObject({
+			supportsReasoningEffort: true,
+			thinkingFormat: "openai",
+		});
 
-		// OpenAI-style effort: reasoning_effort carries a mapped thinking level.
-		const openaiEffort = chatModels.find(
-			(m) => m.reasoning && m.compat?.thinkingFormat === "openai" && m.compat.supportsReasoningEffort === true,
-		);
-		expect(openaiEffort, "Together catalog has an OpenAI-effort reasoning model").toBeDefined();
+		const deepSeekV4 = getModel("together", "deepseek-ai/DeepSeek-V4-Pro-0813");
+		expect(deepSeekV4.thinkingLevelMap).toEqual({
+			minimal: null,
+			low: null,
+			medium: null,
+			high: "high",
+			xhigh: null,
+		});
+		expect(deepSeekV4.compat).toMatchObject({
+			supportsReasoningEffort: true,
+			thinkingFormat: "together",
+		});
 
-		// Together-native toggle: reasoning is enabled as a boolean, without effort passthrough.
-		const togetherReasoning = chatModels.find((m) => m.reasoning && m.compat?.thinkingFormat === "together");
-		expect(togetherReasoning, "Together catalog has a together-format reasoning model").toBeDefined();
-
-		// Reasoning without controllable effort: no reasoning parameters are sent.
-		const uncontrolled = chatModels.find(
-			(m) => m.reasoning && !m.compat?.thinkingFormat && m.compat?.supportsReasoningEffort !== true,
-		);
-		expect(uncontrolled, "Together catalog has a reasoning model without effort controls").toBeDefined();
-
-		for (const model of [openaiEffort, togetherReasoning, uncontrolled]) {
-			const resolved = getModel("together", model!.id);
-			expect(resolved, `getModel resolves ${model!.id}`).toBeDefined();
-			expect(resolved.reasoning).toBe(true);
-			expect(resolved.compat?.thinkingFormat).toBe(model!.compat?.thinkingFormat);
-			expect(resolved.compat?.supportsReasoningEffort).toBe(model!.compat?.supportsReasoningEffort);
-		}
+		const minimax = getModel("together", "MiniMaxAI/MiniMax-M2.7");
+		expect(minimax.thinkingLevelMap).toEqual({ off: null, minimal: null, low: null, medium: null });
+		expect(minimax.compat?.thinkingFormat).toBeUndefined();
+		expect(minimax.compat?.supportsReasoningEffort).toBe(false);
 	});
 
 	it("resolves TOGETHER_API_KEY from the environment", () => {
