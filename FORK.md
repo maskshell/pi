@@ -46,6 +46,7 @@ the full changelog of the feature: the release notes linked above.
 |---|---|---|
 | `main` | upstream main | mirror; **sole fork-specific files are this FORK.md, the tracker workflow, and the npm publish workflow** (see below) |
 | `namespace-patch` | upstream **release tag** | the artifact: feature commit + version-stamp commit + `patch/` directory (patches, MANIFEST, apply.sh, rules) |
+| `namespace-patch-next` | upstream **release tag** | L1 staging: the mechanically re-based artifact awaiting PR review; force-pushed by the tracker, merged into `namespace-patch` to cut a release |
 | `package-namespace` | upstream main HEAD | PR-ready form; not auto-maintained — rebase by hand only if upstream reopens the feature |
 
 ## Release tracking
