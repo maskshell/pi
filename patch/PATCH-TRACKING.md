@@ -92,8 +92,9 @@ remains the contract the automation implements.
    ```
    Version-stamp refresh: re-run the bump across every `packages/**/package.json`
    whose version equals the old stamp, then `npm install --package-lock-only`,
-   `npm run shrinkwrap:coding-agent`, `npm run install-lock:coding-agent`
-   (the pre-commit hook enforces all three).
+   `npm run shrinkwrap:coding-agent --if-present` (upstream removed the
+   shrinkwrap and its script in v1.0.1; the flag keeps older bases working),
+   `npm run install-lock:coding-agent`.
 3. **[harness] Verify on the new base**: `npm run check` (full chain) and the
    five touched suites (`skills` / `prompt-templates` / `resource-loader` /
    `package-manager` / `version-check`) — record the actual counts in MANIFEST

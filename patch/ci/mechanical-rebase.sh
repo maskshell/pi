@@ -133,7 +133,9 @@ for f in sorted(glob.glob("packages/**/package.json", recursive=True)):
 print(f"bumped {n} package.json files -> {new}")
 PY
 npm install --package-lock-only --no-audit --no-fund --registry=https://registry.npmjs.org
-npm run shrinkwrap:coding-agent
+# v1.0.1 removed npm-shrinkwrap.json and its script; --if-present keeps
+# this re-base runnable on both older and newer bases.
+npm run shrinkwrap:coding-agent --if-present
 npm run install-lock:coding-agent
 # verify.sh's first two gates (npm run check -> tsgo, and the touched suites)
 # import the generated provider catalog under packages/ai/src/providers/data.
