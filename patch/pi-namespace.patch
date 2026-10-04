@@ -1,4 +1,4 @@
-From ec2aa9fb0088c1db6ef4447c8897155d101b8170 Mon Sep 17 00:00:00 2001
+From 8dacff4b2608a9739fa6ff1574505b74a757ba76 Mon Sep 17 00:00:00 2001
 From: Analyser <analyser@gmail.com>
 Date: Sat, 29 Aug 2026 20:24:21 +0800
 Subject: [PATCH] feat(coding-agent): opt-in package namespace (pi.namespace)
@@ -192,7 +192,7 @@ index 19d2bf289..c04c30ba5 100644
  
  Run Pi from a location where the skill is discoverable, then inspect the startup diagnostics and `/skill:name` command. Run `/reload` after editing a skill during an active session.
 diff --git a/packages/coding-agent/src/core/agent-session.ts b/packages/coding-agent/src/core/agent-session.ts
-index 63aa588da..f0897e92f 100644
+index f641d6ec9..5b559f83c 100644
 --- a/packages/coding-agent/src/core/agent-session.ts
 +++ b/packages/coding-agent/src/core/agent-session.ts
 @@ -130,6 +130,7 @@ import {
@@ -706,7 +706,7 @@ index 744c1395a..f6755e4a6 100644
  			if (existing) {
  				collisionDiagnostics.push({
 diff --git a/packages/coding-agent/src/modes/interactive/interactive-mode.ts b/packages/coding-agent/src/modes/interactive/interactive-mode.ts
-index 158f59e5f..fbeab4463 100644
+index 8d195a715..23abdf8a6 100644
 --- a/packages/coding-agent/src/modes/interactive/interactive-mode.ts
 +++ b/packages/coding-agent/src/modes/interactive/interactive-mode.ts
 @@ -794,6 +794,7 @@ export class InteractiveMode {
