@@ -11,26 +11,26 @@ was closed NOT_PLANNED. Everything else tracks upstream.
 
 ```bash
 npm install -g pi-namespace-patch
-pi --version   # 0.85.1-namespace.3
+pi --version   # 1.0.2-namespace.1
 ```
 
 `pi-namespace-patch` is the npm alias of the current release, published by
 trusted publishing (OIDC, provenance attached) from the GitHub release
 asset. Its version string is the release tag form (`X.Y.Z-namespace.N`);
 the workspace-stamped artifact reports the semver build-metadata form
-(`0.85.1+namespace.1`) — same build, two channel-specific version schemes
+(`1.0.2+namespace.1`) — same build, two channel-specific version schemes
 (npm collapses build metadata to one slot per `X.Y.Z`, so the alias cannot
 reuse the `+` form). The registry suffix can also run ahead of the release
 suffix: every publish occupies its version forever, so a registry-side fix
-re-publishes at `N+1` (that is why the current alias is `-namespace.3`:
-`.1` shipped a broken shrinkwrap, `.2` carried upstream's README on the
-npm page — both superseded; the alias ships a dedicated fork README).
+re-publishes at `N+1` (in the 0.85.1 cycle `-namespace.3` was such a
+re-publish: `.1` shipped a broken shrinkwrap, `.2` carried upstream's
+README on the npm page; the alias ships a dedicated fork README).
 
 Pinned / registry-free install from the GitHub release:
 
 ```bash
-npm install -g https://github.com/maskshell/pi/releases/download/v0.85.1-namespace.1/earendil-works-pi-coding-agent-0.85.1-namespace.1.tgz
-pi --version   # 0.85.1+namespace.1
+npm install -g https://github.com/maskshell/pi/releases/download/v1.0.2-namespace.1/earendil-works-pi-coding-agent-1.0.2-namespace.1.tgz
+pi --version   # 1.0.2+namespace.1
 ```
 
 What you get: a package declaring `"pi": { "namespace": "myorg" }` exposes
