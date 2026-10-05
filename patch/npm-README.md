@@ -95,23 +95,23 @@ Its `skills/blueprint-crafting/SKILL.md` keeps the bare `name: blueprint-craftin
 The mechanics, in order of depth:
 
 - **Applied at load time.** The namespace never enters `SKILL.md` frontmatter or template filenames — the Agent Skills spec stays intact and resource content is untouched. pi composes `<ns>:<name>` when loading.
-- **`/ns:name` is a unified surface.** Input resolves a prompt template owning that exact name first, then a skill whose exposed name matches. `/skill:<ns>:<name>` remains the explicit, unambiguous skill form.
+- **`/ns:name` is a unified surface.** First, input resolves a prompt template that owns that exact name; then it resolves a skill whose exposed name matches. `/skill:<ns>:<name>` remains the explicit, unambiguous skill form.
 - **Bare names keep working.** `/skill:review` still resolves when the namespaced resource is the unique owner of that base name and no bare skill shadows it; colon-bearing requests always resolve by exact match only.
 - **Coexistence by construction.** User, project, and other-package resources with the same base name load beside namespaced ones — a namespaced skill no longer occupies its bare name.
 - **Validated, not guessed.** The value must be lowercase `a-z`, `0-9`, hyphens; ≤64 chars; no leading/trailing or consecutive hyphens. An invalid string warns and the resources load un-namespaced; a non-string `pi.namespace` is dropped silently.
-- **Package resolution only.** Namespaces come from pi's package resolution — a raw settings or CLI path pointing inside the package bypasses the prefix and loads bare.
-- **Scoped to name-keyed resources.** Skills and prompt templates only. Themes and runtime-registered tools/commands are not renamed; packages shipping subagents through their own extension read `pi.namespace` and prefix agent names themselves.
+- **Package resolution only.** Namespaces come from pi's package resolution — a raw settings or CLI path that points inside the package bypasses the prefix and loads bare.
+- **Scoped to name-keyed resources.** Skills and prompt templates only. Themes and runtime-registered tools/commands are not renamed; packages that ship subagents through their own extension read `pi.namespace` and prefix agent names themselves.
 - **Legacy colon-filenames** (`prompts/acme:cmd.md`) keep working via exact match; with a namespace declared they compose to `acme:acme:cmd` — migrate them to plain filenames.
 
 ## Versions and upstream tracking
 
 - The version scheme `X.Y.Z-namespace.N` mirrors the upstream release it tracks (`X.Y.Z`) plus the fork patch revision (`N`). **Pin exact versions** — never ranges.
-- Each upstream release flows through an automated pipeline: release detection, mechanical re-base, agent repair on conflict, full check chain plus touched suites, then OIDC trusted publishing with signed provenance.
+- Each upstream release flows through an automated pipeline: release detection, mechanical re-base, agent repair on conflict, and the full check chain with touched suites. The pipeline then publishes via OIDC trusted publishing with signed provenance.
 - `pi --version` on this alias reports `@NPM_VERSION@` (registry-stamped); the [GitHub tarball](@TARBALL_URL@) reports the workspace form `@PLUS_VERSION@` — same build, never rebuilt.
 
 ## Provenance and trust
 
-- Every registry version is derived from the verified GitHub release asset of [maskshell/pi](https://github.com/maskshell/pi).
+- Every registry version is derived from the verified release asset of [maskshell/pi](https://github.com/maskshell/pi).
 - Published via npm trusted publishing (OIDC); each version carries a signed provenance statement.
 - The patch is a maintained proposal ([earendil-works/pi#8834](https://github.com/earendil-works/pi/issues/8834)); the full patch chain, gates, and tracking records are public on the [`namespace-patch` branch](https://github.com/maskshell/pi/tree/namespace-patch/patch).
 
