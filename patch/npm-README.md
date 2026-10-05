@@ -70,7 +70,25 @@ As a **package author**, add the `pi.namespace` field (two lines above), publish
 /skill:acme:review    # the unambiguous skill form
 ```
 
-A real consumer: the [solidforge](https://github.com/maskshell/solidforge-pi) toolchain exposes its agent skills as `solidforge:*` through this mechanism.
+A real consumer — [solidforge-pi](https://github.com/maskshell/solidforge-pi) — declares the field and ships both kinds of resources:
+
+```json
+{
+  "name": "solidforge-pi",
+  "pi": {
+    "namespace": "solidforge",
+    "skills": ["./skills"],
+    "prompts": ["./prompts"]
+  }
+}
+```
+
+Its `skills/blueprint-crafting/SKILL.md` keeps the bare `name: blueprint-crafting` frontmatter and its `prompts/arm-tools.md` keeps a plain filename; in-session they surface as:
+
+```
+/skill:solidforge:blueprint-crafting
+/solidforge:arm-tools
+```
 
 ## How it works
 
