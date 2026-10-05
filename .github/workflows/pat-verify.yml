@@ -8,7 +8,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 1
-      - name: A/B: raw PAT push (expect rejection) vs extraheader-neutralized push (expect success)
+      - name: "A/B — raw PAT push (expect rejection) vs neutralized push (expect success)"
         env:
           FORK_SYNC_PAT: ${{ secrets.FORK_SYNC_PAT }}
         run: |
