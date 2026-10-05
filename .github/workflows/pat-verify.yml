@@ -24,7 +24,7 @@ jobs:
           if git push -f "$URL" "HEAD:refs/heads/pat-verify-probe" 2>/tmp/a.err; then
             echo "A: UNEXPECTED SUCCESS"
           else
-            echo "A: rejected as expected:"; grep -E "refusing to allow" /tmp/a.err | head -1
+            echo "A: rejected as expected:"; grep -m1 -E "refusing to allow" /tmp/a.err || true
           fi
           echo "== B) extraheader-neutralized PAT push:"
           git -c "http.https://github.com/.extraheader=" push -f "$URL" "HEAD:refs/heads/pat-verify-probe"
