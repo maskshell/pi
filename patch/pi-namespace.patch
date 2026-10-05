@@ -1,4 +1,4 @@
-From 8dacff4b2608a9739fa6ff1574505b74a757ba76 Mon Sep 17 00:00:00 2001
+From 7707d2ebaca146333fa77add87a5e12783fd71a6 Mon Sep 17 00:00:00 2001
 From: Analyser <analyser@gmail.com>
 Date: Sat, 29 Aug 2026 20:24:21 +0800
 Subject: [PATCH] feat(coding-agent): opt-in package namespace (pi.namespace)
@@ -706,10 +706,10 @@ index 744c1395a..f6755e4a6 100644
  			if (existing) {
  				collisionDiagnostics.push({
 diff --git a/packages/coding-agent/src/modes/interactive/interactive-mode.ts b/packages/coding-agent/src/modes/interactive/interactive-mode.ts
-index 8d195a715..23abdf8a6 100644
+index 18d6d95dd..bc4623555 100644
 --- a/packages/coding-agent/src/modes/interactive/interactive-mode.ts
 +++ b/packages/coding-agent/src/modes/interactive/interactive-mode.ts
-@@ -794,6 +794,7 @@ export class InteractiveMode {
+@@ -798,6 +798,7 @@ export class InteractiveMode {
  		this.skillCommands.clear();
  		const skillCommandList: SlashCommand[] = [];
  		if (this.settingsManager.getEnableSkillCommands()) {
@@ -717,7 +717,7 @@ index 8d195a715..23abdf8a6 100644
  			for (const skill of this.session.resourceLoader.getSkills().skills) {
  				const commandName = `skill:${skill.name}`;
  				this.skillCommands.set(commandName, skill.filePath);
-@@ -801,6 +802,15 @@ export class InteractiveMode {
+@@ -805,6 +806,15 @@ export class InteractiveMode {
  					name: commandName,
  					description: this.prefixAutocompleteDescription(skill.description, skill.sourceInfo),
  				});
@@ -1379,5 +1379,5 @@ index 039801994..5a57d409a 100644
 +	});
 +});
 -- 
-2.55.0
+2.56.0
 

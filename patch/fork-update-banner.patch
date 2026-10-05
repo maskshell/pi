@@ -1,4 +1,4 @@
-From 47ef543901bd181b401280ed9f94d70844be47a6 Mon Sep 17 00:00:00 2001
+From e105a2bb6ea1d6533b1cabfe050127d3e25052e0 Mon Sep 17 00:00:00 2001
 From: Analyser <analyser@gmail.com>
 Date: Sun, 6 Sep 2026 20:21:18 +0800
 Subject: [PATCH] patch: update-banner compares core versions (fork-stamped
@@ -76,5 +76,5 @@ index ffe21508c..b99443fca 100644
  		const fetchMock = vi.fn(async () => Response.json({ version: "1.2.4" }));
  		vi.stubGlobal("fetch", fetchMock);
 -- 
-2.55.0
+2.56.0
 
