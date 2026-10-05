@@ -1,0 +1,291 @@
+#!/usr/bin/env bash
+# publish-npm.sh — P3 registry publication of a release tarball under the
+# unscoped fork name (pi-namespace-patch).
+#
+# Derives a publish VARIANT from the released GitHub asset (the verified
+# artifact — never rebuilt): only registry-facing metadata is rewritten
+# (package name, description, repo links, shrinkwrap name keys, README
+# provenance notice); code, dist, and lockfile contents stay byte-identical
+# to the release.
+#
+# Verifies the variant before publishing: installs it from the local file
+# and requires `pi --version` to report the exact stamped version. Publishes
+# to registry.npmjs.org explicitly (maintainer machines may default to a
+# mirror).
+#
+# Usage: publish-npm.sh <release-tarball.tgz> [--dry-run]
+# Requires: npm auth for registry.npmjs.org (npm login --registry
+#           https://registry.npmjs.org/)
+set -euo pipefail
+
+TARBALL="${1:?usage: publish-npm.sh <release-tarball.tgz> [--dry-run]}"
+DRY_RUN="${2:-}"
+NPM_NAME="pi-namespace-patch"
+NPM_REGISTRY="https://registry.npmjs.org/"
+STAGE="$(mktemp -d)"
+trap 'rm -rf "$STAGE"' EXIT
+
+# Pre-flight npm's similarity rule: registering a NEW name is rejected at
+# publish time if its simplified form (lowercased, -_. stripped) collides
+# with an existing package (pi-ns -> pins was blocked exactly this way).
+# Only relevant while the exact name is unregistered; once we own it,
+# subsequent version publishes are unaffected.
+SIMPLE="$(echo "$NPM_NAME" | sed 's/[-_.]//g' | tr '[:upper:]' '[:lower:]')"
+if ! npm view "$NPM_NAME" name --registry="$NPM_REGISTRY" >/dev/null 2>&1; then
+	if npm view "$SIMPLE" name --registry="$NPM_REGISTRY" >/dev/null 2>&1; then
+		echo "!! ${NPM_NAME} is unregistrable: simplified form '${SIMPLE}' collides with an existing package (npm similarity rule)" >&2
+		exit 1
+	fi
+fi
+
+tar -xzf "$TARBALL" -C "$STAGE"
+PKG="$STAGE/package"
+
+python3 - "$PKG" "$NPM_NAME" "${REV:-}" <<'PY'
+import json, sys
+pkg_dir, name, rev = sys.argv[1], sys.argv[2], sys.argv[3]
+p = f"{pkg_dir}/package.json"
+d = json.load(open(p))
+old = d.get("name")
+# Registry version scheme: npm enforces triple-level uniqueness (semver.eq
+# ignores build metadata — "cannot publish over ... 0.85.1" blocks every
+# X.Y.Z+namespace.N after the first), so the alias restamps + -> - :
+# X.Y.Z-namespace.N is a distinct prerelease slot per N AND matches the
+# fork's release tag string exactly. The workspace keeps the + scheme
+# (arborist links); this is a leaf alias nobody ranges into a workspace.
+# Safe to restamp: VERSION reads the shipped package.json at RUNTIME
+# (config.ts), not a build-time bake.
+ver = d.get("version", "")
+npm_ver = ver.replace("+namespace.", "-namespace.") if "+namespace." in ver else ver
+# REV overrides the prerelease revision (X.Y.Z-namespace.REV). Registry
+# version slots are burnt by every publish — a failed publish still
+# occupies its version forever — so a fixed re-publish of the same release
+# needs REV=<n+1> (see the collision abort in the shell below).
+if rev:
+    import re as _re
+    npm_ver, n = _re.subn(r"-namespace\.\d+$", f"-namespace.{rev}", npm_ver)
+    if n != 1:
+        print(f"!! REV given but version {npm_ver} has no -namespace.N suffix", file=sys.stderr)
+        sys.exit(1)
+d["name"] = name
+d["version"] = npm_ver
+d["description"] = (
+    d.get("description", "pi coding agent")
+    + " — maskshell fork build with the pi.namespace patch (earendil-works/pi#8834)"
+)
+d["repository"] = {
+    "type": "git",
+    "url": "git+https://github.com/maskshell/pi.git",
+    "directory": "packages/coding-agent",
+}
+d["bugs"] = {"url": "https://github.com/maskshell/pi/issues"}
+d["homepage"] = "https://github.com/maskshell/pi/tree/namespace-patch/patch"
+json.dump(d, open(p, "w"), indent="\t", ensure_ascii=False)
+open(p, "a").write("\n")
+
+# The shipped npm-shrinkwrap.json pins the original package name in its two
+# identity keys; leave them inconsistent with package.json and installs of
+# the variant would resolve against the wrong identity.
+sh = f"{pkg_dir}/npm-shrinkwrap.json"
+try:
+    s = json.load(open(sh))
+except FileNotFoundError:
+    s = None
+if s is not None:
+    if s.get("name") == old:
+        s["name"] = name
+    if s.get("version") == ver:
+        s["version"] = npm_ver
+    root = s.get("packages", {}).get("")
+    if root and root.get("name") == old:
+        root["name"] = name
+    if root and root.get("version") == ver:
+        root["version"] = npm_ver
+    # Workspace-sibling pins are landmines in a PUBLISHED package: the stamp
+    # puts them at <X.Y.Z>+namespace.N — versions that exist only in the
+    # fork workspace, never on the registry. A shipped npm-shrinkwrap is
+    # AUTHORITATIVE (npm does not fall back to package.json ranges for
+    # entries it omits — dropping them removed the deps from installs
+    # entirely and the bundle's external imports crashed at runtime), so
+    # the pins are REWRITTEN to the published upstream base versions,
+    # which are byte-equivalent for siblings (the patch touches only
+    # coding-agent). Stale integrity hashes belong to the never-published
+    # tarballs and are dropped.
+    import subprocess
+    for k, v in list(s.get("packages", {}).items()):
+        if not k.startswith("node_modules/@earendil-works/"):
+            continue
+        pv = str(v.get("version", ""))
+        if "+namespace." not in pv:
+            continue
+        base = pv.split("+", 1)[0]
+        pkg = k.rsplit("/", 1)[1]
+        scoped = k[len("node_modules/"):]
+        v["version"] = base
+        v["resolved"] = f"https://registry.npmjs.org/{scoped}/-/{pkg}-{base}.tgz"
+        v.pop("integrity", None)
+        probe = subprocess.run(
+            ["npm", "view", f"{scoped}@{base}", "version", "--registry", "https://registry.npmjs.org/"],
+            capture_output=True,
+        )
+        if probe.returncode != 0:
+            print(f"!! rewritten pin {scoped}@{base} is not published upstream — cannot fix shrinkwrap", file=sys.stderr)
+            sys.exit(1)
+        print(f"rewrote pin {scoped}: {pv} -> {base}")
+    json.dump(s, open(sh, "w"), indent="\t", ensure_ascii=False)
+    open(sh, "a").write("\n")
+PY
+
+# Storefront README: this is a FORK alias, not the official pi package.
+# Shipping upstream's README verbatim makes the npm page read as the
+# official package (the earlier prepend-an-HTML-comment approach is
+# invisible in the rendered page). The storefront copy lives in
+# patch/npm-README.md (progressive-disclosure layout, @TOKEN@
+# placeholders) so it is reviewable like any other tracked file.
+# Tokens resolved below:
+#   @BASE@         X.Y.Z of the tracked upstream release (badge)
+#   @NPM_VERSION@  registry version (what pi --version reports here)
+#   @PLUS_VERSION@ workspace-stamped form reported by the GitHub tarball
+#   @TARBALL_URL@  release asset URL (registry-free install)
+DISPLAY_TGZ="$(basename "$TARBALL")"
+DISPLAY_VER="${DISPLAY_TGZ#earendil-works-pi-coding-agent-}"
+DISPLAY_VER="${DISPLAY_VER%.tgz}"
+GH_ASSET_URL="https://github.com/maskshell/pi/releases/download/v${DISPLAY_VER}/${DISPLAY_TGZ}"
+README_TEMPLATE="$(dirname "$0")/../npm-README.md"
+if [ ! -f "$README_TEMPLATE" ]; then
+	echo "!! missing README template: ${README_TEMPLATE}" >&2
+	exit 1
+fi
+python3 - "$PKG" "$README_TEMPLATE" "${DISPLAY_VER}" "${GH_ASSET_URL}" <<'PY'
+import json, re, sys
+pkg, template, display, url = sys.argv[1:5]
+version = json.load(open(f"{pkg}/package.json"))["version"]
+plus = version.replace("-namespace.", "+namespace.")
+base = display.split("-")[0]
+t = open(template).read()
+for k, v in {
+	"@BASE@": base,
+	"@NPM_VERSION@": version,
+	"@PLUS_VERSION@": plus,
+	"@TARBALL_URL@": url,
+}.items():
+	t = t.replace(k, v)
+unresolved = re.findall(r"@[A-Z_]+@", t)
+if unresolved:
+	print(f"!! README template has unresolved tokens: {unresolved}", file=sys.stderr)
+	sys.exit(1)
+open(f"{pkg}/README.md", "w").write(t)
+PY
+
+VERSION="$(python3 -c "import json; print(json.load(open('$PKG/package.json'))['version'])")"
+
+# Collision abort: an existing version slot means a publish already
+# happened — never silently bump (idempotent dispatches must not fork
+# revisions); rerun with REV=<n+1> if that slot is broken. Auto triggers
+# (tag push / release event, IDEMPOTENT=1 from the workflow) exit GREEN
+# instead: a duplicate auto run is a no-op, not an outage — the sibling
+# run that claimed the slot owns its registry verification.
+if npm view "${NPM_NAME}@${VERSION}" version --registry="$NPM_REGISTRY" >/dev/null 2>&1; then
+	if [ -n "${IDEMPOTENT:-}" ]; then
+		echo ">> ${NPM_NAME}@${VERSION} already published — idempotent no-op (auto trigger)"
+		exit 0
+	fi
+	echo "!! ${NPM_NAME}@${VERSION} is already published — rerun with REV=<next> if this slot is broken" >&2
+	exit 1
+fi
+
+# Guard: after sibling-pin removal, no non-root shrinkwrap entry may carry a
+# stamped +namespace version — that is exactly the 404-on-install landmine.
+python3 - "$PKG/npm-shrinkwrap.json" <<'PY'
+import json, sys
+try:
+    s = json.load(open(sys.argv[1]))
+except FileNotFoundError:
+    sys.exit(0)
+bad = [k for k, v in (s.get("packages") or {}).items() if k and "+namespace." in str(v.get("version", ""))]
+if bad:
+    print(f"!! variant shrinkwrap still pins stamped versions at: {bad}"[:500], file=sys.stderr)
+    sys.exit(1)
+PY
+OUT="$STAGE/out"; mkdir -p "$OUT"
+( cd "$PKG" && npm pack --pack-destination "$OUT" ) >/dev/null
+VARIANT="$OUT/${NPM_NAME}-${VERSION}.tgz"
+echo ">> variant: ${NPM_NAME}@${VERSION} ($(du -h "$VARIANT" | cut -f1))"
+
+echo ">> pre-publish verification: install variant from file, check pi --version"
+VDIR="$STAGE/verify"; mkdir -p "$VDIR"
+( cd "$VDIR" && npm install --no-audit --no-fund --registry="$NPM_REGISTRY" "$VARIANT" >/dev/null 2>&1 )
+GOT="$("$VDIR/node_modules/.bin/pi" --version)"
+if [ "$GOT" != "$VERSION" ]; then
+	echo "!! pi --version reported '${GOT}', expected '${VERSION}' — aborting" >&2
+	exit 1
+fi
+echo ">> pi --version -> ${GOT}"
+
+# --tag latest: prerelease versions (X.Y.Z-namespace.N) must declare their
+# dist-tag explicitly; latest is the intent for this alias either way.
+# --provenance when running under GitHub Actions OIDC (trusted publishing):
+# free supply-chain attestation there, impossible from a local publish.
+PROVENANCE=""
+if [ -n "${GITHUB_ACTIONS:-}" ] && [ -n "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]; then
+	PROVENANCE="--provenance"
+fi
+# Explicit --registry is for maintainer machines (a mirror default must
+# not receive a publish). In GitHub Actions the default registry IS
+# npmjs — and npm's trusted-publishing (OIDC) short-circuit only engages
+# for the default registry; an explicit flag bypasses it (ENEEDAUTH).
+REG_FLAG=("--registry=$NPM_REGISTRY")
+if [ -n "${GITHUB_ACTIONS:-}" ]; then
+	REG_FLAG=()
+fi
+# E409 fallthrough: an idempotent re-dispatch can hit a slot its own earlier
+# run already claimed — "Cannot publish over previously staged version"
+# (that run died mid-flight; a staged packument 404s on `npm view`, so the
+# collision abort above cannot see it) or "cannot modify pre-existing
+# version" (fully published, propagation caught up). The slot's content is
+# this same release either way, so fall through to the registry verification
+# below instead of failing; any other publish error stays fatal.
+PUBLOG="$STAGE/publish.log"
+if npm publish "${REG_FLAG[@]}" --tag latest $PROVENANCE ${DRY_RUN:+--dry-run} "$VARIANT" 2>&1 | tee "$PUBLOG"; then
+	echo ">> publish ${DRY_RUN:+(dry-run) }done: ${NPM_NAME}@${VERSION}"
+elif grep -qE 'previously staged version|cannot modify pre-existing version' "$PUBLOG"; then
+	echo ">> publish hit E409 (slot already claimed by an earlier dispatch of this release) — verifying the published slot instead" >&2
+else
+	cat "$PUBLOG" >&2
+	exit 1
+fi
+
+if [ -n "$DRY_RUN" ]; then
+	exit 0
+fi
+
+# Post-publish registry verification — the file-install path cannot catch a
+# broken shrinkwrap (npm re-resolves deps from ranges); only a registry
+# install exercises it. Retry with BACKOFF: read replicas lag fresh
+# publishes by minutes, and a publish that died mid-flight leaves the slot
+# npm-STAGED — notarget for well beyond any fixed window we would tolerate
+# (0.86.0-namespace.1 outran 8x30s; 0.87.0-namespace.1 outran 20x30s).
+# Schedule: 5x30s + 5x60s + 10x150s ≈ 33 min before declaring failure.
+echo ">> registry verification: install ${NPM_NAME}@${VERSION} from npmjs"
+RDIR="$STAGE/registry-verify"
+i=0
+until mkdir "$RDIR" 2>/dev/null; do RDIR="$RDIR-$i"; i=$((i+1)); done
+VLOG="$STAGE/registry-install.log"
+ok=0
+delay=30
+for attempt in $(seq 1 20); do
+	# --prefer-online: the collision-abort `npm view` above cached a 404
+	# packument for this exact version on the runner; a cached resolution
+	# fails every retry within the job. Force packument revalidation.
+	if ( cd "$RDIR" && npm install --prefer-online --no-audit --no-fund --registry="$NPM_REGISTRY" "${NPM_NAME}@${VERSION}" >"$VLOG" 2>&1 ); then ok=1; break; fi
+	echo "   attempt $attempt failed (next in ${delay}s) — tail of install log:"; tail -5 "$VLOG" | sed 's/^/     /'
+	sleep "$delay"
+	case "$attempt" in 5) delay=60 ;; 10) delay=150 ;; esac
+done
+if [ "$ok" != 1 ]; then
+	echo "!! REGISTRY INSTALL FAILED for ${NPM_NAME}@${VERSION} after ${attempt} attempts (~33 min) — the slot may be npm-STAGED (clears in >1h; 0.87.0-namespace.1 did) — check the npm versions page before burning a REV slot; do not announce" >&2
+	exit 1
+fi
+GOT="$($RDIR/node_modules/.bin/pi --version)"
+[ "$GOT" = "$VERSION" ] || { echo "!! registry pi --version reported '$GOT', expected '$VERSION'" >&2; exit 1; }
+echo ">> registry install green: pi --version -> ${GOT}"
