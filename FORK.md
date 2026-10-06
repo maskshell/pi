@@ -52,7 +52,9 @@ the full changelog of the feature: the release notes linked above.
 ## Release tracking
 
 `.github/workflows/namespace-patch-tracker.yml` watches upstream releases
-daily and opens a `patch-tracking` issue here whenever the patch base falls
+hourly (GitHub Actions cannot subscribe to cross-repository release events,
+so the tracker polls; no-op runs are needs_update-gated and cost seconds) and
+opens a `patch-tracking` issue here whenever the patch base falls
 behind. The re-base, verification, rebuild, and upstream-notification
 procedure is codified in
 [patch/PATCH-TRACKING.md](https://github.com/maskshell/pi/blob/namespace-patch/patch/PATCH-TRACKING.md).

@@ -17,7 +17,11 @@ name: namespace-patch-tracker
 
 on:
   schedule:
-    - cron: "23 4 * * *"
+    # Hourly: GitHub Actions cannot subscribe to another repository's release
+    # events, so the tracker polls. detect/l1/l2 are needs_update-gated — a
+    # no-op run costs seconds. Upstream has shipped multiple releases per
+    # week; daily polling left up to ~24h + GitHub cron jitter (measured 6h).
+    - cron: "23 * * * *"
   workflow_dispatch:
     inputs:
       force_target:
