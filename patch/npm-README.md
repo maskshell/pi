@@ -109,6 +109,12 @@ The mechanics, in order of depth:
 - Each upstream release flows through an automated pipeline: release detection, mechanical re-base, agent repair on conflict, and the full check chain with touched suites. The pipeline then publishes via OIDC trusted publishing with signed provenance.
 - `pi --version` on this alias reports `@NPM_VERSION@` (registry-stamped); the [GitHub tarball](@TARBALL_URL@) reports the workspace form `@PLUS_VERSION@` — same build, never rebuilt.
 
+## Recent releases
+
+@RECENT_RELEASES@
+
+Older releases: the [releases page](https://github.com/maskshell/pi/releases).
+
 ## Provenance and trust
 
 - Every registry version is derived from the verified release asset of [maskshell/pi](https://github.com/maskshell/pi).

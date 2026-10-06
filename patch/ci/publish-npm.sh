@@ -143,10 +143,13 @@ PY
 # patch/npm-README.md (progressive-disclosure layout, @TOKEN@
 # placeholders) so it is reviewable like any other tracked file.
 # Tokens resolved below:
-#   @BASE@         X.Y.Z of the tracked upstream release (badge)
-#   @NPM_VERSION@  registry version (what pi --version reports here)
-#   @PLUS_VERSION@ workspace-stamped form reported by the GitHub tarball
-#   @TARBALL_URL@  release asset URL (registry-free install)
+#   @BASE@             X.Y.Z of the tracked upstream release (badge)
+#   @NPM_VERSION@      registry version (what pi --version reports here)
+#   @PLUS_VERSION@     workspace-stamped form reported by the GitHub tarball
+#   @TARBALL_URL@      release asset URL (registry-free install)
+#   @RECENT_RELEASES@  condensed changelog, last 4 fork releases only — the
+#                      section perturbs every publish (registry freshness)
+#                      and shows consumers what is current
 DISPLAY_TGZ="$(basename "$TARBALL")"
 DISPLAY_VER="${DISPLAY_TGZ#earendil-works-pi-coding-agent-}"
 DISPLAY_VER="${DISPLAY_VER%.tgz}"
@@ -156,9 +159,11 @@ if [ ! -f "$README_TEMPLATE" ]; then
 	echo "!! missing README template: ${README_TEMPLATE}" >&2
 	exit 1
 fi
-python3 - "$PKG" "$README_TEMPLATE" "${DISPLAY_VER}" "${GH_ASSET_URL}" <<'PY'
+RECENT_RELEASES="$(gh release list --repo "${GITHUB_REPOSITORY}" --limit 4 --json tagName,publishedAt --jq 'sort_by(.publishedAt) | reverse | .[] | .tagName as $t | "- \($t | sub("^v"; "")) — \(.publishedAt[0:10]) — tracks upstream \($t | sub("-namespace\\.[0-9]+$"; ""))."')" \
+	|| RECENT_RELEASES="- Release list unavailable at publish time."
+python3 - "$PKG" "$README_TEMPLATE" "${DISPLAY_VER}" "${GH_ASSET_URL}" "${RECENT_RELEASES}" <<'PY'
 import json, re, sys
-pkg, template, display, url = sys.argv[1:5]
+pkg, template, display, url, recent = sys.argv[1:6]
 version = json.load(open(f"{pkg}/package.json"))["version"]
 plus = version.replace("-namespace.", "+namespace.")
 base = display.split("-")[0]
@@ -168,6 +173,7 @@ for k, v in {
 	"@NPM_VERSION@": version,
 	"@PLUS_VERSION@": plus,
 	"@TARBALL_URL@": url,
+	"@RECENT_RELEASES@": recent,
 }.items():
 	t = t.replace(k, v)
 unresolved = re.findall(r"@[A-Z_]+@", t)
