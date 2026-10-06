@@ -70,6 +70,12 @@ exceptions are `FORK.md`,
 `.github/workflows/publish-namespace-patch.yml`.
 All feature content lives on `namespace-patch` / `package-namespace`.
 
+Upstream workflows that require upstream-only secrets are carried by the
+mirror but disabled in the fork (they can only fail here): `build-binaries.yml`,
+`publish-model-catalog.yml` (upstream S3 credentials). `npm-audit.yml` stays
+enabled: its failures are real advisory signals that self-heal when upstream
+bumps the affected dependency.
+
 ## Never-behind invariant
 
 `main` may be ahead of upstream main (the three fork-specific files and
