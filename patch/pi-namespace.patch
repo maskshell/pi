@@ -1,4 +1,4 @@
-From 7707d2ebaca146333fa77add87a5e12783fd71a6 Mon Sep 17 00:00:00 2001
+From ed1897f9da22ab2df1febadc6015e4358fb29602 Mon Sep 17 00:00:00 2001
 From: Analyser <analyser@gmail.com>
 Date: Sat, 29 Aug 2026 20:24:21 +0800
 Subject: [PATCH] feat(coding-agent): opt-in package namespace (pi.namespace)
@@ -192,10 +192,10 @@ index 19d2bf289..c04c30ba5 100644
  
  Run Pi from a location where the skill is discoverable, then inspect the startup diagnostics and `/skill:name` command. Run `/reload` after editing a skill during an active session.
 diff --git a/packages/coding-agent/src/core/agent-session.ts b/packages/coding-agent/src/core/agent-session.ts
-index f641d6ec9..5b559f83c 100644
+index 95b96350d..b0736953c 100644
 --- a/packages/coding-agent/src/core/agent-session.ts
 +++ b/packages/coding-agent/src/core/agent-session.ts
-@@ -130,6 +130,7 @@ import {
+@@ -131,6 +131,7 @@ import {
  	type SessionProjection,
  } from "./session-manager.ts";
  import { type CacheWarmingMode, DEFAULT_TOOL_NAMES, type SettingsManager } from "./settings-manager.ts";
@@ -203,7 +203,7 @@ index f641d6ec9..5b559f83c 100644
  import type { SlashCommandInfo } from "./slash-commands.ts";
  import { BUILTIN_PATH_PREFIX, createSyntheticSourceInfo, isSyntheticPath, type SourceInfo } from "./source-info.ts";
  import {
-@@ -1959,6 +1960,7 @@ export class AgentSession {
+@@ -1992,6 +1993,7 @@ export class AgentSession {
  		let expandedText = currentText;
  		if (expandPromptTemplates) {
  			expandedText = this._expandSkillCommand(expandedText);
@@ -211,7 +211,7 @@ index f641d6ec9..5b559f83c 100644
  			expandedText = expandPromptTemplate(expandedText, [...this.promptTemplates]);
  		}
  
-@@ -2102,11 +2104,41 @@ export class AgentSession {
+@@ -2135,11 +2137,41 @@ export class AgentSession {
  
  		const spaceIndex = text.indexOf(" ");
  		const skillName = spaceIndex === -1 ? text.slice(7) : text.slice(7, spaceIndex);
@@ -255,7 +255,7 @@ index f641d6ec9..5b559f83c 100644
  		try {
  			const content = readFileSync(skill.filePath, "utf-8");
  			const body = stripFrontmatter(content).trim();
-@@ -2142,6 +2174,7 @@ export class AgentSession {
+@@ -2175,6 +2207,7 @@ export class AgentSession {
  		if (!processedInput) return "handled";
  
  		let expandedText = this._expandSkillCommand(processedInput.text);
@@ -451,7 +451,7 @@ index f5b21a665..f7979825b 100644
  
  	return text;
 diff --git a/packages/coding-agent/src/core/resource-loader.ts b/packages/coding-agent/src/core/resource-loader.ts
-index fa877d83c..5baa959ed 100644
+index b45b21299..ccd37a3f8 100644
 --- a/packages/coding-agent/src/core/resource-loader.ts
 +++ b/packages/coding-agent/src/core/resource-loader.ts
 @@ -30,7 +30,7 @@ import type { PromptTemplate } from "./prompt-templates.ts";
@@ -463,7 +463,7 @@ index fa877d83c..5baa959ed 100644
  import {
  	BUILTIN_PATH_PREFIX,
  	createSourceInfo,
-@@ -825,17 +825,51 @@ export class DefaultResourceLoader implements ResourceLoader {
+@@ -833,17 +833,51 @@ export class DefaultResourceLoader implements ResourceLoader {
  		});
  	}
  
@@ -515,7 +515,7 @@ index fa877d83c..5baa959ed 100644
  		}
  		const resolvedSkills = this.skillsOverride ? this.skillsOverride(skillsResult) : skillsResult;
  		this.skills = resolvedSkills.skills.map((skill) => ({
-@@ -853,16 +887,18 @@ export class DefaultResourceLoader implements ResourceLoader {
+@@ -861,16 +895,18 @@ export class DefaultResourceLoader implements ResourceLoader {
  		if (this.noPromptTemplates && promptPaths.length === 0) {
  			promptsResult = { prompts: [], diagnostics: [] };
  		} else {
@@ -538,7 +538,7 @@ index fa877d83c..5baa959ed 100644
  		}
  		const resolvedPrompts = this.promptsOverride ? this.promptsOverride(promptsResult) : promptsResult;
 diff --git a/packages/coding-agent/src/core/skills.ts b/packages/coding-agent/src/core/skills.ts
-index 744c1395a..f6755e4a6 100644
+index 3fbf2b926..59171ae6e 100644
 --- a/packages/coding-agent/src/core/skills.ts
 +++ b/packages/coding-agent/src/core/skills.ts
 @@ -78,6 +78,16 @@ export interface Skill {
@@ -558,7 +558,7 @@ index 744c1395a..f6755e4a6 100644
  }
  
  export interface LoadSkillsResult {
-@@ -391,6 +401,96 @@ function escapeXml(str: string): string {
+@@ -396,6 +406,96 @@ function escapeXml(str: string): string {
  		.replace(/'/g, "&apos;");
  }
  
@@ -655,7 +655,7 @@ index 744c1395a..f6755e4a6 100644
  export interface LoadSkillsOptions {
  	/** Working directory for project-local skills. */
  	cwd: string;
-@@ -400,6 +500,21 @@ export interface LoadSkillsOptions {
+@@ -405,6 +505,21 @@ export interface LoadSkillsOptions {
  	skillPaths: string[];
  	/** Include default skills directories. */
  	includeDefaults: boolean;
@@ -677,7 +677,7 @@ index 744c1395a..f6755e4a6 100644
  }
  
  /**
-@@ -408,6 +523,7 @@ export interface LoadSkillsOptions {
+@@ -413,6 +528,7 @@ export interface LoadSkillsOptions {
   */
  export function loadSkills(options: LoadSkillsOptions): LoadSkillsResult {
  	const { agentDir, skillPaths, includeDefaults } = options;
@@ -685,7 +685,7 @@ index 744c1395a..f6755e4a6 100644
  
  	// Resolve agentDir - if not provided, use default from config
  	const resolvedCwd = resolvePath(options.cwd);
-@@ -420,15 +536,17 @@ export function loadSkills(options: LoadSkillsOptions): LoadSkillsResult {
+@@ -425,15 +541,17 @@ export function loadSkills(options: LoadSkillsOptions): LoadSkillsResult {
  
  	function addSkills(result: LoadSkillsResult) {
  		allDiagnostics.push(...result.diagnostics);
@@ -980,10 +980,10 @@ index eaf59c12a..7339295bb 100644
 +	});
 +});
 diff --git a/packages/coding-agent/test/resource-loader.test.ts b/packages/coding-agent/test/resource-loader.test.ts
-index d996f4b10..6ce2ea75f 100644
+index 3c2a7be87..93b09b58d 100644
 --- a/packages/coding-agent/test/resource-loader.test.ts
 +++ b/packages/coding-agent/test/resource-loader.test.ts
-@@ -1345,4 +1345,167 @@ export default function(pi: ExtensionAPI) {
+@@ -1366,4 +1366,167 @@ export default function(pi: ExtensionAPI) {
  			expect(files.map((f) => f.content)).toEqual(["repo instructions", "src instructions"]);
  		});
  	});
@@ -1379,5 +1379,5 @@ index 039801994..5a57d409a 100644
 +	});
 +});
 -- 
-2.56.0
+2.55.0
 
