@@ -1,6 +1,6 @@
 {
 	"name": "@earendil-works/pi-env",
-	"version": "1.0.4",
+	"version": "1.0.4+namespace.1",
 	"description": "Remote execution environments for Pi Durable: a small daemon deployed over SSH and its ExecutionEnv client",
 	"type": "module",
 	"main": "./dist/index.js",
