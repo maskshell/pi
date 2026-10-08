@@ -1,4 +1,4 @@
-From ed1897f9da22ab2df1febadc6015e4358fb29602 Mon Sep 17 00:00:00 2001
+From 56633fb83c9184f423f1d0da91e727e20e861559 Mon Sep 17 00:00:00 2001
 From: Analyser <analyser@gmail.com>
 Date: Sat, 29 Aug 2026 20:24:21 +0800
 Subject: [PATCH] feat(coding-agent): opt-in package namespace (pi.namespace)
@@ -192,18 +192,18 @@ index 19d2bf289..c04c30ba5 100644
  
  Run Pi from a location where the skill is discoverable, then inspect the startup diagnostics and `/skill:name` command. Run `/reload` after editing a skill during an active session.
 diff --git a/packages/coding-agent/src/core/agent-session.ts b/packages/coding-agent/src/core/agent-session.ts
-index 95b96350d..b0736953c 100644
+index 5decccd80..8277cfc1b 100644
 --- a/packages/coding-agent/src/core/agent-session.ts
 +++ b/packages/coding-agent/src/core/agent-session.ts
-@@ -131,6 +131,7 @@ import {
- 	type SessionProjection,
- } from "./session-manager.ts";
- import { type CacheWarmingMode, DEFAULT_TOOL_NAMES, type SettingsManager } from "./settings-manager.ts";
+@@ -136,6 +136,7 @@ import {
+ 	DEFAULT_TOOL_NAMES,
+ 	type SettingsManager,
+ } from "./settings-manager.ts";
 +import { findSkillByInvocationName, resolveBareNamespaceSkill } from "./skills.ts";
  import type { SlashCommandInfo } from "./slash-commands.ts";
  import { BUILTIN_PATH_PREFIX, createSyntheticSourceInfo, isSyntheticPath, type SourceInfo } from "./source-info.ts";
  import {
-@@ -1992,6 +1993,7 @@ export class AgentSession {
+@@ -2006,6 +2007,7 @@ export class AgentSession {
  		let expandedText = currentText;
  		if (expandPromptTemplates) {
  			expandedText = this._expandSkillCommand(expandedText);
@@ -211,7 +211,7 @@ index 95b96350d..b0736953c 100644
  			expandedText = expandPromptTemplate(expandedText, [...this.promptTemplates]);
  		}
  
-@@ -2135,11 +2137,41 @@ export class AgentSession {
+@@ -2149,11 +2151,41 @@ export class AgentSession {
  
  		const spaceIndex = text.indexOf(" ");
  		const skillName = spaceIndex === -1 ? text.slice(7) : text.slice(7, spaceIndex);
@@ -255,7 +255,7 @@ index 95b96350d..b0736953c 100644
  		try {
  			const content = readFileSync(skill.filePath, "utf-8");
  			const body = stripFrontmatter(content).trim();
-@@ -2175,6 +2207,7 @@ export class AgentSession {
+@@ -2189,6 +2221,7 @@ export class AgentSession {
  		if (!processedInput) return "handled";
  
  		let expandedText = this._expandSkillCommand(processedInput.text);
@@ -706,10 +706,10 @@ index 3fbf2b926..59171ae6e 100644
  			if (existing) {
  				collisionDiagnostics.push({
 diff --git a/packages/coding-agent/src/modes/interactive/interactive-mode.ts b/packages/coding-agent/src/modes/interactive/interactive-mode.ts
-index 18d6d95dd..bc4623555 100644
+index 55ea40409..a327a66f6 100644
 --- a/packages/coding-agent/src/modes/interactive/interactive-mode.ts
 +++ b/packages/coding-agent/src/modes/interactive/interactive-mode.ts
-@@ -798,6 +798,7 @@ export class InteractiveMode {
+@@ -805,6 +805,7 @@ export class InteractiveMode {
  		this.skillCommands.clear();
  		const skillCommandList: SlashCommand[] = [];
  		if (this.settingsManager.getEnableSkillCommands()) {
@@ -717,7 +717,7 @@ index 18d6d95dd..bc4623555 100644
  			for (const skill of this.session.resourceLoader.getSkills().skills) {
  				const commandName = `skill:${skill.name}`;
  				this.skillCommands.set(commandName, skill.filePath);
-@@ -805,6 +806,15 @@ export class InteractiveMode {
+@@ -812,6 +813,15 @@ export class InteractiveMode {
  					name: commandName,
  					description: this.prefixAutocompleteDescription(skill.description, skill.sourceInfo),
  				});
@@ -1379,5 +1379,5 @@ index 039801994..5a57d409a 100644
 +	});
 +});
 -- 
-2.55.0
+2.56.0
 

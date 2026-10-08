@@ -1,14 +1,14 @@
 {
 	"feature": "pi.namespace — opt-in package namespace for skills and prompt templates",
-	"patchVersion": "1.0.4-namespace.1",
-	"baseTag": "v1.0.4",
-	"baseSha": "7c10bd4337495ee613f2224843ecdf349b80d1df",
-	"featureCommit": "ed1897f9da22ab2df1febadc6015e4358fb29602",
-	"versionStampCommit": "882151b10ff047cee917ac4b58f2b7fd2934ac12",
-	"forkFixCommit": "af5e8c5307a1b7fedac5c2b83057153956bf6873",
-	"forkReleaseTag": "v1.0.4-namespace.1",
-	"tarballAsset": "earendil-works-pi-coding-agent-1.0.4-namespace.1.tgz",
-	"generatedAt": "2026-10-06",
+	"patchVersion": "1.1.0-namespace.1",
+	"baseTag": "v1.1.0",
+	"baseSha": "abe508e1b89912adde45528136c3221eb69acdd7",
+	"featureCommit": "56633fb83c9184f423f1d0da91e727e20e861559",
+	"versionStampCommit": "6c4aaaf3c29c9d1194142dde773da39c655a4672",
+	"forkFixCommit": "67758083db7316174ba25009fa9ead23046ded2b",
+	"forkReleaseTag": "v1.1.0-namespace.1",
+	"tarballAsset": "earendil-works-pi-coding-agent-1.1.0-namespace.1.tgz",
+	"generatedAt": "2026-10-08",
 	"upstreamProposal": "https://github.com/earendil-works/pi/issues/8834",
 	"install": {
 		"tierA_npm": "npm install -g pi-namespace-patch (registry.npmjs.org, trusted publishing; registry version X.Y.Z-namespace.N — may exceed the release suffix after burnt-slot re-publishes)",
@@ -23,5 +23,5 @@
 		"consumer": "solidforge-pi master (pi.namespace: solidforge) — https://github.com/maskshell/solidforge-pi"
 	},
 	"tracking": "PATCH-TRACKING.md (same directory); release monitor: .github/workflows/namespace-patch-tracker.yml on fork main",
-	"packageVersion": "1.0.4+namespace.1"
+	"packageVersion": "1.1.0+namespace.1"
 }
