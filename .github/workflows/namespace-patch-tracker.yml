@@ -329,7 +329,7 @@ jobs:
             over large speculative ones.
           RULES
           timeout 5400 pi --mode text -p --no-session \
-            --provider deepseek --model deepseek-v4-flash --thinking high \
+            --provider deepseek --model deepseek-flash --thinking high \
             --tools read,bash,edit,write \
             --append-system-prompt /tmp/agent-rules.md \
             "Repair the pi.namespace patch re-base onto ${TARGET_TAG}. Work in $(pwd): inspect failure-context.txt, git status, and gate-results.txt first. Report at the end: what failed, what you changed, and the final gate status."
