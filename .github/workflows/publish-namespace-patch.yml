@@ -114,4 +114,6 @@ jobs:
       - name: Publish (trusted publishing, OIDC)
         env:
           REV: ${{ inputs.revision }}
+          # publish-npm.sh expands @RECENT_RELEASES@ via gh release list
+          GH_TOKEN: ${{ github.token }}
         run: bash patch/ci/publish-npm.sh /tmp/pub/earendil-works-pi-coding-agent-*.tgz
