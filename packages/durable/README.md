@@ -158,7 +158,7 @@ import { createCodingTools } from "@earendil-works/pi-durable/tools";
 registry.install(createCodingTools({ images: await createNodePhotonImages() }));
 ```
 
-A model without image input sees a placeholder instead of the image, and `read` says so in a diagnostic. The Photon processor works on the calling thread, about a second and a half for a 12-megapixel photo, and decoding takes the image's full size in WebAssembly memory, which does not shrink again; leave it out on memory-constrained hosts such as Cloudflare Workers unless images stay small.
+A model without image input sees a placeholder instead of the image, and `read` says so in a diagnostic. `/images/node` prepares images in a worker thread, so a large photo (a second or two of work) never blocks the event loop; the worker exits after 30 s without images, freeing Photon's WebAssembly memory (`createNodePhotonImages({ worker: false, idleMs })`). Elsewhere, `createPhotonImages()` and `/images/cloudflare` work on the calling thread, and decoding takes the image's full size in WebAssembly memory, which does not shrink again; leave the processor out on memory-constrained hosts such as Cloudflare Workers unless images stay small.
 
 Define your own tool with a TypeBox schema. `defineTool()` types `args` from `parameters`, which the Harness validates before `execute()`. `api.output()` streams running output, which becomes the result when `execute()` returns no `output`:
 
@@ -302,6 +302,7 @@ const harness = await Harness.open(storage, {
 		progress: { partialIntervalMs: 100, outputIntervalMs: 100 },
 		toolExecution: "parallel",
 		contextRetentionMs: 600_000, // idle conversations keep their context in memory this long (checked lazily where timers cannot be unreferenced)
+		documentRetentionMs: 600_000, // loaded documents nothing observes stay in memory this long after their last use; observed ones always
 		get followUpMode() {
 			return userSettings.followUpMode;
 		},
@@ -393,11 +394,27 @@ await root.submit({ type: "write", entry: { kind: "app.note", data: "user opened
 
 - **Steers** are placed after the current tool round and join the running work.
 - **Follow-ups** are placed when the run answers, and start the next run.
-- **Writes** append an entry without asking the model anything.
+- **Writes** append an entry without asking the model anything. A write of only `kind` and `data` changes nothing the model sees, so it is appended at once, even mid-run, and is never queued: a chat message shows in the transcript as soon as it is sent. It can therefore appear before items submitted earlier that are still queued, except behind a queued reset, where it waits so the reset does not hide it. A write with `model`, `head`, or `edits` waits for the next boundary like a steer.
 - `await submission.abort(context)` withdraws a queued submission.
 - The [settings](#settings) `steeringMode: "all"` and `followUpMode: "all"` place every queued item at once instead of one per turn.
 
-If a run fails, queued items stay in the inbox until the next submission places them, oldest first.
+If a run fails, queued items stay in the inbox until the next input or queued write places them, oldest first.
+
+An input is placed as a `pi.user` entry. To show it as something else, give it an `entry` with your kind and data; the model still sees `content` as the user message:
+
+```typescript
+await root.submit(
+	{
+		type: "input",
+		content: "ann: can you check the build?",
+		entry: { kind: "chat.mention", data: { author: "ann", text: "can you check the build?" } },
+	},
+	context,
+);
+// placed as { kind: "chat.mention", data: { author: "ann", ... }, model: [{ role: "user", content: "ann: can you check the build?" }] }
+```
+
+It behaves like any other input: it starts a run, steers, follows up, or rejects, and is answered. While queued, its inbox item carries the entry. The kind must not start with `pi.`.
 
 ## Reset and Handoff
 
@@ -616,7 +633,7 @@ const usage = await harness.usage(context); // { models: { "openai/gpt-6-sol": U
 |---|---|---|
 | Memory | `MemoryStorage` from the package root | Nothing is persisted. |
 | SQLite | `openNodeSqliteStorage(file)` from `@earendil-works/pi-durable/storage/sqlite/node` | One database file. WAL mode with `synchronous = NORMAL`: commits survive process crashes; the newest may be lost on power or host failure. |
-| JSONL | `openNodeJsonlStorage(directory, context)` from `@earendil-works/pi-durable/storage/jsonl/node` | Append-only files in one directory. Pass `{ fsync: true }` to flush before each commit marker. |
+| JSONL | `openNodeJsonlStorage(directory, context)` from `@earendil-works/pi-durable/storage/jsonl/node` | Append-only files in one directory. Pass `{ fsync: true }` to flush before each commit marker. Keeps the whole history in memory too, so memory grows with it; use SQLite for long-running agents. |
 | Cloudflare Durable Object | `openDurableObjectSqliteStorage(ctx.storage)` from `@earendil-works/pi-durable/storage/sqlite/cloudflare` | The SQLite storage of one SQLite-backed Durable Object; commits are its storage transactions. |
 
 One process owns a storage at a time; there is no cross-process locking. The portable SQLite and JSONL cores (`/storage/sqlite`, `/storage/jsonl`) run without Node APIs, for example on Bun or in Cloudflare Durable Objects, given an asynchronous `SqliteDatabase` facade or a `FileSystem` from `@earendil-works/pi-durable/env`.
