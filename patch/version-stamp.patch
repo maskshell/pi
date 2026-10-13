@@ -1,29 +1,26 @@
-From 6c4aaaf3c29c9d1194142dde773da39c655a4672 Mon Sep 17 00:00:00 2001
-From: Analyser <analyser@gmail.com>
-Date: Thu, 8 Oct 2026 11:49:21 +0800
-Subject: [PATCH] patch: version stamp 1.1.0-namespace.1 (fork build
+From d0e5e7e454a0aa1b9465bac8fbb6bc9ae5b99aa9 Mon Sep 17 00:00:00 2001
+From: "pi.namespace pipeline" <pi-namespace-pipeline@users.noreply.github.com>
+Date: Tue, 13 Oct 2026 02:07:15 +0000
+Subject: [PATCH] patch: version stamp 1.2.0-namespace.1 (fork build
  identification)
 
 ---
  .github/workflows/publish-namespace-patch.yml |   117 +
- package-lock.json                             | 10758 ++++++++--------
+ package-lock.json                             | 10742 ++++++++--------
  packages/agent/package.json                   |     2 +-
  packages/ai/package.json                      |     2 +-
  packages/chord/package.json                   |     2 +-
- packages/client/package.json                  |     2 +-
  packages/codemode/package.json                |     2 +-
- .../install-lock/package-lock.json            |    38 +-
+ .../install-lock/package-lock.json            |    34 +-
  .../coding-agent/install-lock/package.json    |     4 +-
  packages/coding-agent/package.json            |     2 +-
  packages/durable/package.json                 |     2 +-
  packages/env/package.json                     |     2 +-
  packages/evals/package.json                   |     2 +-
  packages/mcp/package.json                     |     2 +-
- packages/protocol/package.json                |     2 +-
- packages/server/package.json                  |     2 +-
  packages/telemetry/package.json               |     2 +-
  packages/tui/package.json                     |     2 +-
- 18 files changed, 5510 insertions(+), 5435 deletions(-)
+ 15 files changed, 5497 insertions(+), 5422 deletions(-)
  create mode 100644 .github/workflows/publish-namespace-patch.yml
 
 diff --git a/.github/workflows/publish-namespace-patch.yml b/.github/workflows/publish-namespace-patch.yml
@@ -150,10 +147,10 @@ index 000000000..df694177a
 +          REV: ${{ inputs.revision }}
 +        run: bash patch/ci/publish-npm.sh /tmp/pub/earendil-works-pi-coding-agent-*.tgz
 diff --git a/package-lock.json b/package-lock.json
-index 206abbcbb..99fb5f0fd 100644
+index 10013e171..1155381ae 100644
 --- a/package-lock.json
 +++ b/package-lock.json
-@@ -1,5401 +1,5359 @@
+@@ -1,5393 +1,5351 @@
  {
 -	"name": "pi-monorepo",
 -	"version": "0.0.3",
@@ -165,6 +162,7 @@ index 206abbcbb..99fb5f0fd 100644
 -			"version": "0.0.3",
 -			"workspaces": [
 -				"packages/*",
+-				"apps/*",
 -				"packages/coding-agent/examples/extensions/with-deps",
 -				"packages/coding-agent/examples/extensions/custom-provider-anthropic",
 -				"packages/coding-agent/examples/extensions/custom-provider-gitlab-duo",
@@ -174,6 +172,7 @@ index 206abbcbb..99fb5f0fd 100644
 -			"devDependencies": {
 -				"@anthropic-ai/sandbox-runtime": "0.0.26",
 -				"@biomejs/biome": "2.3.5",
+-				"@biomejs/wasm-nodejs": "2.3.5",
 -				"@types/node": "22.19.19",
 -				"esbuild": "0.28.2",
 -				"husky": "9.1.7",
@@ -740,6 +739,13 @@ index 206abbcbb..99fb5f0fd 100644
 -				"node": ">=14.21.3"
 -			}
 -		},
+-		"node_modules/@biomejs/wasm-nodejs": {
+-			"version": "2.3.5",
+-			"resolved": "https://registry.npmjs.org/@biomejs/wasm-nodejs/-/wasm-nodejs-2.3.5.tgz",
+-			"integrity": "sha512-oEryO1M/vq0iUPxgDMPIJIqGmcLcwn/en9DYLBAaBMSzm1pu0ArnJ3nWpBUjoh977oelyZHKILzNiu0dCNCi0g==",
+-			"dev": true,
+-			"license": "MIT OR Apache-2.0"
+-		},
 -		"node_modules/@cto.af/wtf8": {
 -			"version": "0.0.5",
 -			"resolved": "https://registry.npmjs.org/@cto.af/wtf8/-/wtf8-0.0.5.tgz",
@@ -824,10 +830,6 @@ index 206abbcbb..99fb5f0fd 100644
 -			"resolved": "packages/ai",
 -			"link": true
 -		},
--		"node_modules/@earendil-works/pi-client": {
--			"resolved": "packages/client",
--			"link": true
--		},
 -		"node_modules/@earendil-works/pi-codemode": {
 -			"resolved": "packages/codemode",
 -			"link": true
@@ -852,14 +854,6 @@ index 206abbcbb..99fb5f0fd 100644
 -			"resolved": "packages/mcp",
 -			"link": true
 -		},
--		"node_modules/@earendil-works/pi-protocol": {
--			"resolved": "packages/protocol",
--			"link": true
--		},
--		"node_modules/@earendil-works/pi-server": {
--			"resolved": "packages/server",
--			"link": true
--		},
 -		"node_modules/@earendil-works/pi-telemetry": {
 -			"resolved": "packages/telemetry",
 -			"link": true
@@ -875,6 +869,7 @@ index 206abbcbb..99fb5f0fd 100644
 -			"cpu": [
 -				"ppc64"
 -			],
+-			"dev": true,
 -			"license": "MIT",
 -			"optional": true,
 -			"os": [
@@ -891,6 +886,7 @@ index 206abbcbb..99fb5f0fd 100644
 -			"cpu": [
 -				"arm"
 -			],
+-			"dev": true,
 -			"license": "MIT",
 -			"optional": true,
 -			"os": [
@@ -907,6 +903,7 @@ index 206abbcbb..99fb5f0fd 100644
 -			"cpu": [
 -				"arm64"
 -			],
+-			"dev": true,
 -			"license": "MIT",
 -			"optional": true,
 -			"os": [
@@ -923,6 +920,7 @@ index 206abbcbb..99fb5f0fd 100644
 -			"cpu": [
 -				"x64"
 -			],
+-			"dev": true,
 -			"license": "MIT",
 -			"optional": true,
 -			"os": [
@@ -939,6 +937,7 @@ index 206abbcbb..99fb5f0fd 100644
 -			"cpu": [
 -				"arm64"
 -			],
+-			"dev": true,
 -			"license": "MIT",
 -			"optional": true,
 -			"os": [
@@ -955,6 +954,7 @@ index 206abbcbb..99fb5f0fd 100644
 -			"cpu": [
 -				"x64"
 -			],
+-			"dev": true,
 -			"license": "MIT",
 -			"optional": true,
 -			"os": [
@@ -971,6 +971,7 @@ index 206abbcbb..99fb5f0fd 100644
 -			"cpu": [
 -				"arm64"
 -			],
+-			"dev": true,
 -			"license": "MIT",
 -			"optional": true,
 -			"os": [
@@ -987,6 +988,7 @@ index 206abbcbb..99fb5f0fd 100644
 -			"cpu": [
 -				"x64"
 -			],
+-			"dev": true,
 -			"license": "MIT",
 -			"optional": true,
 -			"os": [
@@ -1003,6 +1005,7 @@ index 206abbcbb..99fb5f0fd 100644
 -			"cpu": [
 -				"arm"
 -			],
+-			"dev": true,
 -			"license": "MIT",
 -			"optional": true,
 -			"os": [
@@ -1019,6 +1022,7 @@ index 206abbcbb..99fb5f0fd 100644
 -			"cpu": [
 -				"arm64"
 -			],
+-			"dev": true,
 -			"license": "MIT",
 -			"optional": true,
 -			"os": [
@@ -1035,6 +1039,7 @@ index 206abbcbb..99fb5f0fd 100644
 -			"cpu": [
 -				"ia32"
 -			],
+-			"dev": true,
 -			"license": "MIT",
 -			"optional": true,
 -			"os": [
@@ -1051,6 +1056,7 @@ index 206abbcbb..99fb5f0fd 100644
 -			"cpu": [
 -				"loong64"
 -			],
+-			"dev": true,
 -			"license": "MIT",
 -			"optional": true,
 -			"os": [
@@ -1067,6 +1073,7 @@ index 206abbcbb..99fb5f0fd 100644
 -			"cpu": [
 -				"mips64el"
 -			],
+-			"dev": true,
 -			"license": "MIT",
 -			"optional": true,
 -			"os": [
@@ -1083,6 +1090,7 @@ index 206abbcbb..99fb5f0fd 100644
 -			"cpu": [
 -				"ppc64"
 -			],
+-			"dev": true,
 -			"license": "MIT",
 -			"optional": true,
 -			"os": [
@@ -1099,6 +1107,7 @@ index 206abbcbb..99fb5f0fd 100644
 -			"cpu": [
 -				"riscv64"
 -			],
+-			"dev": true,
 -			"license": "MIT",
 -			"optional": true,
 -			"os": [
@@ -1115,6 +1124,7 @@ index 206abbcbb..99fb5f0fd 100644
 -			"cpu": [
 -				"s390x"
 -			],
+-			"dev": true,
 -			"license": "MIT",
 -			"optional": true,
 -			"os": [
@@ -1131,6 +1141,7 @@ index 206abbcbb..99fb5f0fd 100644
 -			"cpu": [
 -				"x64"
 -			],
+-			"dev": true,
 -			"license": "MIT",
 -			"optional": true,
 -			"os": [
@@ -1147,6 +1158,7 @@ index 206abbcbb..99fb5f0fd 100644
 -			"cpu": [
 -				"arm64"
 -			],
+-			"dev": true,
 -			"license": "MIT",
 -			"optional": true,
 -			"os": [
@@ -1163,6 +1175,7 @@ index 206abbcbb..99fb5f0fd 100644
 -			"cpu": [
 -				"x64"
 -			],
+-			"dev": true,
 -			"license": "MIT",
 -			"optional": true,
 -			"os": [
@@ -1179,6 +1192,7 @@ index 206abbcbb..99fb5f0fd 100644
 -			"cpu": [
 -				"arm64"
 -			],
+-			"dev": true,
 -			"license": "MIT",
 -			"optional": true,
 -			"os": [
@@ -1195,6 +1209,7 @@ index 206abbcbb..99fb5f0fd 100644
 -			"cpu": [
 -				"x64"
 -			],
+-			"dev": true,
 -			"license": "MIT",
 -			"optional": true,
 -			"os": [
@@ -1211,6 +1226,7 @@ index 206abbcbb..99fb5f0fd 100644
 -			"cpu": [
 -				"arm64"
 -			],
+-			"dev": true,
 -			"license": "MIT",
 -			"optional": true,
 -			"os": [
@@ -1227,6 +1243,7 @@ index 206abbcbb..99fb5f0fd 100644
 -			"cpu": [
 -				"x64"
 -			],
+-			"dev": true,
 -			"license": "MIT",
 -			"optional": true,
 -			"os": [
@@ -1243,6 +1260,7 @@ index 206abbcbb..99fb5f0fd 100644
 -			"cpu": [
 -				"arm64"
 -			],
+-			"dev": true,
 -			"license": "MIT",
 -			"optional": true,
 -			"os": [
@@ -1259,6 +1277,7 @@ index 206abbcbb..99fb5f0fd 100644
 -			"cpu": [
 -				"ia32"
 -			],
+-			"dev": true,
 -			"license": "MIT",
 -			"optional": true,
 -			"os": [
@@ -1275,6 +1294,7 @@ index 206abbcbb..99fb5f0fd 100644
 -			"cpu": [
 -				"x64"
 -			],
+-			"dev": true,
 -			"license": "MIT",
 -			"optional": true,
 -			"os": [
@@ -1671,6 +1691,12 @@ index 206abbcbb..99fb5f0fd 100644
 -			"dev": true,
 -			"license": "MIT"
 -		},
+-		"node_modules/@silvia-odwyer/photon": {
+-			"version": "0.3.3",
+-			"resolved": "https://registry.npmjs.org/@silvia-odwyer/photon/-/photon-0.3.3.tgz",
+-			"integrity": "sha512-8BhUjEch4slwRe8uXnaA4vcA5uiiOTT90UMsxulOj2gN98X1p0q9Z4Ysk4DkD05uNgbR9XoSqtZ37w+33w4QKQ==",
+-			"license": "Apache-2.0"
+-		},
 -		"node_modules/@silvia-odwyer/photon-node": {
 -			"version": "0.3.4",
 -			"resolved": "https://registry.npmjs.org/@silvia-odwyer/photon-node/-/photon-node-0.3.4.tgz",
@@ -1878,6 +1904,16 @@ index 206abbcbb..99fb5f0fd 100644
 -			"integrity": "sha512-FmgJfu+MOcQ370SD0ev7EI8TlCAfKYU+B4m5T3yXc1CiRN94g/SZPtsCkk506aUDtlMnFZvasDwHHUcZUEaYuA==",
 -			"dev": true,
 -			"license": "MIT"
+-		},
+-		"node_modules/@types/ws": {
+-			"version": "8.18.2",
+-			"resolved": "https://registry.npmjs.org/@types/ws/-/ws-8.18.2.tgz",
+-			"integrity": "sha512-67MQl+fpWKVTT1NYdnmo3U4sc/xPo/zQBncVnI74qmQa0z/b+1g6iYqNmGCPbxO+zz2aklb08a0oHfegiVd0/w==",
+-			"dev": true,
+-			"license": "MIT",
+-			"dependencies": {
+-				"@types/node": "*"
+-			}
 -		},
 -		"node_modules/@typescript/typescript-aix-ppc64": {
 -			"version": "7.0.2",
@@ -2818,6 +2854,7 @@ index 206abbcbb..99fb5f0fd 100644
 -			"version": "0.28.2",
 -			"resolved": "https://registry.npmjs.org/esbuild/-/esbuild-0.28.2.tgz",
 -			"integrity": "sha512-HKVLS8dvII+xoKW9kmqxbRKrnWEXfJJr/FZhhJmiqIB0e053QNYFqOBouTMO/k5sID4MvCiUCvv8b9M4h32wIA==",
+-			"dev": true,
 -			"hasInstallScript": true,
 -			"license": "MIT",
 -			"bin": {
@@ -5146,10 +5183,10 @@ index 206abbcbb..99fb5f0fd 100644
 -		},
 -		"packages/agent": {
 -			"name": "@earendil-works/pi-agent-core",
--			"version": "1.1.0",
+-			"version": "1.2.0",
 -			"license": "MIT",
 -			"dependencies": {
--				"@earendil-works/pi-ai": "^1.1.0",
+-				"@earendil-works/pi-ai": "^1.2.0",
 -				"typebox": "1.3.27"
 -			},
 -			"devDependencies": {
@@ -5169,12 +5206,12 @@ index 206abbcbb..99fb5f0fd 100644
 -		},
 -		"packages/ai": {
 -			"name": "@earendil-works/pi-ai",
--			"version": "1.1.0",
+-			"version": "1.2.0",
 -			"license": "MIT",
 -			"dependencies": {
 -				"@anthropic-ai/sdk": "0.129.0",
 -				"@aws-sdk/client-bedrock-runtime": "3.1127.0",
--				"@earendil-works/pi-telemetry": "^1.1.0",
+-				"@earendil-works/pi-telemetry": "^1.2.0",
 -				"@google/genai": "2.21.0",
 -				"@smithy/node-http-handler": "4.12.1",
 -				"http-proxy-agent": "9.1.0",
@@ -5257,30 +5294,16 @@ index 206abbcbb..99fb5f0fd 100644
 -		},
 -		"packages/chord": {
 -			"name": "@earendil-works/chord",
--			"version": "1.1.0",
+-			"version": "1.2.0",
 -			"license": "MIT",
 -			"dependencies": {
--				"esbuild": "0.28.2"
+-				"typebox": "1.3.27"
 -			},
 -			"devDependencies": {
+-				"@types/ws": "8.18.2",
 -				"shx": "0.3.4",
--				"vitest": "4.1.11"
--			},
--			"engines": {
--				"node": ">=22.19.0"
--			}
--		},
--		"packages/client": {
--			"name": "@earendil-works/pi-client",
--			"version": "1.1.0",
--			"license": "MIT",
--			"dependencies": {
--				"@earendil-works/chord": "^1.1.0",
--				"@earendil-works/pi-protocol": "^1.1.0"
--			},
--			"devDependencies": {
--				"shx": "0.3.4",
--				"vitest": "4.1.11"
+-				"vitest": "4.1.11",
+-				"ws": "8.21.0"
 -			},
 -			"engines": {
 -				"node": ">=22.19.0"
@@ -5288,7 +5311,7 @@ index 206abbcbb..99fb5f0fd 100644
 -		},
 -		"packages/codemode": {
 -			"name": "@earendil-works/pi-codemode",
--			"version": "1.1.0",
+-			"version": "1.2.0",
 -			"license": "MIT",
 -			"dependencies": {
 -				"quickjs-wasi": "3.6.2"
@@ -5303,15 +5326,14 @@ index 206abbcbb..99fb5f0fd 100644
 -		},
 -		"packages/coding-agent": {
 -			"name": "@earendil-works/pi-coding-agent",
--			"version": "1.1.0",
+-			"version": "1.2.0",
 -			"license": "MIT",
 -			"dependencies": {
--				"@earendil-works/chord": "^1.1.0",
--				"@earendil-works/pi-agent-core": "^1.1.0",
--				"@earendil-works/pi-ai": "^1.1.0",
--				"@earendil-works/pi-codemode": "^1.1.0",
--				"@earendil-works/pi-mcp": "^1.1.0",
--				"@earendil-works/pi-tui": "^1.1.0",
+-				"@earendil-works/pi-agent-core": "^1.2.0",
+-				"@earendil-works/pi-ai": "^1.2.0",
+-				"@earendil-works/pi-codemode": "^1.2.0",
+-				"@earendil-works/pi-mcp": "^1.2.0",
+-				"@earendil-works/pi-tui": "^1.2.0",
 -				"@silvia-odwyer/photon-node": "0.3.4",
 -				"brace-expansion": "5.0.12",
 -				"chalk": "6.0.0",
@@ -5334,9 +5356,6 @@ index 206abbcbb..99fb5f0fd 100644
 -				"pi": "dist/bundle/cli.js"
 -			},
 -			"devDependencies": {
--				"@earendil-works/pi-client": "^1.1.0",
--				"@earendil-works/pi-protocol": "^1.1.0",
--				"@earendil-works/pi-server": "^1.1.0",
 -				"@types/cross-spawn": "6.0.6",
 -				"@types/hosted-git-info": "3.0.5",
 -				"@types/node": "22.19.19",
@@ -5352,32 +5371,32 @@ index 206abbcbb..99fb5f0fd 100644
 -		},
 -		"packages/coding-agent/examples/extensions/custom-provider-anthropic": {
 -			"name": "pi-extension-custom-provider-anthropic",
--			"version": "1.1.0",
+-			"version": "1.2.0",
 -			"dependencies": {
 -				"@anthropic-ai/sdk": "0.52.0"
 -			}
 -		},
 -		"packages/coding-agent/examples/extensions/custom-provider-gitlab-duo": {
 -			"name": "pi-extension-custom-provider-gitlab-duo",
--			"version": "1.1.0"
+-			"version": "1.2.0"
 -		},
 -		"packages/coding-agent/examples/extensions/gondolin": {
 -			"name": "pi-extension-gondolin",
--			"version": "1.1.0",
+-			"version": "1.2.0",
 -			"dependencies": {
 -				"@earendil-works/gondolin": "0.12.0"
 -			}
 -		},
 -		"packages/coding-agent/examples/extensions/sandbox": {
 -			"name": "pi-extension-sandbox",
--			"version": "1.1.0",
+-			"version": "1.2.0",
 -			"dependencies": {
 -				"@anthropic-ai/sandbox-runtime": "0.0.26"
 -			}
 -		},
 -		"packages/coding-agent/examples/extensions/with-deps": {
 -			"name": "pi-extension-with-deps",
--			"version": "1.1.0",
+-			"version": "1.2.0",
 -			"dependencies": {
 -				"ms": "2.1.3"
 -			},
@@ -5431,11 +5450,13 @@ index 206abbcbb..99fb5f0fd 100644
 -		},
 -		"packages/durable": {
 -			"name": "@earendil-works/pi-durable",
--			"version": "1.1.0",
+-			"version": "1.2.0",
 -			"license": "MIT",
 -			"dependencies": {
--				"@earendil-works/chord": "^1.1.0",
--				"@earendil-works/pi-ai": "^1.1.0",
+-				"@earendil-works/chord": "^1.2.0",
+-				"@earendil-works/pi-ai": "^1.2.0",
+-				"@earendil-works/pi-codemode": "^1.2.0",
+-				"@silvia-odwyer/photon": "0.3.3",
 -				"diff": "8.0.4",
 -				"typebox": "1.3.27"
 -			},
@@ -5449,11 +5470,11 @@ index 206abbcbb..99fb5f0fd 100644
 -		},
 -		"packages/env": {
 -			"name": "@earendil-works/pi-env",
--			"version": "1.1.0",
+-			"version": "1.2.0",
 -			"license": "MIT",
 -			"dependencies": {
--				"@earendil-works/chord": "^1.1.0",
--				"@earendil-works/pi-durable": "^1.1.0"
+-				"@earendil-works/chord": "^1.2.0",
+-				"@earendil-works/pi-durable": "^1.2.0"
 -			},
 -			"devDependencies": {
 -				"shx": "0.3.4",
@@ -5465,10 +5486,10 @@ index 206abbcbb..99fb5f0fd 100644
 -		},
 -		"packages/evals": {
 -			"name": "@earendil-works/pi-evals",
--			"version": "1.1.0",
+-			"version": "1.2.0",
 -			"devDependencies": {
--				"@earendil-works/pi-ai": "^1.1.0",
--				"@earendil-works/pi-coding-agent": "^1.1.0",
+-				"@earendil-works/pi-ai": "^1.2.0",
+-				"@earendil-works/pi-coding-agent": "^1.2.0",
 -				"@types/node": "22.19.19",
 -				"@vitest-evals/core": "0.15.0",
 -				"autoevals": "0.3.0",
@@ -5479,7 +5500,7 @@ index 206abbcbb..99fb5f0fd 100644
 -		},
 -		"packages/mcp": {
 -			"name": "@earendil-works/pi-mcp",
--			"version": "1.1.0",
+-			"version": "1.2.0",
 -			"license": "MIT",
 -			"dependencies": {
 -				"cross-spawn": "7.0.6"
@@ -5493,41 +5514,9 @@ index 206abbcbb..99fb5f0fd 100644
 -				"node": ">=22.19.0"
 -			}
 -		},
--		"packages/protocol": {
--			"name": "@earendil-works/pi-protocol",
--			"version": "1.1.0",
--			"license": "MIT",
--			"dependencies": {
--				"@earendil-works/chord": "^1.1.0",
--				"typebox": "1.3.27"
--			},
--			"devDependencies": {
--				"shx": "0.3.4",
--				"vitest": "4.1.11"
--			},
--			"engines": {
--				"node": ">=22.19.0"
--			}
--		},
--		"packages/server": {
--			"name": "@earendil-works/pi-server",
--			"version": "1.1.0",
--			"license": "MIT",
--			"dependencies": {
--				"@earendil-works/chord": "^1.1.0",
--				"@earendil-works/pi-protocol": "^1.1.0"
--			},
--			"devDependencies": {
--				"shx": "0.3.4",
--				"vitest": "4.1.11"
--			},
--			"engines": {
--				"node": ">=22.19.0"
--			}
--		},
 -		"packages/telemetry": {
 -			"name": "@earendil-works/pi-telemetry",
--			"version": "1.1.0",
+-			"version": "1.2.0",
 -			"license": "MIT",
 -			"devDependencies": {
 -				"@types/node": "22.19.19",
@@ -5539,7 +5528,7 @@ index 206abbcbb..99fb5f0fd 100644
 -		},
 -		"packages/tui": {
 -			"name": "@earendil-works/pi-tui",
--			"version": "1.1.0",
+-			"version": "1.2.0",
 -			"license": "MIT",
 -			"dependencies": {
 -				"get-east-asian-width": "1.6.0",
@@ -5565,6 +5554,7 @@ index 206abbcbb..99fb5f0fd 100644
 +      "version": "0.0.3",
 +      "workspaces": [
 +        "packages/*",
++        "apps/*",
 +        "packages/coding-agent/examples/extensions/with-deps",
 +        "packages/coding-agent/examples/extensions/custom-provider-anthropic",
 +        "packages/coding-agent/examples/extensions/custom-provider-gitlab-duo",
@@ -5574,6 +5564,7 @@ index 206abbcbb..99fb5f0fd 100644
 +      "devDependencies": {
 +        "@anthropic-ai/sandbox-runtime": "0.0.26",
 +        "@biomejs/biome": "2.3.5",
++        "@biomejs/wasm-nodejs": "2.3.5",
 +        "@types/node": "22.19.19",
 +        "esbuild": "0.28.2",
 +        "husky": "9.1.7",
@@ -6140,6 +6131,13 @@ index 206abbcbb..99fb5f0fd 100644
 +        "node": ">=14.21.3"
 +      }
 +    },
++    "node_modules/@biomejs/wasm-nodejs": {
++      "version": "2.3.5",
++      "resolved": "https://registry.npmjs.org/@biomejs/wasm-nodejs/-/wasm-nodejs-2.3.5.tgz",
++      "integrity": "sha512-oEryO1M/vq0iUPxgDMPIJIqGmcLcwn/en9DYLBAaBMSzm1pu0ArnJ3nWpBUjoh977oelyZHKILzNiu0dCNCi0g==",
++      "dev": true,
++      "license": "MIT OR Apache-2.0"
++    },
 +    "node_modules/@cto.af/wtf8": {
 +      "version": "0.0.5",
 +      "resolved": "https://registry.npmjs.org/@cto.af/wtf8/-/wtf8-0.0.5.tgz",
@@ -6224,10 +6222,6 @@ index 206abbcbb..99fb5f0fd 100644
 +      "resolved": "packages/ai",
 +      "link": true
 +    },
-+    "node_modules/@earendil-works/pi-client": {
-+      "resolved": "packages/client",
-+      "link": true
-+    },
 +    "node_modules/@earendil-works/pi-codemode": {
 +      "resolved": "packages/codemode",
 +      "link": true
@@ -6252,14 +6246,6 @@ index 206abbcbb..99fb5f0fd 100644
 +      "resolved": "packages/mcp",
 +      "link": true
 +    },
-+    "node_modules/@earendil-works/pi-protocol": {
-+      "resolved": "packages/protocol",
-+      "link": true
-+    },
-+    "node_modules/@earendil-works/pi-server": {
-+      "resolved": "packages/server",
-+      "link": true
-+    },
 +    "node_modules/@earendil-works/pi-telemetry": {
 +      "resolved": "packages/telemetry",
 +      "link": true
@@ -6275,6 +6261,7 @@ index 206abbcbb..99fb5f0fd 100644
 +      "cpu": [
 +        "ppc64"
 +      ],
++      "dev": true,
 +      "license": "MIT",
 +      "optional": true,
 +      "os": [
@@ -6291,6 +6278,7 @@ index 206abbcbb..99fb5f0fd 100644
 +      "cpu": [
 +        "arm"
 +      ],
++      "dev": true,
 +      "license": "MIT",
 +      "optional": true,
 +      "os": [
@@ -6307,6 +6295,7 @@ index 206abbcbb..99fb5f0fd 100644
 +      "cpu": [
 +        "arm64"
 +      ],
++      "dev": true,
 +      "license": "MIT",
 +      "optional": true,
 +      "os": [
@@ -6323,6 +6312,7 @@ index 206abbcbb..99fb5f0fd 100644
 +      "cpu": [
 +        "x64"
 +      ],
++      "dev": true,
 +      "license": "MIT",
 +      "optional": true,
 +      "os": [
@@ -6339,6 +6329,7 @@ index 206abbcbb..99fb5f0fd 100644
 +      "cpu": [
 +        "arm64"
 +      ],
++      "dev": true,
 +      "license": "MIT",
 +      "optional": true,
 +      "os": [
@@ -6355,6 +6346,7 @@ index 206abbcbb..99fb5f0fd 100644
 +      "cpu": [
 +        "x64"
 +      ],
++      "dev": true,
 +      "license": "MIT",
 +      "optional": true,
 +      "os": [
@@ -6371,6 +6363,7 @@ index 206abbcbb..99fb5f0fd 100644
 +      "cpu": [
 +        "arm64"
 +      ],
++      "dev": true,
 +      "license": "MIT",
 +      "optional": true,
 +      "os": [
@@ -6387,6 +6380,7 @@ index 206abbcbb..99fb5f0fd 100644
 +      "cpu": [
 +        "x64"
 +      ],
++      "dev": true,
 +      "license": "MIT",
 +      "optional": true,
 +      "os": [
@@ -6403,6 +6397,7 @@ index 206abbcbb..99fb5f0fd 100644
 +      "cpu": [
 +        "arm"
 +      ],
++      "dev": true,
 +      "license": "MIT",
 +      "optional": true,
 +      "os": [
@@ -6419,6 +6414,7 @@ index 206abbcbb..99fb5f0fd 100644
 +      "cpu": [
 +        "arm64"
 +      ],
++      "dev": true,
 +      "license": "MIT",
 +      "optional": true,
 +      "os": [
@@ -6435,6 +6431,7 @@ index 206abbcbb..99fb5f0fd 100644
 +      "cpu": [
 +        "ia32"
 +      ],
++      "dev": true,
 +      "license": "MIT",
 +      "optional": true,
 +      "os": [
@@ -6451,6 +6448,7 @@ index 206abbcbb..99fb5f0fd 100644
 +      "cpu": [
 +        "loong64"
 +      ],
++      "dev": true,
 +      "license": "MIT",
 +      "optional": true,
 +      "os": [
@@ -6467,6 +6465,7 @@ index 206abbcbb..99fb5f0fd 100644
 +      "cpu": [
 +        "mips64el"
 +      ],
++      "dev": true,
 +      "license": "MIT",
 +      "optional": true,
 +      "os": [
@@ -6483,6 +6482,7 @@ index 206abbcbb..99fb5f0fd 100644
 +      "cpu": [
 +        "ppc64"
 +      ],
++      "dev": true,
 +      "license": "MIT",
 +      "optional": true,
 +      "os": [
@@ -6499,6 +6499,7 @@ index 206abbcbb..99fb5f0fd 100644
 +      "cpu": [
 +        "riscv64"
 +      ],
++      "dev": true,
 +      "license": "MIT",
 +      "optional": true,
 +      "os": [
@@ -6515,6 +6516,7 @@ index 206abbcbb..99fb5f0fd 100644
 +      "cpu": [
 +        "s390x"
 +      ],
++      "dev": true,
 +      "license": "MIT",
 +      "optional": true,
 +      "os": [
@@ -6531,6 +6533,7 @@ index 206abbcbb..99fb5f0fd 100644
 +      "cpu": [
 +        "x64"
 +      ],
++      "dev": true,
 +      "license": "MIT",
 +      "optional": true,
 +      "os": [
@@ -6547,6 +6550,7 @@ index 206abbcbb..99fb5f0fd 100644
 +      "cpu": [
 +        "arm64"
 +      ],
++      "dev": true,
 +      "license": "MIT",
 +      "optional": true,
 +      "os": [
@@ -6563,6 +6567,7 @@ index 206abbcbb..99fb5f0fd 100644
 +      "cpu": [
 +        "x64"
 +      ],
++      "dev": true,
 +      "license": "MIT",
 +      "optional": true,
 +      "os": [
@@ -6579,6 +6584,7 @@ index 206abbcbb..99fb5f0fd 100644
 +      "cpu": [
 +        "arm64"
 +      ],
++      "dev": true,
 +      "license": "MIT",
 +      "optional": true,
 +      "os": [
@@ -6595,6 +6601,7 @@ index 206abbcbb..99fb5f0fd 100644
 +      "cpu": [
 +        "x64"
 +      ],
++      "dev": true,
 +      "license": "MIT",
 +      "optional": true,
 +      "os": [
@@ -6611,6 +6618,7 @@ index 206abbcbb..99fb5f0fd 100644
 +      "cpu": [
 +        "arm64"
 +      ],
++      "dev": true,
 +      "license": "MIT",
 +      "optional": true,
 +      "os": [
@@ -6627,6 +6635,7 @@ index 206abbcbb..99fb5f0fd 100644
 +      "cpu": [
 +        "x64"
 +      ],
++      "dev": true,
 +      "license": "MIT",
 +      "optional": true,
 +      "os": [
@@ -6643,6 +6652,7 @@ index 206abbcbb..99fb5f0fd 100644
 +      "cpu": [
 +        "arm64"
 +      ],
++      "dev": true,
 +      "license": "MIT",
 +      "optional": true,
 +      "os": [
@@ -6659,6 +6669,7 @@ index 206abbcbb..99fb5f0fd 100644
 +      "cpu": [
 +        "ia32"
 +      ],
++      "dev": true,
 +      "license": "MIT",
 +      "optional": true,
 +      "os": [
@@ -6675,6 +6686,7 @@ index 206abbcbb..99fb5f0fd 100644
 +      "cpu": [
 +        "x64"
 +      ],
++      "dev": true,
 +      "license": "MIT",
 +      "optional": true,
 +      "os": [
@@ -7071,6 +7083,12 @@ index 206abbcbb..99fb5f0fd 100644
 +      "dev": true,
 +      "license": "MIT"
 +    },
++    "node_modules/@silvia-odwyer/photon": {
++      "version": "0.3.3",
++      "resolved": "https://registry.npmjs.org/@silvia-odwyer/photon/-/photon-0.3.3.tgz",
++      "integrity": "sha512-8BhUjEch4slwRe8uXnaA4vcA5uiiOTT90UMsxulOj2gN98X1p0q9Z4Ysk4DkD05uNgbR9XoSqtZ37w+33w4QKQ==",
++      "license": "Apache-2.0"
++    },
 +    "node_modules/@silvia-odwyer/photon-node": {
 +      "version": "0.3.4",
 +      "resolved": "https://registry.npmjs.org/@silvia-odwyer/photon-node/-/photon-node-0.3.4.tgz",
@@ -7278,6 +7296,16 @@ index 206abbcbb..99fb5f0fd 100644
 +      "integrity": "sha512-FmgJfu+MOcQ370SD0ev7EI8TlCAfKYU+B4m5T3yXc1CiRN94g/SZPtsCkk506aUDtlMnFZvasDwHHUcZUEaYuA==",
 +      "dev": true,
 +      "license": "MIT"
++    },
++    "node_modules/@types/ws": {
++      "version": "8.18.2",
++      "resolved": "https://registry.npmjs.org/@types/ws/-/ws-8.18.2.tgz",
++      "integrity": "sha512-67MQl+fpWKVTT1NYdnmo3U4sc/xPo/zQBncVnI74qmQa0z/b+1g6iYqNmGCPbxO+zz2aklb08a0oHfegiVd0/w==",
++      "dev": true,
++      "license": "MIT",
++      "dependencies": {
++        "@types/node": "*"
++      }
 +    },
 +    "node_modules/@typescript/typescript-aix-ppc64": {
 +      "version": "7.0.2",
@@ -8218,6 +8246,7 @@ index 206abbcbb..99fb5f0fd 100644
 +      "version": "0.28.2",
 +      "resolved": "https://registry.npmjs.org/esbuild/-/esbuild-0.28.2.tgz",
 +      "integrity": "sha512-HKVLS8dvII+xoKW9kmqxbRKrnWEXfJJr/FZhhJmiqIB0e053QNYFqOBouTMO/k5sID4MvCiUCvv8b9M4h32wIA==",
++      "dev": true,
 +      "hasInstallScript": true,
 +      "license": "MIT",
 +      "bin": {
@@ -10546,10 +10575,10 @@ index 206abbcbb..99fb5f0fd 100644
 +    },
 +    "packages/agent": {
 +      "name": "@earendil-works/pi-agent-core",
-+      "version": "1.1.0+namespace.1",
++      "version": "1.2.0+namespace.1",
 +      "license": "MIT",
 +      "dependencies": {
-+        "@earendil-works/pi-ai": "^1.1.0",
++        "@earendil-works/pi-ai": "^1.2.0",
 +        "typebox": "1.3.27"
 +      },
 +      "devDependencies": {
@@ -10562,12 +10591,12 @@ index 206abbcbb..99fb5f0fd 100644
 +    },
 +    "packages/ai": {
 +      "name": "@earendil-works/pi-ai",
-+      "version": "1.1.0+namespace.1",
++      "version": "1.2.0+namespace.1",
 +      "license": "MIT",
 +      "dependencies": {
 +        "@anthropic-ai/sdk": "0.129.0",
 +        "@aws-sdk/client-bedrock-runtime": "3.1127.0",
-+        "@earendil-works/pi-telemetry": "^1.1.0",
++        "@earendil-works/pi-telemetry": "^1.2.0",
 +        "@google/genai": "2.21.0",
 +        "@smithy/node-http-handler": "4.12.1",
 +        "http-proxy-agent": "9.1.0",
@@ -10650,30 +10679,16 @@ index 206abbcbb..99fb5f0fd 100644
 +    },
 +    "packages/chord": {
 +      "name": "@earendil-works/chord",
-+      "version": "1.1.0+namespace.1",
++      "version": "1.2.0+namespace.1",
 +      "license": "MIT",
 +      "dependencies": {
-+        "esbuild": "0.28.2"
++        "typebox": "1.3.27"
 +      },
 +      "devDependencies": {
++        "@types/ws": "8.18.2",
 +        "shx": "0.3.4",
-+        "vitest": "4.1.11"
-+      },
-+      "engines": {
-+        "node": ">=22.19.0"
-+      }
-+    },
-+    "packages/client": {
-+      "name": "@earendil-works/pi-client",
-+      "version": "1.1.0+namespace.1",
-+      "license": "MIT",
-+      "dependencies": {
-+        "@earendil-works/chord": "^1.1.0",
-+        "@earendil-works/pi-protocol": "^1.1.0"
-+      },
-+      "devDependencies": {
-+        "shx": "0.3.4",
-+        "vitest": "4.1.11"
++        "vitest": "4.1.11",
++        "ws": "8.21.0"
 +      },
 +      "engines": {
 +        "node": ">=22.19.0"
@@ -10681,7 +10696,7 @@ index 206abbcbb..99fb5f0fd 100644
 +    },
 +    "packages/codemode": {
 +      "name": "@earendil-works/pi-codemode",
-+      "version": "1.1.0+namespace.1",
++      "version": "1.2.0+namespace.1",
 +      "license": "MIT",
 +      "dependencies": {
 +        "quickjs-wasi": "3.6.2"
@@ -10696,15 +10711,14 @@ index 206abbcbb..99fb5f0fd 100644
 +    },
 +    "packages/coding-agent": {
 +      "name": "@earendil-works/pi-coding-agent",
-+      "version": "1.1.0+namespace.1",
++      "version": "1.2.0+namespace.1",
 +      "license": "MIT",
 +      "dependencies": {
-+        "@earendil-works/chord": "^1.1.0",
-+        "@earendil-works/pi-agent-core": "^1.1.0",
-+        "@earendil-works/pi-ai": "^1.1.0",
-+        "@earendil-works/pi-codemode": "^1.1.0",
-+        "@earendil-works/pi-mcp": "^1.1.0",
-+        "@earendil-works/pi-tui": "^1.1.0",
++        "@earendil-works/pi-agent-core": "^1.2.0",
++        "@earendil-works/pi-ai": "^1.2.0",
++        "@earendil-works/pi-codemode": "^1.2.0",
++        "@earendil-works/pi-mcp": "^1.2.0",
++        "@earendil-works/pi-tui": "^1.2.0",
 +        "@silvia-odwyer/photon-node": "0.3.4",
 +        "brace-expansion": "5.0.12",
 +        "chalk": "6.0.0",
@@ -10727,9 +10741,6 @@ index 206abbcbb..99fb5f0fd 100644
 +        "pi": "dist/bundle/cli.js"
 +      },
 +      "devDependencies": {
-+        "@earendil-works/pi-client": "^1.1.0",
-+        "@earendil-works/pi-protocol": "^1.1.0",
-+        "@earendil-works/pi-server": "^1.1.0",
 +        "@types/cross-spawn": "6.0.6",
 +        "@types/hosted-git-info": "3.0.5",
 +        "@types/node": "22.19.19",
@@ -10745,32 +10756,32 @@ index 206abbcbb..99fb5f0fd 100644
 +    },
 +    "packages/coding-agent/examples/extensions/custom-provider-anthropic": {
 +      "name": "pi-extension-custom-provider-anthropic",
-+      "version": "1.1.0",
++      "version": "1.2.0",
 +      "dependencies": {
 +        "@anthropic-ai/sdk": "0.52.0"
 +      }
 +    },
 +    "packages/coding-agent/examples/extensions/custom-provider-gitlab-duo": {
 +      "name": "pi-extension-custom-provider-gitlab-duo",
-+      "version": "1.1.0"
++      "version": "1.2.0"
 +    },
 +    "packages/coding-agent/examples/extensions/gondolin": {
 +      "name": "pi-extension-gondolin",
-+      "version": "1.1.0",
++      "version": "1.2.0",
 +      "dependencies": {
 +        "@earendil-works/gondolin": "0.12.0"
 +      }
 +    },
 +    "packages/coding-agent/examples/extensions/sandbox": {
 +      "name": "pi-extension-sandbox",
-+      "version": "1.1.0",
++      "version": "1.2.0",
 +      "dependencies": {
 +        "@anthropic-ai/sandbox-runtime": "0.0.26"
 +      }
 +    },
 +    "packages/coding-agent/examples/extensions/with-deps": {
 +      "name": "pi-extension-with-deps",
-+      "version": "1.1.0",
++      "version": "1.2.0",
 +      "dependencies": {
 +        "ms": "2.1.3"
 +      },
@@ -10789,11 +10800,13 @@ index 206abbcbb..99fb5f0fd 100644
 +    },
 +    "packages/durable": {
 +      "name": "@earendil-works/pi-durable",
-+      "version": "1.1.0+namespace.1",
++      "version": "1.2.0+namespace.1",
 +      "license": "MIT",
 +      "dependencies": {
-+        "@earendil-works/chord": "^1.1.0",
-+        "@earendil-works/pi-ai": "^1.1.0",
++        "@earendil-works/chord": "^1.2.0",
++        "@earendil-works/pi-ai": "^1.2.0",
++        "@earendil-works/pi-codemode": "^1.2.0",
++        "@silvia-odwyer/photon": "0.3.3",
 +        "diff": "8.0.4",
 +        "typebox": "1.3.27"
 +      },
@@ -10807,11 +10820,11 @@ index 206abbcbb..99fb5f0fd 100644
 +    },
 +    "packages/env": {
 +      "name": "@earendil-works/pi-env",
-+      "version": "1.1.0+namespace.1",
++      "version": "1.2.0+namespace.1",
 +      "license": "MIT",
 +      "dependencies": {
-+        "@earendil-works/chord": "^1.1.0",
-+        "@earendil-works/pi-durable": "^1.1.0"
++        "@earendil-works/chord": "^1.2.0",
++        "@earendil-works/pi-durable": "^1.2.0"
 +      },
 +      "devDependencies": {
 +        "shx": "0.3.4",
@@ -10823,10 +10836,10 @@ index 206abbcbb..99fb5f0fd 100644
 +    },
 +    "packages/evals": {
 +      "name": "@earendil-works/pi-evals",
-+      "version": "1.1.0+namespace.1",
++      "version": "1.2.0+namespace.1",
 +      "devDependencies": {
-+        "@earendil-works/pi-ai": "^1.1.0",
-+        "@earendil-works/pi-coding-agent": "^1.1.0",
++        "@earendil-works/pi-ai": "^1.2.0",
++        "@earendil-works/pi-coding-agent": "^1.2.0",
 +        "@types/node": "22.19.19",
 +        "@vitest-evals/core": "0.15.0",
 +        "autoevals": "0.3.0",
@@ -10837,7 +10850,7 @@ index 206abbcbb..99fb5f0fd 100644
 +    },
 +    "packages/mcp": {
 +      "name": "@earendil-works/pi-mcp",
-+      "version": "1.1.0+namespace.1",
++      "version": "1.2.0+namespace.1",
 +      "license": "MIT",
 +      "dependencies": {
 +        "cross-spawn": "7.0.6"
@@ -10851,41 +10864,9 @@ index 206abbcbb..99fb5f0fd 100644
 +        "node": ">=22.19.0"
 +      }
 +    },
-+    "packages/protocol": {
-+      "name": "@earendil-works/pi-protocol",
-+      "version": "1.1.0+namespace.1",
-+      "license": "MIT",
-+      "dependencies": {
-+        "@earendil-works/chord": "^1.1.0",
-+        "typebox": "1.3.27"
-+      },
-+      "devDependencies": {
-+        "shx": "0.3.4",
-+        "vitest": "4.1.11"
-+      },
-+      "engines": {
-+        "node": ">=22.19.0"
-+      }
-+    },
-+    "packages/server": {
-+      "name": "@earendil-works/pi-server",
-+      "version": "1.1.0+namespace.1",
-+      "license": "MIT",
-+      "dependencies": {
-+        "@earendil-works/chord": "^1.1.0",
-+        "@earendil-works/pi-protocol": "^1.1.0"
-+      },
-+      "devDependencies": {
-+        "shx": "0.3.4",
-+        "vitest": "4.1.11"
-+      },
-+      "engines": {
-+        "node": ">=22.19.0"
-+      }
-+    },
 +    "packages/telemetry": {
 +      "name": "@earendil-works/pi-telemetry",
-+      "version": "1.1.0+namespace.1",
++      "version": "1.2.0+namespace.1",
 +      "license": "MIT",
 +      "devDependencies": {
 +        "@types/node": "22.19.19",
@@ -10897,7 +10878,7 @@ index 206abbcbb..99fb5f0fd 100644
 +    },
 +    "packages/tui": {
 +      "name": "@earendil-works/pi-tui",
-+      "version": "1.1.0+namespace.1",
++      "version": "1.2.0+namespace.1",
 +      "license": "MIT",
 +      "dependencies": {
 +        "get-east-asian-width": "1.6.0",
@@ -10915,299 +10896,252 @@ index 206abbcbb..99fb5f0fd 100644
 +}
 \ No newline at end of file
 diff --git a/packages/agent/package.json b/packages/agent/package.json
-index a144f4bf1..96723b65e 100644
+index 0584afeb0..dd72ec26a 100644
 --- a/packages/agent/package.json
 +++ b/packages/agent/package.json
 @@ -1,6 +1,6 @@
  {
  	"name": "@earendil-works/pi-agent-core",
--	"version": "1.1.0",
-+	"version": "1.1.0+namespace.1",
+-	"version": "1.2.0",
++	"version": "1.2.0+namespace.1",
  	"description": "General-purpose agent with transport abstraction, state management, and attachment support",
  	"type": "module",
  	"main": "./dist/index.js",
 diff --git a/packages/ai/package.json b/packages/ai/package.json
-index 4ff79d8d5..70c5db8d3 100644
+index 7cd22c9e8..25297262c 100644
 --- a/packages/ai/package.json
 +++ b/packages/ai/package.json
 @@ -1,6 +1,6 @@
  {
  	"name": "@earendil-works/pi-ai",
--	"version": "1.1.0",
-+	"version": "1.1.0+namespace.1",
+-	"version": "1.2.0",
++	"version": "1.2.0+namespace.1",
  	"description": "Unified LLM API with automatic model discovery and provider configuration",
  	"type": "module",
  	"main": "./dist/index.js",
 diff --git a/packages/chord/package.json b/packages/chord/package.json
-index 36080e587..22d72013c 100644
+index 48a38067f..227c892be 100644
 --- a/packages/chord/package.json
 +++ b/packages/chord/package.json
 @@ -1,6 +1,6 @@
  {
  	"name": "@earendil-works/chord",
--	"version": "1.1.0",
-+	"version": "1.1.0+namespace.1",
- 	"description": "Application composition runtime for services, replicated state, RPC, and plugins",
- 	"type": "module",
- 	"main": "./dist/index.js",
-diff --git a/packages/client/package.json b/packages/client/package.json
-index 82a08dc9c..1fad96160 100644
---- a/packages/client/package.json
-+++ b/packages/client/package.json
-@@ -1,6 +1,6 @@
- {
- 	"name": "@earendil-works/pi-client",
--	"version": "1.1.0",
-+	"version": "1.1.0+namespace.1",
- 	"description": "Transport-neutral client for remote pi sessions over framed CBOR bytes",
+-	"version": "1.2.0",
++	"version": "1.2.0+namespace.1",
+ 	"description": "Typed host runtime for plugins, contracts, replicated state, and RPC over JSON links",
  	"type": "module",
  	"main": "./dist/index.js",
 diff --git a/packages/codemode/package.json b/packages/codemode/package.json
-index 6f66998ba..839feed50 100644
+index bc872efd8..bdbc7ef60 100644
 --- a/packages/codemode/package.json
 +++ b/packages/codemode/package.json
 @@ -1,6 +1,6 @@
  {
  	"name": "@earendil-works/pi-codemode",
--	"version": "1.1.0",
-+	"version": "1.1.0+namespace.1",
+-	"version": "1.2.0",
++	"version": "1.2.0+namespace.1",
  	"description": "Sandboxed JavaScript execution where the only capability is calling injected tools",
  	"type": "module",
  	"main": "./dist/index.js",
 diff --git a/packages/coding-agent/install-lock/package-lock.json b/packages/coding-agent/install-lock/package-lock.json
-index 1ac32ac63..ca85383d4 100644
+index 12eeba2c6..676bfc648 100644
 --- a/packages/coding-agent/install-lock/package-lock.json
 +++ b/packages/coding-agent/install-lock/package-lock.json
 @@ -1,14 +1,14 @@
  {
  	"name": "@earendil-works/pi-coding-agent-install",
--	"version": "1.1.0",
-+	"version": "1.1.0+namespace.1",
+-	"version": "1.2.0",
++	"version": "1.2.0+namespace.1",
  	"lockfileVersion": 3,
  	"requires": true,
  	"packages": {
  		"": {
  			"name": "@earendil-works/pi-coding-agent-install",
--			"version": "1.1.0",
-+			"version": "1.1.0+namespace.1",
+-			"version": "1.2.0",
++			"version": "1.2.0+namespace.1",
  			"dependencies": {
--				"@earendil-works/pi-coding-agent": "1.1.0"
-+				"@earendil-works/pi-coding-agent": "1.1.0+namespace.1"
+-				"@earendil-works/pi-coding-agent": "1.2.0"
++				"@earendil-works/pi-coding-agent": "1.2.0+namespace.1"
  			},
  			"engines": {
  				"node": ">=22.19.0"
 @@ -386,8 +386,8 @@
  			}
  		},
- 		"node_modules/@earendil-works/chord": {
--			"version": "1.1.0",
--			"resolved": "https://registry.npmjs.org/@earendil-works/chord/-/chord-1.1.0.tgz",
-+			"version": "1.1.0+namespace.1",
-+			"resolved": "https://registry.npmjs.org/@earendil-works/chord/-/chord-1.1.0+namespace.1.tgz",
- 			"license": "MIT",
- 			"dependencies": {
- 				"esbuild": "0.28.2"
-@@ -397,8 +397,8 @@
- 			}
- 		},
  		"node_modules/@earendil-works/pi-agent-core": {
--			"version": "1.1.0",
--			"resolved": "https://registry.npmjs.org/@earendil-works/pi-agent-core/-/pi-agent-core-1.1.0.tgz",
-+			"version": "1.1.0+namespace.1",
-+			"resolved": "https://registry.npmjs.org/@earendil-works/pi-agent-core/-/pi-agent-core-1.1.0+namespace.1.tgz",
+-			"version": "1.2.0",
+-			"resolved": "https://registry.npmjs.org/@earendil-works/pi-agent-core/-/pi-agent-core-1.2.0.tgz",
++			"version": "1.2.0+namespace.1",
++			"resolved": "https://registry.npmjs.org/@earendil-works/pi-agent-core/-/pi-agent-core-1.2.0+namespace.1.tgz",
  			"license": "MIT",
  			"dependencies": {
- 				"@earendil-works/pi-ai": "^1.1.0",
-@@ -409,8 +409,8 @@
+ 				"@earendil-works/pi-ai": "^1.2.0",
+@@ -398,8 +398,8 @@
  			}
  		},
  		"node_modules/@earendil-works/pi-ai": {
--			"version": "1.1.0",
--			"resolved": "https://registry.npmjs.org/@earendil-works/pi-ai/-/pi-ai-1.1.0.tgz",
-+			"version": "1.1.0+namespace.1",
-+			"resolved": "https://registry.npmjs.org/@earendil-works/pi-ai/-/pi-ai-1.1.0+namespace.1.tgz",
+-			"version": "1.2.0",
+-			"resolved": "https://registry.npmjs.org/@earendil-works/pi-ai/-/pi-ai-1.2.0.tgz",
++			"version": "1.2.0+namespace.1",
++			"resolved": "https://registry.npmjs.org/@earendil-works/pi-ai/-/pi-ai-1.2.0+namespace.1.tgz",
  			"license": "MIT",
  			"dependencies": {
  				"@anthropic-ai/sdk": "0.129.0",
-@@ -492,8 +492,8 @@
+@@ -481,8 +481,8 @@
  			}
  		},
  		"node_modules/@earendil-works/pi-codemode": {
--			"version": "1.1.0",
--			"resolved": "https://registry.npmjs.org/@earendil-works/pi-codemode/-/pi-codemode-1.1.0.tgz",
-+			"version": "1.1.0+namespace.1",
-+			"resolved": "https://registry.npmjs.org/@earendil-works/pi-codemode/-/pi-codemode-1.1.0+namespace.1.tgz",
+-			"version": "1.2.0",
+-			"resolved": "https://registry.npmjs.org/@earendil-works/pi-codemode/-/pi-codemode-1.2.0.tgz",
++			"version": "1.2.0+namespace.1",
++			"resolved": "https://registry.npmjs.org/@earendil-works/pi-codemode/-/pi-codemode-1.2.0+namespace.1.tgz",
  			"license": "MIT",
  			"dependencies": {
  				"quickjs-wasi": "3.6.2"
-@@ -503,8 +503,8 @@
+@@ -492,8 +492,8 @@
  			}
  		},
  		"node_modules/@earendil-works/pi-coding-agent": {
--			"version": "1.1.0",
--			"resolved": "https://registry.npmjs.org/@earendil-works/pi-coding-agent/-/pi-coding-agent-1.1.0.tgz",
-+			"version": "1.1.0+namespace.1",
-+			"resolved": "https://registry.npmjs.org/@earendil-works/pi-coding-agent/-/pi-coding-agent-1.1.0+namespace.1.tgz",
+-			"version": "1.2.0",
+-			"resolved": "https://registry.npmjs.org/@earendil-works/pi-coding-agent/-/pi-coding-agent-1.2.0.tgz",
++			"version": "1.2.0+namespace.1",
++			"resolved": "https://registry.npmjs.org/@earendil-works/pi-coding-agent/-/pi-coding-agent-1.2.0+namespace.1.tgz",
  			"license": "MIT",
  			"dependencies": {
- 				"@earendil-works/chord": "^1.1.0",
-@@ -539,8 +539,8 @@
+ 				"@earendil-works/pi-agent-core": "^1.2.0",
+@@ -527,8 +527,8 @@
  			}
  		},
  		"node_modules/@earendil-works/pi-mcp": {
--			"version": "1.1.0",
--			"resolved": "https://registry.npmjs.org/@earendil-works/pi-mcp/-/pi-mcp-1.1.0.tgz",
-+			"version": "1.1.0+namespace.1",
-+			"resolved": "https://registry.npmjs.org/@earendil-works/pi-mcp/-/pi-mcp-1.1.0+namespace.1.tgz",
+-			"version": "1.2.0",
+-			"resolved": "https://registry.npmjs.org/@earendil-works/pi-mcp/-/pi-mcp-1.2.0.tgz",
++			"version": "1.2.0+namespace.1",
++			"resolved": "https://registry.npmjs.org/@earendil-works/pi-mcp/-/pi-mcp-1.2.0+namespace.1.tgz",
  			"license": "MIT",
  			"dependencies": {
  				"cross-spawn": "7.0.6"
-@@ -550,16 +550,16 @@
+@@ -538,16 +538,16 @@
  			}
  		},
  		"node_modules/@earendil-works/pi-telemetry": {
--			"version": "1.1.0",
--			"resolved": "https://registry.npmjs.org/@earendil-works/pi-telemetry/-/pi-telemetry-1.1.0.tgz",
-+			"version": "1.1.0+namespace.1",
-+			"resolved": "https://registry.npmjs.org/@earendil-works/pi-telemetry/-/pi-telemetry-1.1.0+namespace.1.tgz",
+-			"version": "1.2.0",
+-			"resolved": "https://registry.npmjs.org/@earendil-works/pi-telemetry/-/pi-telemetry-1.2.0.tgz",
++			"version": "1.2.0+namespace.1",
++			"resolved": "https://registry.npmjs.org/@earendil-works/pi-telemetry/-/pi-telemetry-1.2.0+namespace.1.tgz",
  			"license": "MIT",
  			"engines": {
  				"node": ">=22.19.0"
  			}
  		},
  		"node_modules/@earendil-works/pi-tui": {
--			"version": "1.1.0",
--			"resolved": "https://registry.npmjs.org/@earendil-works/pi-tui/-/pi-tui-1.1.0.tgz",
-+			"version": "1.1.0+namespace.1",
-+			"resolved": "https://registry.npmjs.org/@earendil-works/pi-tui/-/pi-tui-1.1.0+namespace.1.tgz",
+-			"version": "1.2.0",
+-			"resolved": "https://registry.npmjs.org/@earendil-works/pi-tui/-/pi-tui-1.2.0.tgz",
++			"version": "1.2.0+namespace.1",
++			"resolved": "https://registry.npmjs.org/@earendil-works/pi-tui/-/pi-tui-1.2.0+namespace.1.tgz",
  			"license": "MIT",
  			"dependencies": {
  				"get-east-asian-width": "1.6.0",
 diff --git a/packages/coding-agent/install-lock/package.json b/packages/coding-agent/install-lock/package.json
-index 86cc0ea22..1fabf9ab1 100644
+index 145219d49..d6ccef147 100644
 --- a/packages/coding-agent/install-lock/package.json
 +++ b/packages/coding-agent/install-lock/package.json
 @@ -1,10 +1,10 @@
  {
  	"name": "@earendil-works/pi-coding-agent-install",
--	"version": "1.1.0",
-+	"version": "1.1.0+namespace.1",
+-	"version": "1.2.0",
++	"version": "1.2.0+namespace.1",
  	"private": true,
  	"description": "Lockfile root used by the Pi installer and updater.",
  	"dependencies": {
--		"@earendil-works/pi-coding-agent": "1.1.0"
-+		"@earendil-works/pi-coding-agent": "1.1.0+namespace.1"
+-		"@earendil-works/pi-coding-agent": "1.2.0"
++		"@earendil-works/pi-coding-agent": "1.2.0+namespace.1"
  	},
  	"overrides": {
  		"protobufjs": "7.6.6"
 diff --git a/packages/coding-agent/package.json b/packages/coding-agent/package.json
-index cdb88d0c9..7795c5335 100644
+index e6daaaeea..27888ce2b 100644
 --- a/packages/coding-agent/package.json
 +++ b/packages/coding-agent/package.json
 @@ -1,6 +1,6 @@
  {
  	"name": "@earendil-works/pi-coding-agent",
--	"version": "1.1.0",
-+	"version": "1.1.0+namespace.1",
+-	"version": "1.2.0",
++	"version": "1.2.0+namespace.1",
  	"description": "Coding agent CLI with read, bash, edit, write tools and session management",
  	"type": "module",
  	"piConfig": {
 diff --git a/packages/durable/package.json b/packages/durable/package.json
-index a2b7288f7..87b06aa5d 100644
+index 8dfb5a376..3d3ff72bb 100644
 --- a/packages/durable/package.json
 +++ b/packages/durable/package.json
 @@ -1,6 +1,6 @@
  {
  	"name": "@earendil-works/pi-durable",
--	"version": "1.1.0",
-+	"version": "1.1.0+namespace.1",
+-	"version": "1.2.0",
++	"version": "1.2.0+namespace.1",
  	"description": "Durable conversation, task, and document runtime for Pi",
  	"type": "module",
  	"main": "./dist/index.js",
 diff --git a/packages/env/package.json b/packages/env/package.json
-index 427d284ae..03661e4d1 100644
+index 9f09e1a81..1ba504a86 100644
 --- a/packages/env/package.json
 +++ b/packages/env/package.json
 @@ -1,6 +1,6 @@
  {
  	"name": "@earendil-works/pi-env",
--	"version": "1.1.0",
-+	"version": "1.1.0+namespace.1",
+-	"version": "1.2.0",
++	"version": "1.2.0+namespace.1",
  	"description": "Remote execution environments for Pi Durable: a small daemon deployed over SSH and its ExecutionEnv client",
  	"type": "module",
  	"main": "./dist/index.js",
 diff --git a/packages/evals/package.json b/packages/evals/package.json
-index 4a8088e2e..5e85f4f96 100644
+index 100506ff5..12e1b52dd 100644
 --- a/packages/evals/package.json
 +++ b/packages/evals/package.json
 @@ -1,6 +1,6 @@
  {
  	"name": "@earendil-works/pi-evals",
--	"version": "1.1.0",
-+	"version": "1.1.0+namespace.1",
+-	"version": "1.2.0",
++	"version": "1.2.0+namespace.1",
  	"private": true,
  	"type": "module",
  	"scripts": {
 diff --git a/packages/mcp/package.json b/packages/mcp/package.json
-index ba861c5a9..5f8cceb97 100644
+index 3d0ea8126..6082a801d 100644
 --- a/packages/mcp/package.json
 +++ b/packages/mcp/package.json
 @@ -1,6 +1,6 @@
  {
  	"name": "@earendil-works/pi-mcp",
--	"version": "1.1.0",
-+	"version": "1.1.0+namespace.1",
+-	"version": "1.2.0",
++	"version": "1.2.0+namespace.1",
  	"description": "Standalone Model Context Protocol client for pi and other applications",
  	"type": "module",
  	"main": "./dist/index.js",
-diff --git a/packages/protocol/package.json b/packages/protocol/package.json
-index b7f335fe9..ddebedf8d 100644
---- a/packages/protocol/package.json
-+++ b/packages/protocol/package.json
-@@ -1,6 +1,6 @@
- {
- 	"name": "@earendil-works/pi-protocol",
--	"version": "1.1.0",
-+	"version": "1.1.0+namespace.1",
- 	"description": "Transport-neutral CBOR protocol for remote pi sessions",
- 	"type": "module",
- 	"main": "./dist/index.js",
-diff --git a/packages/server/package.json b/packages/server/package.json
-index dac8e6f15..410545226 100644
---- a/packages/server/package.json
-+++ b/packages/server/package.json
-@@ -1,6 +1,6 @@
- {
- 	"name": "@earendil-works/pi-server",
--	"version": "1.1.0",
-+	"version": "1.1.0+namespace.1",
- 	"description": "experimental server package for pi",
- 	"type": "module",
- 	"main": "./dist/index.js",
 diff --git a/packages/telemetry/package.json b/packages/telemetry/package.json
-index de5b3f969..344acb9c2 100644
+index 09a01c710..d1aba98e6 100644
 --- a/packages/telemetry/package.json
 +++ b/packages/telemetry/package.json
 @@ -1,6 +1,6 @@
  {
  	"name": "@earendil-works/pi-telemetry",
--	"version": "1.1.0",
-+	"version": "1.1.0+namespace.1",
+-	"version": "1.2.0",
++	"version": "1.2.0+namespace.1",
  	"description": "Vendor-neutral telemetry contracts and typed schema utilities for pi",
  	"type": "module",
  	"main": "./dist/index.js",
 diff --git a/packages/tui/package.json b/packages/tui/package.json
-index 41fa3da79..b628f4b20 100644
+index 419d89591..f7abb5594 100644
 --- a/packages/tui/package.json
 +++ b/packages/tui/package.json
 @@ -1,6 +1,6 @@
  {
  	"name": "@earendil-works/pi-tui",
--	"version": "1.1.0",
-+	"version": "1.1.0+namespace.1",
+-	"version": "1.2.0",
++	"version": "1.2.0+namespace.1",
  	"description": "Terminal User Interface library with differential rendering for efficient text-based applications",
  	"type": "module",
  	"main": "dist/index.js",
 -- 
-2.56.0
+2.55.0
 

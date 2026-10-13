@@ -1,4 +1,4 @@
-From 56633fb83c9184f423f1d0da91e727e20e861559 Mon Sep 17 00:00:00 2001
+From 04eea6666c21964d86bb3d835173a37e994092d5 Mon Sep 17 00:00:00 2001
 From: Analyser <analyser@gmail.com>
 Date: Sat, 29 Aug 2026 20:24:21 +0800
 Subject: [PATCH] feat(coding-agent): opt-in package namespace (pi.namespace)
@@ -192,7 +192,7 @@ index 19d2bf289..c04c30ba5 100644
  
  Run Pi from a location where the skill is discoverable, then inspect the startup diagnostics and `/skill:name` command. Run `/reload` after editing a skill during an active session.
 diff --git a/packages/coding-agent/src/core/agent-session.ts b/packages/coding-agent/src/core/agent-session.ts
-index 5decccd80..8277cfc1b 100644
+index ca21a5473..4e0928768 100644
 --- a/packages/coding-agent/src/core/agent-session.ts
 +++ b/packages/coding-agent/src/core/agent-session.ts
 @@ -136,6 +136,7 @@ import {
@@ -203,7 +203,7 @@ index 5decccd80..8277cfc1b 100644
  import type { SlashCommandInfo } from "./slash-commands.ts";
  import { BUILTIN_PATH_PREFIX, createSyntheticSourceInfo, isSyntheticPath, type SourceInfo } from "./source-info.ts";
  import {
-@@ -2006,6 +2007,7 @@ export class AgentSession {
+@@ -2091,6 +2092,7 @@ export class AgentSession {
  		let expandedText = currentText;
  		if (expandPromptTemplates) {
  			expandedText = this._expandSkillCommand(expandedText);
@@ -211,7 +211,7 @@ index 5decccd80..8277cfc1b 100644
  			expandedText = expandPromptTemplate(expandedText, [...this.promptTemplates]);
  		}
  
-@@ -2149,11 +2151,41 @@ export class AgentSession {
+@@ -2174,11 +2176,41 @@ export class AgentSession {
  
  		const spaceIndex = text.indexOf(" ");
  		const skillName = spaceIndex === -1 ? text.slice(7) : text.slice(7, spaceIndex);
@@ -255,7 +255,7 @@ index 5decccd80..8277cfc1b 100644
  		try {
  			const content = readFileSync(skill.filePath, "utf-8");
  			const body = stripFrontmatter(content).trim();
-@@ -2189,6 +2221,7 @@ export class AgentSession {
+@@ -2214,6 +2246,7 @@ export class AgentSession {
  		if (!processedInput) return "handled";
  
  		let expandedText = this._expandSkillCommand(processedInput.text);
@@ -264,11 +264,11 @@ index 5decccd80..8277cfc1b 100644
  
  		if (behavior === "steer") {
 diff --git a/packages/coding-agent/src/core/package-manager.ts b/packages/coding-agent/src/core/package-manager.ts
-index b5bb19d74..60383b117 100644
+index 1ca63ebbb..33116e839 100644
 --- a/packages/coding-agent/src/core/package-manager.ts
 +++ b/packages/coding-agent/src/core/package-manager.ts
-@@ -43,7 +43,7 @@ import { type GitSource, parseGitUrl } from "../utils/git.ts";
- import { canonicalizePath, isLocalPath, markPathIgnoredByCloudSync, resolvePath } from "../utils/paths.ts";
+@@ -49,7 +49,7 @@ import {
+ } from "../utils/paths.ts";
  import { stripBom } from "../utils/text.ts";
  import { isStdoutTakenOver } from "./output-guard.ts";
 -import { type PiManifest, readPiManifest } from "./pi-manifest.ts";
@@ -276,7 +276,7 @@ index b5bb19d74..60383b117 100644
  import type { PackageSource, SettingsManager } from "./settings-manager.ts";
  import { BUILTIN_PATH_PREFIX } from "./source-info.ts";
  
-@@ -71,6 +71,8 @@ export interface PathMetadata {
+@@ -77,6 +77,8 @@ export interface PathMetadata {
  	origin: "package" | "top-level";
  	baseDir?: string;
  	packageRoot?: string;
@@ -285,7 +285,7 @@ index b5bb19d74..60383b117 100644
  }
  
  export interface ResolvedResource {
-@@ -2217,6 +2219,12 @@ export class DefaultPackageManager implements PackageManager {
+@@ -2223,6 +2225,12 @@ export class DefaultPackageManager implements PackageManager {
  		filter: PackageFilter | undefined,
  		metadata: PathMetadata,
  	): boolean {
@@ -298,7 +298,7 @@ index b5bb19d74..60383b117 100644
  		if (filter) {
  			for (const resourceType of RESOURCE_TYPES) {
  				const patterns = filter[resourceType];
-@@ -2235,7 +2243,7 @@ export class DefaultPackageManager implements PackageManager {
+@@ -2241,7 +2249,7 @@ export class DefaultPackageManager implements PackageManager {
  		const manifest = readPiManifest(join(packageRoot, "package.json"));
  		if (manifest) {
  			for (const resourceType of RESOURCE_TYPES) {
@@ -307,7 +307,7 @@ index b5bb19d74..60383b117 100644
  				this.addManifestEntries(
  					entries,
  					packageRoot,
-@@ -2269,7 +2277,7 @@ export class DefaultPackageManager implements PackageManager {
+@@ -2275,7 +2283,7 @@ export class DefaultPackageManager implements PackageManager {
  		metadata: PathMetadata,
  	): void {
  		const manifest = readPiManifest(join(packageRoot, "package.json"));
@@ -316,7 +316,7 @@ index b5bb19d74..60383b117 100644
  		if (entries) {
  			this.addManifestEntries(entries, packageRoot, resourceType, target, metadata);
  			return;
-@@ -2338,7 +2346,7 @@ export class DefaultPackageManager implements PackageManager {
+@@ -2344,7 +2352,7 @@ export class DefaultPackageManager implements PackageManager {
  		resourceType: ResourceType,
  	): { allFiles: string[]; enabledByManifest: Set<string> } {
  		const manifest = readPiManifest(join(packageRoot, "package.json"));
@@ -451,7 +451,7 @@ index f5b21a665..f7979825b 100644
  
  	return text;
 diff --git a/packages/coding-agent/src/core/resource-loader.ts b/packages/coding-agent/src/core/resource-loader.ts
-index b45b21299..ccd37a3f8 100644
+index 3d59416af..d5a14eef5 100644
 --- a/packages/coding-agent/src/core/resource-loader.ts
 +++ b/packages/coding-agent/src/core/resource-loader.ts
 @@ -30,7 +30,7 @@ import type { PromptTemplate } from "./prompt-templates.ts";
@@ -463,7 +463,7 @@ index b45b21299..ccd37a3f8 100644
  import {
  	BUILTIN_PATH_PREFIX,
  	createSourceInfo,
-@@ -833,17 +833,51 @@ export class DefaultResourceLoader implements ResourceLoader {
+@@ -837,17 +837,51 @@ export class DefaultResourceLoader implements ResourceLoader {
  		});
  	}
  
@@ -515,7 +515,7 @@ index b45b21299..ccd37a3f8 100644
  		}
  		const resolvedSkills = this.skillsOverride ? this.skillsOverride(skillsResult) : skillsResult;
  		this.skills = resolvedSkills.skills.map((skill) => ({
-@@ -861,16 +895,18 @@ export class DefaultResourceLoader implements ResourceLoader {
+@@ -865,16 +899,18 @@ export class DefaultResourceLoader implements ResourceLoader {
  		if (this.noPromptTemplates && promptPaths.length === 0) {
  			promptsResult = { prompts: [], diagnostics: [] };
  		} else {
@@ -706,7 +706,7 @@ index 3fbf2b926..59171ae6e 100644
  			if (existing) {
  				collisionDiagnostics.push({
 diff --git a/packages/coding-agent/src/modes/interactive/interactive-mode.ts b/packages/coding-agent/src/modes/interactive/interactive-mode.ts
-index 55ea40409..a327a66f6 100644
+index bf5bb4d67..069079541 100644
 --- a/packages/coding-agent/src/modes/interactive/interactive-mode.ts
 +++ b/packages/coding-agent/src/modes/interactive/interactive-mode.ts
 @@ -805,6 +805,7 @@ export class InteractiveMode {
@@ -788,10 +788,10 @@ index 000000000..c93e61fb8
 +---
 +User body.
 diff --git a/packages/coding-agent/test/package-manager.test.ts b/packages/coding-agent/test/package-manager.test.ts
-index a81054bbe..85ae46996 100644
+index 8aedd93c4..4aa7d896c 100644
 --- a/packages/coding-agent/test/package-manager.test.ts
 +++ b/packages/coding-agent/test/package-manager.test.ts
-@@ -2828,4 +2828,71 @@ export default function(api) { api.registerTool({ name: "test", description: "te
+@@ -2859,4 +2859,71 @@ export default function(api) { api.registerTool({ name: "test", description: "te
  			await expect(capturePromise).resolves.toBe("abc123");
  		});
  	});
@@ -980,10 +980,10 @@ index eaf59c12a..7339295bb 100644
 +	});
 +});
 diff --git a/packages/coding-agent/test/resource-loader.test.ts b/packages/coding-agent/test/resource-loader.test.ts
-index 3c2a7be87..93b09b58d 100644
+index bba3fc95a..65d927556 100644
 --- a/packages/coding-agent/test/resource-loader.test.ts
 +++ b/packages/coding-agent/test/resource-loader.test.ts
-@@ -1366,4 +1366,167 @@ export default function(pi: ExtensionAPI) {
+@@ -1389,4 +1389,167 @@ export default function(pi: ExtensionAPI) {
  			expect(files.map((f) => f.content)).toEqual(["repo instructions", "src instructions"]);
  		});
  	});
@@ -1379,5 +1379,5 @@ index 039801994..5a57d409a 100644
 +	});
 +});
 -- 
-2.56.0
+2.55.0
 
