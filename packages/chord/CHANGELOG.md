@@ -24,6 +24,7 @@
 
 ### Added
 
+- `@earendil-works/chord/output`: `OutputBuffer`, which keeps a head or tail window of a stream at a cost proportional to each chunk, `Progress`, which paces commits of a changing value by their size, plus `boundOutput`, `sanitizeOutput`, `characterEnd`, `utf8ByteLength`, and the `OutputLimits`, `BoundedOutput`, `OutputSlice`, and `OutputSkip` types. Moved from `@earendil-works/pi-durable`, which now uses them from here.
 - Remote references to one object share one binding per host and key (type, normalized input identity, principal key, contract fingerprint): one hold, one stream per state member, calls over the same hold; every reference keeps its own status, observers and `release`. `HostOptions.linger` (`{ types: { [typeName]: ms }, cap }`, cap default 4) keeps a binding held and hydrated after its last reference is released, so a reference taken again meanwhile costs nothing on the link
 - Holds from clients carry an opaque `origin`: the id the accepting host gave the client connection, forwarded by relays and honored only from the parent link, so a host can tell client connections apart; a disconnect releases that client's holds at once
 - Flow control by units: the first unit of a new reference passes the window, so a `get` never waits behind other references' state; units for reloads and re-holds wait, built lazily from the current values; waiting ops are capped per link (`LinkOptions.pendingCap`, default four windows), beyond which the oldest streams become resets (a relay asks downstream with `resync`)
@@ -53,6 +54,7 @@
 - IPC links and the host manager's control channel wrote to a peer process that had exited without a callback, so the `EPIPE` Node reports for a write in the gap between the exit and `disconnect` (an `ack` sent just after a worker shut down) became an unhandled `error` event that crashed the process. The link now ends on a failed write (reason `ipc send failed: EPIPE`), and control messages to a gone peer are dropped
 - A relayed call ran under the origin's cancel signal only, so a forced retirement of the relaying host could not cancel it before closing the old code's resources; it now follows its root's signal
 - A resource kept across a reload closed with the `close` of the factory run that first opened it, and kept that run's code reachable; it now adopts the newest declaration at commit
+- A call through a remote reference accepted a ctx from another host, or an object not made by Chord, and carried its root over the link; it now rejects it with `invalid/foreign_ctx` like a local reference ([#10959](https://github.com/earendil-works/pi/issues/10959))
 
 ## [1.2.0] - 2026-10-12
 
