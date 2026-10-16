@@ -1,4 +1,4 @@
-From 04eea6666c21964d86bb3d835173a37e994092d5 Mon Sep 17 00:00:00 2001
+From 057b06bf26f9576d644a6766b0743d795984da62 Mon Sep 17 00:00:00 2001
 From: Analyser <analyser@gmail.com>
 Date: Sat, 29 Aug 2026 20:24:21 +0800
 Subject: [PATCH] feat(coding-agent): opt-in package namespace (pi.namespace)
@@ -192,7 +192,7 @@ index 19d2bf289..c04c30ba5 100644
  
  Run Pi from a location where the skill is discoverable, then inspect the startup diagnostics and `/skill:name` command. Run `/reload` after editing a skill during an active session.
 diff --git a/packages/coding-agent/src/core/agent-session.ts b/packages/coding-agent/src/core/agent-session.ts
-index ca21a5473..4e0928768 100644
+index 8b330d555..56cd0330b 100644
 --- a/packages/coding-agent/src/core/agent-session.ts
 +++ b/packages/coding-agent/src/core/agent-session.ts
 @@ -136,6 +136,7 @@ import {
@@ -203,7 +203,7 @@ index ca21a5473..4e0928768 100644
  import type { SlashCommandInfo } from "./slash-commands.ts";
  import { BUILTIN_PATH_PREFIX, createSyntheticSourceInfo, isSyntheticPath, type SourceInfo } from "./source-info.ts";
  import {
-@@ -2091,6 +2092,7 @@ export class AgentSession {
+@@ -2096,6 +2097,7 @@ export class AgentSession {
  		let expandedText = currentText;
  		if (expandPromptTemplates) {
  			expandedText = this._expandSkillCommand(expandedText);
@@ -211,7 +211,7 @@ index ca21a5473..4e0928768 100644
  			expandedText = expandPromptTemplate(expandedText, [...this.promptTemplates]);
  		}
  
-@@ -2174,11 +2176,41 @@ export class AgentSession {
+@@ -2179,11 +2181,41 @@ export class AgentSession {
  
  		const spaceIndex = text.indexOf(" ");
  		const skillName = spaceIndex === -1 ? text.slice(7) : text.slice(7, spaceIndex);
@@ -255,7 +255,7 @@ index ca21a5473..4e0928768 100644
  		try {
  			const content = readFileSync(skill.filePath, "utf-8");
  			const body = stripFrontmatter(content).trim();
-@@ -2214,6 +2246,7 @@ export class AgentSession {
+@@ -2219,6 +2251,7 @@ export class AgentSession {
  		if (!processedInput) return "handled";
  
  		let expandedText = this._expandSkillCommand(processedInput.text);
@@ -356,7 +356,7 @@ index fd7dd5edb..b19ebfdeb 100644
  	} catch {
  		return null;
 diff --git a/packages/coding-agent/src/core/prompt-templates.ts b/packages/coding-agent/src/core/prompt-templates.ts
-index f5b21a665..f7979825b 100644
+index 7a0b34432..e75409c1b 100644
 --- a/packages/coding-agent/src/core/prompt-templates.ts
 +++ b/packages/coding-agent/src/core/prompt-templates.ts
 @@ -4,6 +4,7 @@ import { CONFIG_DIR_NAME } from "../config.ts";
@@ -378,7 +378,7 @@ index f5b21a665..f7979825b 100644
  }
  
  /**
-@@ -206,6 +211,8 @@ export interface LoadPromptTemplatesOptions {
+@@ -211,6 +216,8 @@ export interface LoadPromptTemplatesOptions {
  	promptPaths: string[];
  	/** Include default prompt directories. */
  	includeDefaults: boolean;
@@ -387,7 +387,7 @@ index f5b21a665..f7979825b 100644
  }
  
  export interface LoadPromptTemplatesResult {
-@@ -224,14 +231,28 @@ export function loadPromptTemplates(options: LoadPromptTemplatesOptions): LoadPr
+@@ -229,14 +236,28 @@ export function loadPromptTemplates(options: LoadPromptTemplatesOptions): LoadPr
  	const resolvedAgentDir = resolvePath(options.agentDir);
  	const promptPaths = options.promptPaths;
  	const includeDefaults = options.includeDefaults;
@@ -417,7 +417,7 @@ index f5b21a665..f7979825b 100644
  	const globalPromptsDir = join(resolvedAgentDir, "prompts");
  	const projectPromptsDir = resolve(resolvedCwd, CONFIG_DIR_NAME, "prompts");
  
-@@ -284,7 +305,7 @@ export function loadPromptTemplates(options: LoadPromptTemplatesOptions): LoadPr
+@@ -289,7 +310,7 @@ export function loadPromptTemplates(options: LoadPromptTemplatesOptions): LoadPr
  			} else if (stats.isFile() && resolvedPath.endsWith(".md")) {
  				const result = loadTemplateFromFile(resolvedPath, getSourceInfo(resolvedPath));
  				if (result.template) {
@@ -426,7 +426,7 @@ index f5b21a665..f7979825b 100644
  				}
  				diagnostics.push(...result.diagnostics);
  			}
-@@ -310,10 +331,21 @@ export function expandPromptTemplate(text: string, templates: PromptTemplate[]):
+@@ -315,10 +336,21 @@ export function expandPromptTemplate(text: string, templates: PromptTemplate[]):
  	const templateName = match[1];
  	const argsString = match[2] ?? "";
  
@@ -706,7 +706,7 @@ index 3fbf2b926..59171ae6e 100644
  			if (existing) {
  				collisionDiagnostics.push({
 diff --git a/packages/coding-agent/src/modes/interactive/interactive-mode.ts b/packages/coding-agent/src/modes/interactive/interactive-mode.ts
-index bf5bb4d67..069079541 100644
+index ce2398475..79b932b6c 100644
 --- a/packages/coding-agent/src/modes/interactive/interactive-mode.ts
 +++ b/packages/coding-agent/src/modes/interactive/interactive-mode.ts
 @@ -805,6 +805,7 @@ export class InteractiveMode {
@@ -864,10 +864,10 @@ index 8aedd93c4..4aa7d896c 100644
 +	});
  });
 diff --git a/packages/coding-agent/test/prompt-templates.test.ts b/packages/coding-agent/test/prompt-templates.test.ts
-index eaf59c12a..7339295bb 100644
+index d67346ab9..61517d15c 100644
 --- a/packages/coding-agent/test/prompt-templates.test.ts
 +++ b/packages/coding-agent/test/prompt-templates.test.ts
-@@ -652,3 +652,111 @@ describe("loadPromptTemplates - diagnostics", () => {
+@@ -672,3 +672,111 @@ describe("loadPromptTemplates - diagnostics", () => {
  		}
  	});
  });

@@ -1,34 +1,34 @@
-From d0e5e7e454a0aa1b9465bac8fbb6bc9ae5b99aa9 Mon Sep 17 00:00:00 2001
-From: "pi.namespace pipeline" <pi-namespace-pipeline@users.noreply.github.com>
-Date: Tue, 13 Oct 2026 02:07:15 +0000
-Subject: [PATCH] patch: version stamp 1.2.0-namespace.1 (fork build
+From e2b6bacab30ecf55b8c86898093e6da8c1982fe7 Mon Sep 17 00:00:00 2001
+From: patch-repair-agent <agent@maskshell.github>
+Date: Fri, 16 Oct 2026 04:46:44 +0000
+Subject: [PATCH] patch: version stamp 1.3.0-namespace.1 (fork build
  identification)
 
 ---
- .github/workflows/publish-namespace-patch.yml |   117 +
+ .github/workflows/publish-namespace-patch.yml |   119 +
  package-lock.json                             | 10742 ++++++++--------
- packages/agent/package.json                   |     2 +-
- packages/ai/package.json                      |     2 +-
+ packages/agent/package.json                   |     4 +-
+ packages/ai/package.json                      |     4 +-
  packages/chord/package.json                   |     2 +-
  packages/codemode/package.json                |     2 +-
- .../install-lock/package-lock.json            |    34 +-
+ .../install-lock/package-lock.json            |    48 +-
  .../coding-agent/install-lock/package.json    |     4 +-
- packages/coding-agent/package.json            |     2 +-
- packages/durable/package.json                 |     2 +-
- packages/env/package.json                     |     2 +-
- packages/evals/package.json                   |     2 +-
+ packages/coding-agent/package.json            |    12 +-
+ packages/durable/package.json                 |     8 +-
+ packages/env/package.json                     |     6 +-
+ packages/evals/package.json                   |     6 +-
  packages/mcp/package.json                     |     2 +-
  packages/telemetry/package.json               |     2 +-
  packages/tui/package.json                     |     2 +-
- 15 files changed, 5497 insertions(+), 5422 deletions(-)
+ 15 files changed, 5520 insertions(+), 5443 deletions(-)
  create mode 100644 .github/workflows/publish-namespace-patch.yml
 
 diff --git a/.github/workflows/publish-namespace-patch.yml b/.github/workflows/publish-namespace-patch.yml
 new file mode 100644
-index 000000000..df694177a
+index 000000000..9c7f04ca6
 --- /dev/null
 +++ b/.github/workflows/publish-namespace-patch.yml
-@@ -0,0 +1,117 @@
+@@ -0,0 +1,119 @@
 +name: publish-namespace-patch
 +
 +# npm publication of a namespace release under the unscoped alias
@@ -145,9 +145,11 @@ index 000000000..df694177a
 +      - name: Publish (trusted publishing, OIDC)
 +        env:
 +          REV: ${{ inputs.revision }}
++          # publish-npm.sh expands @RECENT_RELEASES@ via gh release list
++          GH_TOKEN: ${{ github.token }}
 +        run: bash patch/ci/publish-npm.sh /tmp/pub/earendil-works-pi-coding-agent-*.tgz
 diff --git a/package-lock.json b/package-lock.json
-index 10013e171..1155381ae 100644
+index 114762b90..303432db2 100644
 --- a/package-lock.json
 +++ b/package-lock.json
 @@ -1,5393 +1,5351 @@
@@ -5183,10 +5185,10 @@ index 10013e171..1155381ae 100644
 -		},
 -		"packages/agent": {
 -			"name": "@earendil-works/pi-agent-core",
--			"version": "1.2.0",
+-			"version": "1.3.0",
 -			"license": "MIT",
 -			"dependencies": {
--				"@earendil-works/pi-ai": "^1.2.0",
+-				"@earendil-works/pi-ai": "1.3.0",
 -				"typebox": "1.3.27"
 -			},
 -			"devDependencies": {
@@ -5206,12 +5208,12 @@ index 10013e171..1155381ae 100644
 -		},
 -		"packages/ai": {
 -			"name": "@earendil-works/pi-ai",
--			"version": "1.2.0",
+-			"version": "1.3.0",
 -			"license": "MIT",
 -			"dependencies": {
 -				"@anthropic-ai/sdk": "0.129.0",
 -				"@aws-sdk/client-bedrock-runtime": "3.1127.0",
--				"@earendil-works/pi-telemetry": "^1.2.0",
+-				"@earendil-works/pi-telemetry": "1.3.0",
 -				"@google/genai": "2.21.0",
 -				"@smithy/node-http-handler": "4.12.1",
 -				"http-proxy-agent": "9.1.0",
@@ -5294,7 +5296,7 @@ index 10013e171..1155381ae 100644
 -		},
 -		"packages/chord": {
 -			"name": "@earendil-works/chord",
--			"version": "1.2.0",
+-			"version": "1.3.0",
 -			"license": "MIT",
 -			"dependencies": {
 -				"typebox": "1.3.27"
@@ -5311,7 +5313,7 @@ index 10013e171..1155381ae 100644
 -		},
 -		"packages/codemode": {
 -			"name": "@earendil-works/pi-codemode",
--			"version": "1.2.0",
+-			"version": "1.3.0",
 -			"license": "MIT",
 -			"dependencies": {
 -				"quickjs-wasi": "3.6.2"
@@ -5326,14 +5328,14 @@ index 10013e171..1155381ae 100644
 -		},
 -		"packages/coding-agent": {
 -			"name": "@earendil-works/pi-coding-agent",
--			"version": "1.2.0",
+-			"version": "1.3.0",
 -			"license": "MIT",
 -			"dependencies": {
--				"@earendil-works/pi-agent-core": "^1.2.0",
--				"@earendil-works/pi-ai": "^1.2.0",
--				"@earendil-works/pi-codemode": "^1.2.0",
--				"@earendil-works/pi-mcp": "^1.2.0",
--				"@earendil-works/pi-tui": "^1.2.0",
+-				"@earendil-works/pi-agent-core": "1.3.0",
+-				"@earendil-works/pi-ai": "1.3.0",
+-				"@earendil-works/pi-codemode": "1.3.0",
+-				"@earendil-works/pi-mcp": "1.3.0",
+-				"@earendil-works/pi-tui": "1.3.0",
 -				"@silvia-odwyer/photon-node": "0.3.4",
 -				"brace-expansion": "5.0.12",
 -				"chalk": "6.0.0",
@@ -5371,32 +5373,32 @@ index 10013e171..1155381ae 100644
 -		},
 -		"packages/coding-agent/examples/extensions/custom-provider-anthropic": {
 -			"name": "pi-extension-custom-provider-anthropic",
--			"version": "1.2.0",
+-			"version": "1.3.0",
 -			"dependencies": {
 -				"@anthropic-ai/sdk": "0.52.0"
 -			}
 -		},
 -		"packages/coding-agent/examples/extensions/custom-provider-gitlab-duo": {
 -			"name": "pi-extension-custom-provider-gitlab-duo",
--			"version": "1.2.0"
+-			"version": "1.3.0"
 -		},
 -		"packages/coding-agent/examples/extensions/gondolin": {
 -			"name": "pi-extension-gondolin",
--			"version": "1.2.0",
+-			"version": "1.3.0",
 -			"dependencies": {
 -				"@earendil-works/gondolin": "0.12.0"
 -			}
 -		},
 -		"packages/coding-agent/examples/extensions/sandbox": {
 -			"name": "pi-extension-sandbox",
--			"version": "1.2.0",
+-			"version": "1.3.0",
 -			"dependencies": {
 -				"@anthropic-ai/sandbox-runtime": "0.0.26"
 -			}
 -		},
 -		"packages/coding-agent/examples/extensions/with-deps": {
 -			"name": "pi-extension-with-deps",
--			"version": "1.2.0",
+-			"version": "1.3.0",
 -			"dependencies": {
 -				"ms": "2.1.3"
 -			},
@@ -5450,12 +5452,12 @@ index 10013e171..1155381ae 100644
 -		},
 -		"packages/durable": {
 -			"name": "@earendil-works/pi-durable",
--			"version": "1.2.0",
+-			"version": "1.3.0",
 -			"license": "MIT",
 -			"dependencies": {
--				"@earendil-works/chord": "^1.2.0",
--				"@earendil-works/pi-ai": "^1.2.0",
--				"@earendil-works/pi-codemode": "^1.2.0",
+-				"@earendil-works/chord": "1.3.0",
+-				"@earendil-works/pi-ai": "1.3.0",
+-				"@earendil-works/pi-codemode": "1.3.0",
 -				"@silvia-odwyer/photon": "0.3.3",
 -				"diff": "8.0.4",
 -				"typebox": "1.3.27"
@@ -5470,11 +5472,11 @@ index 10013e171..1155381ae 100644
 -		},
 -		"packages/env": {
 -			"name": "@earendil-works/pi-env",
--			"version": "1.2.0",
+-			"version": "1.3.0",
 -			"license": "MIT",
 -			"dependencies": {
--				"@earendil-works/chord": "^1.2.0",
--				"@earendil-works/pi-durable": "^1.2.0"
+-				"@earendil-works/chord": "1.3.0",
+-				"@earendil-works/pi-durable": "1.3.0"
 -			},
 -			"devDependencies": {
 -				"shx": "0.3.4",
@@ -5486,10 +5488,10 @@ index 10013e171..1155381ae 100644
 -		},
 -		"packages/evals": {
 -			"name": "@earendil-works/pi-evals",
--			"version": "1.2.0",
+-			"version": "1.3.0",
 -			"devDependencies": {
--				"@earendil-works/pi-ai": "^1.2.0",
--				"@earendil-works/pi-coding-agent": "^1.2.0",
+-				"@earendil-works/pi-ai": "1.3.0",
+-				"@earendil-works/pi-coding-agent": "1.3.0",
 -				"@types/node": "22.19.19",
 -				"@vitest-evals/core": "0.15.0",
 -				"autoevals": "0.3.0",
@@ -5500,7 +5502,7 @@ index 10013e171..1155381ae 100644
 -		},
 -		"packages/mcp": {
 -			"name": "@earendil-works/pi-mcp",
--			"version": "1.2.0",
+-			"version": "1.3.0",
 -			"license": "MIT",
 -			"dependencies": {
 -				"cross-spawn": "7.0.6"
@@ -5516,7 +5518,7 @@ index 10013e171..1155381ae 100644
 -		},
 -		"packages/telemetry": {
 -			"name": "@earendil-works/pi-telemetry",
--			"version": "1.2.0",
+-			"version": "1.3.0",
 -			"license": "MIT",
 -			"devDependencies": {
 -				"@types/node": "22.19.19",
@@ -5528,7 +5530,7 @@ index 10013e171..1155381ae 100644
 -		},
 -		"packages/tui": {
 -			"name": "@earendil-works/pi-tui",
--			"version": "1.2.0",
+-			"version": "1.3.0",
 -			"license": "MIT",
 -			"dependencies": {
 -				"get-east-asian-width": "1.6.0",
@@ -10575,10 +10577,10 @@ index 10013e171..1155381ae 100644
 +    },
 +    "packages/agent": {
 +      "name": "@earendil-works/pi-agent-core",
-+      "version": "1.2.0+namespace.1",
++      "version": "1.3.0+namespace.1",
 +      "license": "MIT",
 +      "dependencies": {
-+        "@earendil-works/pi-ai": "^1.2.0",
++        "@earendil-works/pi-ai": "1.3.0+namespace.1",
 +        "typebox": "1.3.27"
 +      },
 +      "devDependencies": {
@@ -10591,12 +10593,12 @@ index 10013e171..1155381ae 100644
 +    },
 +    "packages/ai": {
 +      "name": "@earendil-works/pi-ai",
-+      "version": "1.2.0+namespace.1",
++      "version": "1.3.0+namespace.1",
 +      "license": "MIT",
 +      "dependencies": {
 +        "@anthropic-ai/sdk": "0.129.0",
 +        "@aws-sdk/client-bedrock-runtime": "3.1127.0",
-+        "@earendil-works/pi-telemetry": "^1.2.0",
++        "@earendil-works/pi-telemetry": "1.3.0+namespace.1",
 +        "@google/genai": "2.21.0",
 +        "@smithy/node-http-handler": "4.12.1",
 +        "http-proxy-agent": "9.1.0",
@@ -10679,7 +10681,7 @@ index 10013e171..1155381ae 100644
 +    },
 +    "packages/chord": {
 +      "name": "@earendil-works/chord",
-+      "version": "1.2.0+namespace.1",
++      "version": "1.3.0+namespace.1",
 +      "license": "MIT",
 +      "dependencies": {
 +        "typebox": "1.3.27"
@@ -10696,7 +10698,7 @@ index 10013e171..1155381ae 100644
 +    },
 +    "packages/codemode": {
 +      "name": "@earendil-works/pi-codemode",
-+      "version": "1.2.0+namespace.1",
++      "version": "1.3.0+namespace.1",
 +      "license": "MIT",
 +      "dependencies": {
 +        "quickjs-wasi": "3.6.2"
@@ -10711,14 +10713,14 @@ index 10013e171..1155381ae 100644
 +    },
 +    "packages/coding-agent": {
 +      "name": "@earendil-works/pi-coding-agent",
-+      "version": "1.2.0+namespace.1",
++      "version": "1.3.0+namespace.1",
 +      "license": "MIT",
 +      "dependencies": {
-+        "@earendil-works/pi-agent-core": "^1.2.0",
-+        "@earendil-works/pi-ai": "^1.2.0",
-+        "@earendil-works/pi-codemode": "^1.2.0",
-+        "@earendil-works/pi-mcp": "^1.2.0",
-+        "@earendil-works/pi-tui": "^1.2.0",
++        "@earendil-works/pi-agent-core": "1.3.0+namespace.1",
++        "@earendil-works/pi-ai": "1.3.0+namespace.1",
++        "@earendil-works/pi-codemode": "1.3.0+namespace.1",
++        "@earendil-works/pi-mcp": "1.3.0+namespace.1",
++        "@earendil-works/pi-tui": "1.3.0+namespace.1",
 +        "@silvia-odwyer/photon-node": "0.3.4",
 +        "brace-expansion": "5.0.12",
 +        "chalk": "6.0.0",
@@ -10756,32 +10758,32 @@ index 10013e171..1155381ae 100644
 +    },
 +    "packages/coding-agent/examples/extensions/custom-provider-anthropic": {
 +      "name": "pi-extension-custom-provider-anthropic",
-+      "version": "1.2.0",
++      "version": "1.3.0",
 +      "dependencies": {
 +        "@anthropic-ai/sdk": "0.52.0"
 +      }
 +    },
 +    "packages/coding-agent/examples/extensions/custom-provider-gitlab-duo": {
 +      "name": "pi-extension-custom-provider-gitlab-duo",
-+      "version": "1.2.0"
++      "version": "1.3.0"
 +    },
 +    "packages/coding-agent/examples/extensions/gondolin": {
 +      "name": "pi-extension-gondolin",
-+      "version": "1.2.0",
++      "version": "1.3.0",
 +      "dependencies": {
 +        "@earendil-works/gondolin": "0.12.0"
 +      }
 +    },
 +    "packages/coding-agent/examples/extensions/sandbox": {
 +      "name": "pi-extension-sandbox",
-+      "version": "1.2.0",
++      "version": "1.3.0",
 +      "dependencies": {
 +        "@anthropic-ai/sandbox-runtime": "0.0.26"
 +      }
 +    },
 +    "packages/coding-agent/examples/extensions/with-deps": {
 +      "name": "pi-extension-with-deps",
-+      "version": "1.2.0",
++      "version": "1.3.0",
 +      "dependencies": {
 +        "ms": "2.1.3"
 +      },
@@ -10800,12 +10802,12 @@ index 10013e171..1155381ae 100644
 +    },
 +    "packages/durable": {
 +      "name": "@earendil-works/pi-durable",
-+      "version": "1.2.0+namespace.1",
++      "version": "1.3.0+namespace.1",
 +      "license": "MIT",
 +      "dependencies": {
-+        "@earendil-works/chord": "^1.2.0",
-+        "@earendil-works/pi-ai": "^1.2.0",
-+        "@earendil-works/pi-codemode": "^1.2.0",
++        "@earendil-works/chord": "1.3.0+namespace.1",
++        "@earendil-works/pi-ai": "1.3.0+namespace.1",
++        "@earendil-works/pi-codemode": "1.3.0+namespace.1",
 +        "@silvia-odwyer/photon": "0.3.3",
 +        "diff": "8.0.4",
 +        "typebox": "1.3.27"
@@ -10820,11 +10822,11 @@ index 10013e171..1155381ae 100644
 +    },
 +    "packages/env": {
 +      "name": "@earendil-works/pi-env",
-+      "version": "1.2.0+namespace.1",
++      "version": "1.3.0+namespace.1",
 +      "license": "MIT",
 +      "dependencies": {
-+        "@earendil-works/chord": "^1.2.0",
-+        "@earendil-works/pi-durable": "^1.2.0"
++        "@earendil-works/chord": "1.3.0+namespace.1",
++        "@earendil-works/pi-durable": "1.3.0+namespace.1"
 +      },
 +      "devDependencies": {
 +        "shx": "0.3.4",
@@ -10836,10 +10838,10 @@ index 10013e171..1155381ae 100644
 +    },
 +    "packages/evals": {
 +      "name": "@earendil-works/pi-evals",
-+      "version": "1.2.0+namespace.1",
++      "version": "1.3.0+namespace.1",
 +      "devDependencies": {
-+        "@earendil-works/pi-ai": "^1.2.0",
-+        "@earendil-works/pi-coding-agent": "^1.2.0",
++        "@earendil-works/pi-ai": "1.3.0+namespace.1",
++        "@earendil-works/pi-coding-agent": "1.3.0+namespace.1",
 +        "@types/node": "22.19.19",
 +        "@vitest-evals/core": "0.15.0",
 +        "autoevals": "0.3.0",
@@ -10850,7 +10852,7 @@ index 10013e171..1155381ae 100644
 +    },
 +    "packages/mcp": {
 +      "name": "@earendil-works/pi-mcp",
-+      "version": "1.2.0+namespace.1",
++      "version": "1.3.0+namespace.1",
 +      "license": "MIT",
 +      "dependencies": {
 +        "cross-spawn": "7.0.6"
@@ -10866,7 +10868,7 @@ index 10013e171..1155381ae 100644
 +    },
 +    "packages/telemetry": {
 +      "name": "@earendil-works/pi-telemetry",
-+      "version": "1.2.0+namespace.1",
++      "version": "1.3.0+namespace.1",
 +      "license": "MIT",
 +      "devDependencies": {
 +        "@types/node": "22.19.19",
@@ -10878,7 +10880,7 @@ index 10013e171..1155381ae 100644
 +    },
 +    "packages/tui": {
 +      "name": "@earendil-works/pi-tui",
-+      "version": "1.2.0+namespace.1",
++      "version": "1.3.0+namespace.1",
 +      "license": "MIT",
 +      "dependencies": {
 +        "get-east-asian-width": "1.6.0",
@@ -10896,127 +10898,167 @@ index 10013e171..1155381ae 100644
 +}
 \ No newline at end of file
 diff --git a/packages/agent/package.json b/packages/agent/package.json
-index 0584afeb0..dd72ec26a 100644
+index 30943697d..2d3592162 100644
 --- a/packages/agent/package.json
 +++ b/packages/agent/package.json
 @@ -1,6 +1,6 @@
  {
  	"name": "@earendil-works/pi-agent-core",
--	"version": "1.2.0",
-+	"version": "1.2.0+namespace.1",
+-	"version": "1.3.0",
++	"version": "1.3.0+namespace.1",
  	"description": "General-purpose agent with transport abstraction, state management, and attachment support",
  	"type": "module",
  	"main": "./dist/index.js",
+@@ -23,7 +23,7 @@
+ 		"prepublishOnly": "npm run build"
+ 	},
+ 	"dependencies": {
+-		"@earendil-works/pi-ai": "1.3.0",
++		"@earendil-works/pi-ai": "1.3.0+namespace.1",
+ 		"typebox": "1.3.27"
+ 	},
+ 	"keywords": [
 diff --git a/packages/ai/package.json b/packages/ai/package.json
-index 7cd22c9e8..25297262c 100644
+index 07f546f97..c23efc66c 100644
 --- a/packages/ai/package.json
 +++ b/packages/ai/package.json
 @@ -1,6 +1,6 @@
  {
  	"name": "@earendil-works/pi-ai",
--	"version": "1.2.0",
-+	"version": "1.2.0+namespace.1",
+-	"version": "1.3.0",
++	"version": "1.3.0+namespace.1",
  	"description": "Unified LLM API with automatic model discovery and provider configuration",
  	"type": "module",
  	"main": "./dist/index.js",
+@@ -69,7 +69,7 @@
+ 	"dependencies": {
+ 		"@anthropic-ai/sdk": "0.129.0",
+ 		"@aws-sdk/client-bedrock-runtime": "3.1127.0",
+-		"@earendil-works/pi-telemetry": "1.3.0",
++		"@earendil-works/pi-telemetry": "1.3.0+namespace.1",
+ 		"@google/genai": "2.21.0",
+ 		"@smithy/node-http-handler": "4.12.1",
+ 		"http-proxy-agent": "9.1.0",
 diff --git a/packages/chord/package.json b/packages/chord/package.json
-index 48a38067f..227c892be 100644
+index 8c7566537..e999c6860 100644
 --- a/packages/chord/package.json
 +++ b/packages/chord/package.json
 @@ -1,6 +1,6 @@
  {
  	"name": "@earendil-works/chord",
--	"version": "1.2.0",
-+	"version": "1.2.0+namespace.1",
+-	"version": "1.3.0",
++	"version": "1.3.0+namespace.1",
  	"description": "Typed host runtime for plugins, contracts, replicated state, and RPC over JSON links",
  	"type": "module",
  	"main": "./dist/index.js",
 diff --git a/packages/codemode/package.json b/packages/codemode/package.json
-index bc872efd8..bdbc7ef60 100644
+index dd1c22fd5..0e2396806 100644
 --- a/packages/codemode/package.json
 +++ b/packages/codemode/package.json
 @@ -1,6 +1,6 @@
  {
  	"name": "@earendil-works/pi-codemode",
--	"version": "1.2.0",
-+	"version": "1.2.0+namespace.1",
+-	"version": "1.3.0",
++	"version": "1.3.0+namespace.1",
  	"description": "Sandboxed JavaScript execution where the only capability is calling injected tools",
  	"type": "module",
  	"main": "./dist/index.js",
 diff --git a/packages/coding-agent/install-lock/package-lock.json b/packages/coding-agent/install-lock/package-lock.json
-index 12eeba2c6..676bfc648 100644
+index dae984deb..e82c8a2f7 100644
 --- a/packages/coding-agent/install-lock/package-lock.json
 +++ b/packages/coding-agent/install-lock/package-lock.json
 @@ -1,14 +1,14 @@
  {
  	"name": "@earendil-works/pi-coding-agent-install",
--	"version": "1.2.0",
-+	"version": "1.2.0+namespace.1",
+-	"version": "1.3.0",
++	"version": "1.3.0+namespace.1",
  	"lockfileVersion": 3,
  	"requires": true,
  	"packages": {
  		"": {
  			"name": "@earendil-works/pi-coding-agent-install",
--			"version": "1.2.0",
-+			"version": "1.2.0+namespace.1",
+-			"version": "1.3.0",
++			"version": "1.3.0+namespace.1",
  			"dependencies": {
--				"@earendil-works/pi-coding-agent": "1.2.0"
-+				"@earendil-works/pi-coding-agent": "1.2.0+namespace.1"
+-				"@earendil-works/pi-coding-agent": "1.3.0"
++				"@earendil-works/pi-coding-agent": "1.3.0+namespace.1"
  			},
  			"engines": {
  				"node": ">=22.19.0"
-@@ -386,8 +386,8 @@
+@@ -386,11 +386,11 @@
  			}
  		},
  		"node_modules/@earendil-works/pi-agent-core": {
--			"version": "1.2.0",
--			"resolved": "https://registry.npmjs.org/@earendil-works/pi-agent-core/-/pi-agent-core-1.2.0.tgz",
-+			"version": "1.2.0+namespace.1",
-+			"resolved": "https://registry.npmjs.org/@earendil-works/pi-agent-core/-/pi-agent-core-1.2.0+namespace.1.tgz",
+-			"version": "1.3.0",
+-			"resolved": "https://registry.npmjs.org/@earendil-works/pi-agent-core/-/pi-agent-core-1.3.0.tgz",
++			"version": "1.3.0+namespace.1",
++			"resolved": "https://registry.npmjs.org/@earendil-works/pi-agent-core/-/pi-agent-core-1.3.0+namespace.1.tgz",
  			"license": "MIT",
  			"dependencies": {
- 				"@earendil-works/pi-ai": "^1.2.0",
-@@ -398,8 +398,8 @@
+-				"@earendil-works/pi-ai": "1.3.0",
++				"@earendil-works/pi-ai": "1.3.0+namespace.1",
+ 				"typebox": "1.3.27"
+ 			},
+ 			"engines": {
+@@ -398,13 +398,13 @@
  			}
  		},
  		"node_modules/@earendil-works/pi-ai": {
--			"version": "1.2.0",
--			"resolved": "https://registry.npmjs.org/@earendil-works/pi-ai/-/pi-ai-1.2.0.tgz",
-+			"version": "1.2.0+namespace.1",
-+			"resolved": "https://registry.npmjs.org/@earendil-works/pi-ai/-/pi-ai-1.2.0+namespace.1.tgz",
+-			"version": "1.3.0",
+-			"resolved": "https://registry.npmjs.org/@earendil-works/pi-ai/-/pi-ai-1.3.0.tgz",
++			"version": "1.3.0+namespace.1",
++			"resolved": "https://registry.npmjs.org/@earendil-works/pi-ai/-/pi-ai-1.3.0+namespace.1.tgz",
  			"license": "MIT",
  			"dependencies": {
  				"@anthropic-ai/sdk": "0.129.0",
+ 				"@aws-sdk/client-bedrock-runtime": "3.1127.0",
+-				"@earendil-works/pi-telemetry": "1.3.0",
++				"@earendil-works/pi-telemetry": "1.3.0+namespace.1",
+ 				"@google/genai": "2.21.0",
+ 				"@smithy/node-http-handler": "4.12.1",
+ 				"http-proxy-agent": "9.1.0",
 @@ -481,8 +481,8 @@
  			}
  		},
  		"node_modules/@earendil-works/pi-codemode": {
--			"version": "1.2.0",
--			"resolved": "https://registry.npmjs.org/@earendil-works/pi-codemode/-/pi-codemode-1.2.0.tgz",
-+			"version": "1.2.0+namespace.1",
-+			"resolved": "https://registry.npmjs.org/@earendil-works/pi-codemode/-/pi-codemode-1.2.0+namespace.1.tgz",
+-			"version": "1.3.0",
+-			"resolved": "https://registry.npmjs.org/@earendil-works/pi-codemode/-/pi-codemode-1.3.0.tgz",
++			"version": "1.3.0+namespace.1",
++			"resolved": "https://registry.npmjs.org/@earendil-works/pi-codemode/-/pi-codemode-1.3.0+namespace.1.tgz",
  			"license": "MIT",
  			"dependencies": {
  				"quickjs-wasi": "3.6.2"
-@@ -492,8 +492,8 @@
+@@ -492,15 +492,15 @@
  			}
  		},
  		"node_modules/@earendil-works/pi-coding-agent": {
--			"version": "1.2.0",
--			"resolved": "https://registry.npmjs.org/@earendil-works/pi-coding-agent/-/pi-coding-agent-1.2.0.tgz",
-+			"version": "1.2.0+namespace.1",
-+			"resolved": "https://registry.npmjs.org/@earendil-works/pi-coding-agent/-/pi-coding-agent-1.2.0+namespace.1.tgz",
+-			"version": "1.3.0",
+-			"resolved": "https://registry.npmjs.org/@earendil-works/pi-coding-agent/-/pi-coding-agent-1.3.0.tgz",
++			"version": "1.3.0+namespace.1",
++			"resolved": "https://registry.npmjs.org/@earendil-works/pi-coding-agent/-/pi-coding-agent-1.3.0+namespace.1.tgz",
  			"license": "MIT",
  			"dependencies": {
- 				"@earendil-works/pi-agent-core": "^1.2.0",
+-				"@earendil-works/pi-agent-core": "1.3.0",
+-				"@earendil-works/pi-ai": "1.3.0",
+-				"@earendil-works/pi-codemode": "1.3.0",
+-				"@earendil-works/pi-mcp": "1.3.0",
+-				"@earendil-works/pi-tui": "1.3.0",
++				"@earendil-works/pi-agent-core": "1.3.0+namespace.1",
++				"@earendil-works/pi-ai": "1.3.0+namespace.1",
++				"@earendil-works/pi-codemode": "1.3.0+namespace.1",
++				"@earendil-works/pi-mcp": "1.3.0+namespace.1",
++				"@earendil-works/pi-tui": "1.3.0+namespace.1",
+ 				"@silvia-odwyer/photon-node": "0.3.4",
+ 				"brace-expansion": "5.0.12",
+ 				"chalk": "6.0.0",
 @@ -527,8 +527,8 @@
  			}
  		},
  		"node_modules/@earendil-works/pi-mcp": {
--			"version": "1.2.0",
--			"resolved": "https://registry.npmjs.org/@earendil-works/pi-mcp/-/pi-mcp-1.2.0.tgz",
-+			"version": "1.2.0+namespace.1",
-+			"resolved": "https://registry.npmjs.org/@earendil-works/pi-mcp/-/pi-mcp-1.2.0+namespace.1.tgz",
+-			"version": "1.3.0",
+-			"resolved": "https://registry.npmjs.org/@earendil-works/pi-mcp/-/pi-mcp-1.3.0.tgz",
++			"version": "1.3.0+namespace.1",
++			"resolved": "https://registry.npmjs.org/@earendil-works/pi-mcp/-/pi-mcp-1.3.0+namespace.1.tgz",
  			"license": "MIT",
  			"dependencies": {
  				"cross-spawn": "7.0.6"
@@ -11024,121 +11066,173 @@ index 12eeba2c6..676bfc648 100644
  			}
  		},
  		"node_modules/@earendil-works/pi-telemetry": {
--			"version": "1.2.0",
--			"resolved": "https://registry.npmjs.org/@earendil-works/pi-telemetry/-/pi-telemetry-1.2.0.tgz",
-+			"version": "1.2.0+namespace.1",
-+			"resolved": "https://registry.npmjs.org/@earendil-works/pi-telemetry/-/pi-telemetry-1.2.0+namespace.1.tgz",
+-			"version": "1.3.0",
+-			"resolved": "https://registry.npmjs.org/@earendil-works/pi-telemetry/-/pi-telemetry-1.3.0.tgz",
++			"version": "1.3.0+namespace.1",
++			"resolved": "https://registry.npmjs.org/@earendil-works/pi-telemetry/-/pi-telemetry-1.3.0+namespace.1.tgz",
  			"license": "MIT",
  			"engines": {
  				"node": ">=22.19.0"
  			}
  		},
  		"node_modules/@earendil-works/pi-tui": {
--			"version": "1.2.0",
--			"resolved": "https://registry.npmjs.org/@earendil-works/pi-tui/-/pi-tui-1.2.0.tgz",
-+			"version": "1.2.0+namespace.1",
-+			"resolved": "https://registry.npmjs.org/@earendil-works/pi-tui/-/pi-tui-1.2.0+namespace.1.tgz",
+-			"version": "1.3.0",
+-			"resolved": "https://registry.npmjs.org/@earendil-works/pi-tui/-/pi-tui-1.3.0.tgz",
++			"version": "1.3.0+namespace.1",
++			"resolved": "https://registry.npmjs.org/@earendil-works/pi-tui/-/pi-tui-1.3.0+namespace.1.tgz",
  			"license": "MIT",
  			"dependencies": {
  				"get-east-asian-width": "1.6.0",
 diff --git a/packages/coding-agent/install-lock/package.json b/packages/coding-agent/install-lock/package.json
-index 145219d49..d6ccef147 100644
+index 4f9d4f9aa..c73d54671 100644
 --- a/packages/coding-agent/install-lock/package.json
 +++ b/packages/coding-agent/install-lock/package.json
 @@ -1,10 +1,10 @@
  {
  	"name": "@earendil-works/pi-coding-agent-install",
--	"version": "1.2.0",
-+	"version": "1.2.0+namespace.1",
+-	"version": "1.3.0",
++	"version": "1.3.0+namespace.1",
  	"private": true,
  	"description": "Lockfile root used by the Pi installer and updater.",
  	"dependencies": {
--		"@earendil-works/pi-coding-agent": "1.2.0"
-+		"@earendil-works/pi-coding-agent": "1.2.0+namespace.1"
+-		"@earendil-works/pi-coding-agent": "1.3.0"
++		"@earendil-works/pi-coding-agent": "1.3.0+namespace.1"
  	},
  	"overrides": {
  		"protobufjs": "7.6.6"
 diff --git a/packages/coding-agent/package.json b/packages/coding-agent/package.json
-index e6daaaeea..27888ce2b 100644
+index a23911cbf..d8ec4eb72 100644
 --- a/packages/coding-agent/package.json
 +++ b/packages/coding-agent/package.json
 @@ -1,6 +1,6 @@
  {
  	"name": "@earendil-works/pi-coding-agent",
--	"version": "1.2.0",
-+	"version": "1.2.0+namespace.1",
+-	"version": "1.3.0",
++	"version": "1.3.0+namespace.1",
  	"description": "Coding agent CLI with read, bash, edit, write tools and session management",
  	"type": "module",
  	"piConfig": {
+@@ -40,11 +40,11 @@
+ 		"prepublishOnly": "npm run clean && npm run build"
+ 	},
+ 	"dependencies": {
+-		"@earendil-works/pi-agent-core": "1.3.0",
+-		"@earendil-works/pi-ai": "1.3.0",
+-		"@earendil-works/pi-codemode": "1.3.0",
+-		"@earendil-works/pi-mcp": "1.3.0",
+-		"@earendil-works/pi-tui": "1.3.0",
++		"@earendil-works/pi-agent-core": "1.3.0+namespace.1",
++		"@earendil-works/pi-ai": "1.3.0+namespace.1",
++		"@earendil-works/pi-codemode": "1.3.0+namespace.1",
++		"@earendil-works/pi-mcp": "1.3.0+namespace.1",
++		"@earendil-works/pi-tui": "1.3.0+namespace.1",
+ 		"@silvia-odwyer/photon-node": "0.3.4",
+ 		"brace-expansion": "5.0.12",
+ 		"chalk": "6.0.0",
 diff --git a/packages/durable/package.json b/packages/durable/package.json
-index 8dfb5a376..3d3ff72bb 100644
+index c158d2d32..63ea70575 100644
 --- a/packages/durable/package.json
 +++ b/packages/durable/package.json
 @@ -1,6 +1,6 @@
  {
  	"name": "@earendil-works/pi-durable",
--	"version": "1.2.0",
-+	"version": "1.2.0+namespace.1",
+-	"version": "1.3.0",
++	"version": "1.3.0+namespace.1",
  	"description": "Durable conversation, task, and document runtime for Pi",
  	"type": "module",
  	"main": "./dist/index.js",
+@@ -143,9 +143,9 @@
+ 		"node": ">=22.19.0"
+ 	},
+ 	"dependencies": {
+-		"@earendil-works/chord": "1.3.0",
+-		"@earendil-works/pi-ai": "1.3.0",
+-		"@earendil-works/pi-codemode": "1.3.0",
++		"@earendil-works/chord": "1.3.0+namespace.1",
++		"@earendil-works/pi-ai": "1.3.0+namespace.1",
++		"@earendil-works/pi-codemode": "1.3.0+namespace.1",
+ 		"@silvia-odwyer/photon": "0.3.3",
+ 		"diff": "8.0.4",
+ 		"typebox": "1.3.27"
 diff --git a/packages/env/package.json b/packages/env/package.json
-index 9f09e1a81..1ba504a86 100644
+index f86276de2..29baa40cb 100644
 --- a/packages/env/package.json
 +++ b/packages/env/package.json
 @@ -1,6 +1,6 @@
  {
  	"name": "@earendil-works/pi-env",
--	"version": "1.2.0",
-+	"version": "1.2.0+namespace.1",
+-	"version": "1.3.0",
++	"version": "1.3.0+namespace.1",
  	"description": "Remote execution environments for Pi Durable: a small daemon deployed over SSH and its ExecutionEnv client",
  	"type": "module",
  	"main": "./dist/index.js",
+@@ -45,8 +45,8 @@
+ 		"node": ">=22.19.0"
+ 	},
+ 	"dependencies": {
+-		"@earendil-works/chord": "1.3.0",
+-		"@earendil-works/pi-durable": "1.3.0"
++		"@earendil-works/chord": "1.3.0+namespace.1",
++		"@earendil-works/pi-durable": "1.3.0+namespace.1"
+ 	},
+ 	"devDependencies": {
+ 		"shx": "0.3.4",
 diff --git a/packages/evals/package.json b/packages/evals/package.json
-index 100506ff5..12e1b52dd 100644
+index 50554274b..6d70cbc52 100644
 --- a/packages/evals/package.json
 +++ b/packages/evals/package.json
 @@ -1,6 +1,6 @@
  {
  	"name": "@earendil-works/pi-evals",
--	"version": "1.2.0",
-+	"version": "1.2.0+namespace.1",
+-	"version": "1.3.0",
++	"version": "1.3.0+namespace.1",
  	"private": true,
  	"type": "module",
  	"scripts": {
+@@ -11,8 +11,8 @@
+ 		"test": "vitest run --config vitest.test.config.ts"
+ 	},
+ 	"devDependencies": {
+-		"@earendil-works/pi-ai": "1.3.0",
+-		"@earendil-works/pi-coding-agent": "1.3.0",
++		"@earendil-works/pi-ai": "1.3.0+namespace.1",
++		"@earendil-works/pi-coding-agent": "1.3.0+namespace.1",
+ 		"@types/node": "22.19.19",
+ 		"@vitest-evals/core": "0.15.0",
+ 		"autoevals": "0.3.0",
 diff --git a/packages/mcp/package.json b/packages/mcp/package.json
-index 3d0ea8126..6082a801d 100644
+index 7eca8849a..26769b818 100644
 --- a/packages/mcp/package.json
 +++ b/packages/mcp/package.json
 @@ -1,6 +1,6 @@
  {
  	"name": "@earendil-works/pi-mcp",
--	"version": "1.2.0",
-+	"version": "1.2.0+namespace.1",
+-	"version": "1.3.0",
++	"version": "1.3.0+namespace.1",
  	"description": "Standalone Model Context Protocol client for pi and other applications",
  	"type": "module",
  	"main": "./dist/index.js",
 diff --git a/packages/telemetry/package.json b/packages/telemetry/package.json
-index 09a01c710..d1aba98e6 100644
+index b12cfe1f2..95473cb02 100644
 --- a/packages/telemetry/package.json
 +++ b/packages/telemetry/package.json
 @@ -1,6 +1,6 @@
  {
  	"name": "@earendil-works/pi-telemetry",
--	"version": "1.2.0",
-+	"version": "1.2.0+namespace.1",
+-	"version": "1.3.0",
++	"version": "1.3.0+namespace.1",
  	"description": "Vendor-neutral telemetry contracts and typed schema utilities for pi",
  	"type": "module",
  	"main": "./dist/index.js",
 diff --git a/packages/tui/package.json b/packages/tui/package.json
-index 419d89591..f7abb5594 100644
+index 4b8807694..d20ee868a 100644
 --- a/packages/tui/package.json
 +++ b/packages/tui/package.json
 @@ -1,6 +1,6 @@
  {
  	"name": "@earendil-works/pi-tui",
--	"version": "1.2.0",
-+	"version": "1.2.0+namespace.1",
+-	"version": "1.3.0",
++	"version": "1.3.0+namespace.1",
  	"description": "Terminal User Interface library with differential rendering for efficient text-based applications",
  	"type": "module",
  	"main": "dist/index.js",

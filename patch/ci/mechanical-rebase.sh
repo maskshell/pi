@@ -116,21 +116,44 @@ python3 - "$NEW_NUM" "$NEW_VER" <<'PY'
 import json, glob, re, sys
 base, new = sys.argv[1], sys.argv[2]
 pat = re.compile(r"^" + re.escape(base) + r"([+-]namespace\.\d+)?$")
-n = 0
-for f in sorted(glob.glob("packages/**/package.json", recursive=True)):
-    if "node_modules" in f or "/examples/" in f:
-        continue
+files = [f for f in sorted(glob.glob("packages/**/package.json", recursive=True))
+         if "node_modules" not in f and "/examples/" not in f]
+loaded = {}
+internal = set()
+for f in files:
     try:
         d = json.load(open(f))
     except Exception:
         continue
+    loaded[f] = d
+    name = d.get("name")
+    if isinstance(name, str) and name.startswith("@earendil-works/"):
+        internal.add(name)
+# v1.3.0 pins internal workspace deps to exact versions (upstream
+# sync-versions.js). The stamp must mirror that: leaving specs at X.Y.Z
+# while the packages carry X.Y.Z+namespace.N makes npm run
+# install-lock:coding-agent fail its exact-version validation (build
+# metadata is ignored by npm ranges but compared verbatim there).
+n = 0
+for f, d in loaded.items():
+    changed = False
     v = d.get("version", "")
     if v == base or pat.match(v):
         d["version"] = new
+        changed = True
+    for section in ("dependencies", "devDependencies", "optionalDependencies"):
+        deps = d.get(section)
+        if not isinstance(deps, dict):
+            continue
+        for dep, spec in list(deps.items()):
+            if dep in internal and isinstance(spec, str) and not spec.startswith("npm:") and spec != new:
+                deps[dep] = new
+                changed = True
+    if changed:
         json.dump(d, open(f, "w"), indent="\t", ensure_ascii=False)
         open(f, "a").write("\n")
         n += 1
-print(f"bumped {n} package.json files -> {new}")
+print(f"stamped {n} package.json files (versions + internal deps) -> {new}")
 PY
 npm install --package-lock-only --no-audit --no-fund --registry=https://registry.npmjs.org
 # v1.0.1 removed npm-shrinkwrap.json and its script; --if-present keeps
@@ -144,7 +167,7 @@ npm run install-lock:coding-agent
 # missing catalog reds npm-check + suites while build still passes. Hydrate
 # here, best-effort: a models.dev fetch failure must not abort the re-base
 # (verify.sh surfaces the real state).
-npm run hydrate:model-data || echo ">> WARN: hydrate:model-data failed; npm-check/suites import the generated catalog" >&2
+bash "$(dirname "$0")/hydrate-model-data.sh" "$PWD" || echo ">> WARN: model data hydration failed; npm-check/suites import the generated catalog" >&2
 # Guard: lock regen must never bake private-registry resolved URLs (a local
 # ~/.npmrc mirror once leaked 19 nexus URLs into the root lock; CI's npm ci
 # then 401s). Rewrite any non-npmjs host defensively.

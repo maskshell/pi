@@ -8,15 +8,14 @@ ROOT="$(git rev-parse --show-toplevel)"
 PKG="$ROOT/packages/coding-agent"
 
 # npm run check (tsgo) and the touched suites import the generated provider
-# catalog, which is gitignored and absent on a fresh runner checkout. L1's
-# mechanical rebase hydrates it, but a resumed/partial run can leave it
-# missing; materialize it before the gates so a failure here is a real
-# regression, not a missing-data artifact. Best-effort by design.
-if [ ! -f "$ROOT/packages/ai/src/providers/data/.manifest.json" ]; then
-	if ! (cd "$ROOT" && npm run hydrate:model-data); then
-		echo ">> WARN: hydrate:model-data failed; npm-check/suites import the generated catalog" >&2
-	fi
-fi
+# catalog, which is gitignored. Hydrate it from the release's pinned catalog
+# revision before the gates: a live models.dev fetch drifts and type-checks the
+# release's tests against model IDs that no longer exist (see
+# hydrate-model-data.sh). Unconditional because `npm run build` regenerates
+# live data, so a previous verify run leaves the catalog drifted. Best-effort
+# by design: a failed hydration lets the gates report the real regression.
+bash "$(dirname "$0")/hydrate-model-data.sh" "$ROOT" || \
+	echo ">> WARN: model data hydration failed; npm-check/suites import the generated catalog" >&2
 
 run_gate() {
 	local name="$1"; shift
