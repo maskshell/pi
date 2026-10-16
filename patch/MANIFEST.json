@@ -1,0 +1,27 @@
+{
+	"feature": "pi.namespace — opt-in package namespace for skills and prompt templates",
+	"patchVersion": "1.3.0-namespace.1",
+	"baseTag": "v1.3.0",
+	"baseSha": "71023aec1546d6d677a65669c5665c0927ce0dd0",
+	"featureCommit": "057b06bf26f9576d644a6766b0743d795984da62",
+	"versionStampCommit": "e2b6bacab30ecf55b8c86898093e6da8c1982fe7",
+	"forkFixCommit": "0abaf01ecb88da14f0a96a81791e85f9791b4b0e",
+	"forkReleaseTag": "v1.3.0-namespace.1",
+	"tarballAsset": "earendil-works-pi-coding-agent-1.3.0-namespace.1.tgz",
+	"generatedAt": "2026-10-16",
+	"upstreamProposal": "https://github.com/earendil-works/pi/issues/8834",
+	"install": {
+		"tierA_npm": "npm install -g pi-namespace-patch (registry.npmjs.org, trusted publishing; registry version X.Y.Z-namespace.N — may exceed the release suffix after burnt-slot re-publishes)",
+		"tierA_tarball": "npm install -g https://github.com/maskshell/pi/releases/download/v0.85.1-namespace.1/earendil-works-pi-coding-agent-0.85.1-namespace.1.tgz",
+		"tierB_source": "clone upstream @ v0.85.1; git am patch/pi-namespace.patch patch/fork-update-banner.patch patch/version-stamp.patch; npm ci; npm run hydrate:model-data; npm run build",
+		"tierC_script": "bash apply.sh [target-dir]"
+	},
+	"verification": {
+		"version": "pi --version -> 0.87.1+namespace.1",
+		"tests": "329 passed (skills 47, prompt-templates 97, resource-loader 47, package-manager 126, version-check 12 — unchanged vs the 0.87.0 base)",
+		"check": "exit 0 (full chain incl. biome --error-on-warnings, tsgo, shrinkwrap + install-lock); build + lockfiles-public gates green; zero workspace overlays",
+		"consumer": "solidforge-pi master (pi.namespace: solidforge) — https://github.com/maskshell/solidforge-pi"
+	},
+	"tracking": "PATCH-TRACKING.md (same directory); release monitor: .github/workflows/namespace-patch-tracker.yml on fork main",
+	"packageVersion": "1.3.0+namespace.1"
+}
