@@ -167,7 +167,7 @@ npm run install-lock:coding-agent
 # missing catalog reds npm-check + suites while build still passes. Hydrate
 # here, best-effort: a models.dev fetch failure must not abort the re-base
 # (verify.sh surfaces the real state).
-npm run hydrate:model-data || echo ">> WARN: hydrate:model-data failed; npm-check/suites import the generated catalog" >&2
+bash "$(dirname "$0")/hydrate-model-data.sh" "$PWD" || echo ">> WARN: model data hydration failed; npm-check/suites import the generated catalog" >&2
 # Guard: lock regen must never bake private-registry resolved URLs (a local
 # ~/.npmrc mirror once leaked 19 nexus URLs into the root lock; CI's npm ci
 # then 401s). Rewrite any non-npmjs host defensively.
