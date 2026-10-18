@@ -7,6 +7,7 @@ import {
 	type OutputLimits,
 	PROGRESS_BYTES_PER_SECOND,
 	Progress,
+	type ProgressClock,
 } from "@earendil-works/chord/output";
 import type { ImageContent, TextContent, ToolCall, ToolResultMessage } from "@earendil-works/pi-ai";
 import { validateToolArguments } from "@earendil-works/pi-ai/utils/validation";
@@ -29,6 +30,7 @@ import type {
 	Tx,
 	TypedEntry,
 } from "../types.ts";
+import { toolExtension } from "./agent.ts";
 import { assignJson } from "./json.ts";
 import {
 	clearProgress,
@@ -310,6 +312,7 @@ async function run(
 		get env() {
 			return env;
 		},
+		now: () => runtime.now(),
 		output: (chunk, skipped) => {
 			assertLive();
 			if (reported.output.push(chunk, skipped)) progress.mark();
@@ -442,6 +445,25 @@ async function run(
 }
 
 /**
+ * The Harness clock and timers for progress pacing. After the invocation ends nothing more commits, and the clock
+ * answers with the last time it read.
+ */
+function progressClock(runtime: Runtime): ProgressClock {
+	let last = 0;
+	return {
+		now: () => {
+			try {
+				last = runtime.now();
+			} catch {
+				// The invocation ended.
+			}
+			return last;
+		},
+		setTimer: (callback, delayMs) => runtime.setTimer(callback, delayMs),
+	};
+}
+
+/**
  * Throttled commits of what the tool reported into its slot, in `pi.live.tools` or `pi.live.nestedTools`, each writing
  * only what changed since the last one; none when `enabled` is false.
  */
@@ -492,6 +514,7 @@ function publishProgress(runtime: Runtime, reported: Reported, enabled: boolean,
 			if (!runtime.signal.aborted) runtime.report(error);
 		},
 		runtime.settings.progress.outputIntervalMs,
+		progressClock(runtime),
 	);
 }
 
@@ -538,7 +561,12 @@ async function finalResult(
 		} else {
 			// The model never sees structured output, so its call stands; the host learns of the broken tool.
 			final = rest;
-			runtime.report(new Error(broken));
+			// Only names the extension: a failed resolution leaves the report without the name.
+			const extension = await runtime.agent(context).then(
+				(agent) => toolExtension(agent, tool.name),
+				() => undefined,
+			);
+			runtime.report(new Error(broken), { source: "extension", ...(extension === undefined ? {} : { extension }) });
 		}
 	}
 	// Programs get the tool's own value: without a schema, its output. The model reads only `output`, so model-issued
