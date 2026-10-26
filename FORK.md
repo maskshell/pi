@@ -11,14 +11,14 @@ was closed NOT_PLANNED. Everything else tracks upstream.
 
 ```bash
 npm install -g pi-namespace-patch
-pi --version   # 1.3.0-namespace.1
+pi --version   # 1.4.0-namespace.1
 ```
 
 `pi-namespace-patch` is the npm alias of the current release, published by
 trusted publishing (OIDC, provenance attached) from the GitHub release
 asset. Its version string is the release tag form (`X.Y.Z-namespace.N`);
 the workspace-stamped artifact reports the semver build-metadata form
-(`1.3.0+namespace.1`) — same build, two channel-specific version schemes
+(`1.4.0+namespace.1`) — same build, two channel-specific version schemes
 (npm collapses build metadata to one slot per `X.Y.Z`, so the alias cannot
 reuse the `+` form). The registry suffix can also run ahead of the release
 suffix: every publish occupies its version forever, so a registry-side fix
@@ -29,8 +29,8 @@ README on the npm page; the alias ships a dedicated fork README).
 Pinned / registry-free install from the GitHub release:
 
 ```bash
-npm install -g https://github.com/maskshell/pi/releases/download/v1.3.0-namespace.1/earendil-works-pi-coding-agent-1.3.0-namespace.1.tgz
-pi --version   # 1.3.0+namespace.1
+npm install -g https://github.com/maskshell/pi/releases/download/v1.4.0-namespace.1/earendil-works-pi-coding-agent-1.4.0-namespace.1.tgz
+pi --version   # 1.4.0+namespace.1
 ```
 
 What you get: a package declaring `"pi": { "namespace": "myorg" }` exposes
@@ -72,7 +72,8 @@ All feature content lives on `namespace-patch` / `package-namespace`.
 
 Upstream workflows that require upstream-only secrets are carried by the
 mirror but disabled in the fork (they can only fail here): `build-binaries.yml`,
-`publish-model-catalog.yml` (upstream S3 credentials). `npm-audit.yml` stays
+`publish-model-catalog.yml` (upstream S3 credentials),
+`preview-packages.yml` (upstream-only publish identity). `npm-audit.yml` stays
 enabled: its failures are real advisory signals that self-heal when upstream
 bumps the affected dependency.
 
