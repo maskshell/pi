@@ -1637,7 +1637,8 @@ validation and copies the v2 kernel added around Delta.
   purpose of this slice"):** `StoreStorage` declares conversations, entries, tasks, submissions and `record_ids` as
   `defineTable`s, writes them with `put` (Durable replaces complete records), and reads them with the store's queries;
   the outbox, export, import, the applier and later `evolveTable` versions handle them as every table. The partial
-  head index becomes an index on `(conversation_id, has_head, id)`; indexed strings that must stay lossless keep
+  head index becomes a table `entry_heads` (one row per entry with a head; build, 2026-10-27, faster than an index on
+  `(conversation_id, has_head, id)`); indexed strings that must stay lossless keep
   Durable's JSON encoding.
 - **Slice 6b D3: one id counter per store (owner, 2026-10-27: "a"):** the store's counter (`next_document_id`, renamed
   `next_id`; the archive manifest's `nextDocumentId` becomes `nextId`) numbers every id in the store: Durable's
@@ -1697,6 +1698,96 @@ validation and copies the v2 kernel added around Delta.
   context)`); the harness object (`Harness.open` over `StoreStorage`, `resume()` after the start barrier, the models,
   environments and extensions registries) is p3's base code, shown in Chord only as an example or test. Plan: Chord v2
   (6b, 7, 8, 9) this week, p3's design next week.
+- **Slice 6b R1: retirement per record by `history` (owner, 2026-10-27: "sgtm"; spec review, all four reviewers
+  found that Durable keeps retired records):** the engine's `history` gets three values, set by the adapter at
+  creation and applied at retirement: `none` (Chord's documents and job records: older revisions dropped at a new base,
+  row and revisions deleted at retirement, 6a's behaviour, until now called `latest`), `latest` (Durable's session, task
+  and latest conversation documents: older revisions dropped, the row kept with `retired_at` at retirement, so reads at
+  a point find it), `rewindable` (everything kept). `retireDocument` reads the record's `history`; no flag, archives
+  and replicas carry it. Rejected: keeping every retired record (one rule, but a dead row per finished job run, two
+  with its state, and per retired keyed document, that Chord never reads).
+- **Slice 6b R2: no host kind in store names (owner, 2026-10-27: "what use is host in table names anyways? seems
+  stupid. no host"; supersedes the host-kind part of W7, "Restricted names" and "Slice 6a's three code questions" (3)):**
+  tables are `"<object type>:<table>"` (`"notes.store:edits"`, `"pi.durable:entries"`), document owners
+  `"<object type>"`; a store belongs to one host (rule 7), so the host kind told nothing, and `StoreStorage` and stores
+  used before or without a host get the same names. W7's rule stays: no host instance in a name. Changed in 6a's code
+  in 6b; the applier checks two parts.
+- **Slice 6b: owner names and claims, no `pi.durable` (owner, 2026-10-27: "seems reasonable"; supersedes D2's and D5's
+  `pi.durable` type name and D5's "one `StoreStorage` per store" rule):** every table and document in the store belongs
+  to an owner name, claimed once per store. A `local` object with empty params (P3) claims its type when it first
+  declares persisted data (`self.table`, persisted `self.state`, persisted `self.job`); `StoreStorage.open(store, owner,
+  ctx)` claims `owner`; a second claim of a name is refused (`invalid/args`): a second harness, or a plugin type that
+  meets the harness's name. `StoreStorage` declares its own tables (`entries`, `tasks`, …) through the store, the path
+  `self.table` takes, named `"<owner>:<table>"`, and writes its documents under `owner` in the engine's namespaces
+  (Durable's scopes; corrected 2026-10-27, it was "`durable`"). In p3 the harness object passes its own type (`StoreStorage.open(store, Harness.name, ctx)`; base code gives
+  the store to the core facet); Durable's conformance suite passes a test name. The owner name plays the role of
+  `SqliteStorage`'s `prefix`, checked by the store. Objects never see the store: their API writes to the host's store
+  under their type; a host without a store fails an object declaring persisted data (`broken`, 6a). Rejected: an owner
+  handle (`self.storage`), an indirection that only added protection against trusted code.
+- **Slice 6b R3: a seal is a clean stop for persisted runs (owner, 2026-10-27: "a"):** a persisted run cut off by
+  its attempt's seal while the object continues (a live failure, then a retry) is written back stopped, and the next
+  live attempt resumes it per its `resume` (rerun or abandon) without counting a restart, as after a clean close (D6).
+  In-memory runs keep 6a's rule (`failed { aborted, reason: "restart" }`, finished on the next live attempt).
+- **Slice 6b R4: a follow source's end (owner, 2026-10-27: "yes"):** Durable ends an observer `failed` (its Session
+  failed: the object that opened Durable fails `transient`, its retry reopens its natives, Durable included, and attaches
+  again, as Durable's own recovery is to reopen from Storage) or `ended` (the observed owner ended normally, a task
+  document's task: final, the member keeps its last value, its watches end `ended`).
+- **Slice 6b: claims per table and per document namespace (owner, 2026-10-27: "agree"; refines "owner names and
+  claims"; Fable's second review N2):** what can collide is claimed once per store: a table by its SQL name, documents by
+  `(owner, namespace)`; so the object that opens Durable can also declare its own persisted data under the same owner
+  name, and two harnesses can share a store under two owner names (owner: "seems like they could"); a second
+  `StoreStorage` on the same owner is refused by its tables. "One harness per store" is no rule, only how p3 uses it.
+- **Slice 8 D1: a registry's token is shared, its provider serves it (owner, 2026-10-27: "b", "yes"):** the token
+  `defineRegistry<C, V>(name, { version })` carries identity only (bundled by every contributor, as a contract); the
+  defining plugin's facet provides it with `host.serve(R, { compose, accepts? })`, as it serves object types. One rule
+  for versioned things: a shared definition (object types, registries) keeps its adapters with the provider; a
+  definition of one owner (documents, tables, `json(...)` columns, jobs) keeps them in itself. Refines Q8's "one
+  authoritative declaration" (the serve is it) and design §17's example.
+- **Slice 8: registry failures (owner, 2026-10-27: "ok", "agree"):** contributions never fail a registry: a
+  watchable contribution that fails is left out of the table and reported (`contribution_failed`), back once healed;
+  a throwing `compose` (the owner's bug) is reported (`registry_failed`), its watches get a `failed` call, and `.value`
+  keeps the last good composition (before any, it throws). Derives keep `.value` throwing while failed: state must match
+  its sources, an extension point must stay available.
+- **Slice 8 D2 and D3 (owner, 2026-10-27: "yes"):** D2: a `retryOn` source retries a failed object only on a `value`
+  call; a `failed` call does nothing. D3: `host.root<T>(fn, context, { principal? })` gives `fn` a handler's call
+  context (the host's principal or the given one, this host's incarnation, `context`'s telemetry and signal linked
+  until `fn` settles, `ctx.get`); at settle or abort the context is sealed (`ctx.get` rejects `released`, its references
+  released, their calls reject), so an uncooperative `fn` fails at its next use of Chord; before `load` its gets park;
+  after `host.close` it rejects `released`. `chord(fn, context)` is p3's helper. Closes design §26 #25.
+- **Slice 8 S1: a Session close fails Durable's observers (owner, 2026-10-27: "a"; spec review, all four reviewers):**
+  Durable ends an observer `failed` (error "session closed") when its Session closes, and `ended` only when the
+  observed owner ended (a task document's task); refines R4 (Durable change, upstream). So a follower of a harness
+  reached through a registry fails `transient` when that harness closes, and its retry follows the new one. A
+  `retryOn` wake that arrives while the object activates is kept and retries it at once if that attempt fails.
+- **Slice 8 S2: registry readers of an older version (owner, 2026-10-27: "a"):** as contract state, the provider maps
+  back: `host.serve(R, { compose, accepts: { [old]: { contribution?: (old) => current, value?: (current) => old } } })`;
+  a reader bundling an older token gets the composed value mapped to its version (computed once per composition and
+  version, only while such a reader exists); without a `value` mapping, or for a reader newer than the provider, its
+  value is failed `contract_mismatch` (reported).
+- **Slice 8 S3: `self.registry` is a dependency, as `self.get` (owner, 2026-10-27: "isn't self.registry meant to wait
+  like self.get?"; my spec had it as a plain read, a mistake against design §6, §7 and §17):** activation waits until
+  the registry has a value (served and composed once; an empty table composes too, at the serve), bounded by
+  `readyTimeout`; without one in time the object fails `transient` (`unavailable/undeclared`) and is retried when the
+  registry gets its first value (R18); once live, a later failure of the registry changes nothing (last good value).
+- **Design audit of slices 1-6a (owner, 2026-10-27; `/tmp/design-audit-{opus,sol}.md`):** the built code follows the
+  design except for five bugs, fixed after 6b's commit with the auditors' reproductions as tests: on a failed
+  activation references are released after the natives closed (§6, §13); a dependency going live while the dependent
+  activates retries it (R18, the wake remembered); a call on a `local` object runs with the host's incarnation (§4); a
+  retirement of an unloaded document checks its stored version and fingerprint (§9, R15); `ref.retry()` holds a refused
+  hold again with a new id. Two choices: (6, "a") a link drop while a remote dependency is still loading leaves the
+  dependent `loading` until `readyTimeout` (§6; supersedes slice-3b race 18's transient failure); (7, "a") `host.hold`
+  and `host.get` check params at once, also before `load`; "fails once `load` resolved" stays only for a local type
+  not served here (§7). Stale design text updated: `mapShared` per array, job runs keeping a failed object alive only
+  while an attempt is live or activating, `ctx.state.change(fn, ctx)`, revocation closes child links, routes take a
+  context, §22's `revoke`/`chain`/`limit`, native watches collapsing only past 100 pending values.
+- **Slice 6b: numbers accepted (owner, 2026-10-27: "yeah the reopen times are ok"; "i accept the 12%": resuming a
+  conversation watch 20 entries back costs about 12% more CPU on `StoreStorage`, once per reconnect, about 0.1 ms per
+  mount, from the extra promise per read in the fork scan):** reopening a store with
+  `StoreStorage` costs about 0.15 ms more than `SqliteStorage` once per open (0.28 to 0.43 ms: six table declarations,
+  the allocator read, compiling the reads); the one-entry commit's mean is raised by one outlier among 20 samples while
+  its p75 is equal or lower. Neither is a hot path or a steady regression. Accepted by the redesign session in fix
+  round 1 and shown to the owner (not his quote): `StoreStorage.close` waits for its commits only (its reads go straight
+  to the store, which stays open).
 - **The performance and memory bar, and converging reviews (owner, 2026-10-27: "yes"):** supersedes "as good as
   HEAD in everything" for Chord v2 slices and pi changes. CPU: each hot path (calls, changes, watches, links) within
   about 5% of HEAD, measured in bursts with alternating processes pinned to one CPU; worse is fixed or goes to the

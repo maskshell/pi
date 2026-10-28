@@ -27,7 +27,7 @@ slice spec's section citations are for orientation, not a reading limit (owner, 
 
 - **L1** (`src/next/contracts`, `src/next/data`): contracts, params and identity, argument checks, principal keys,
   errors. `index.ts` for apps, `internal.ts` for Chord's own code.
-- **Slices 1, 2, 3a, 3b, 4a, 4b, 5, 6a** (committed; 5 `4a5b45c45`, 6a 2026-10-27): `src/next/documents`, `state`, `host`, `jobs`, `link`,
+- **Slices 1, 2, 3a, 3b, 4a, 4b, 5, 6a, 6b** (committed; 5 `4a5b45c45`, 6a and 6b 2026-10-27/28): `src/next/documents`, `state`, `host`, `jobs`, `link`,
   `remote`, `store`; examples 01-25; benchmarks in `benchmarks.md`.
 - **Chord's shared code** (upstream pi): `src/watch.ts` (`Watch`, `NativeWatch`, `WatchHandle`, `WatchEnd`,
   `NativeWatchable`), Delta (`track`, `diffRevisions`, `applyImmutable`, encoders, `PendingOps`, `appendText`),
@@ -49,7 +49,7 @@ Order (owner, 2026-10-22: routines and jobs before the store and reload).
 | 6a | **The store** | the store (backends, tables, queries, writes, commit queue, outbox, documents engine, migrations, export), persisted documents, `self.table`, keyed watches and retirement |
 | 6b | **Durable and jobs on the store** | persisted jobs, Durable's `StoreStorage`, the Chord source over Durable's views (`self.follow`) |
 | 7 | **Reload and rollout** | plugin loading, staging, swaps and restarts, revisions, `accepts` in use |
-| 8 | **Registries and `host.root`** | registries, `self.writable`, `retryOn`, a `RegistryReader` for Durable, `host.root` and `chord(fn, context)` (the harness object is p3's base code) |
+| 8 | **Registries and `host.root`** | registries, `self.writable`, `retryOn`, a `RegistryReader` for Durable, `host.root` (`chord(fn, context)` and the harness object are p3's base code) |
 | 9 | **Telemetry** | spans, events, metrics across hosts |
 
 The playground (`apps/chord-playground`) moves to the new code once slice 4 exists. Round-3 cuts (C3-C16) and
@@ -161,28 +161,6 @@ deleted (the slice's spec and code are the record). Moved here from `carry-over.
 - **`map(bytes())` is refused at declaration** ("unsupported keyword `~refine`"): TypeBox's `Record` copies the bytes
   schema's check as an enumerable key, which the snapshot walk refuses. An L1 bug found in slice 3a, not fixed yet.
 
-### Slice 6b: Durable and jobs on the store (from slice 5 and L3a-d)
-
-- **Persisted jobs** (from slice 5): `persist: { resume: "rerun" | "abandon" }` built (record and state document in
-  the owner's store; only in `local` objects with empty params, P3, enforced at declaration); outcomes and abort
-  requests persisted (a recorded outcome resumes only `finish`); the restart limit (five crash interruptions,
-  persisted, clean closes not counted; whether a state change resets the count; what a clean close records); deferred
-  persistence for state documents (flushed before the outcome is recorded); the `finish` failure count persisted; the
-  job fingerprint stored with every record; the run's start trace carrier (§29).
-- **`StoreStorage`**: Durable's `Storage` on the store, passing Durable's storage conformance suite (memory and across
-  reopen); ids from a `record_ids` table (S10, W13); fork copies resolved before the step (S11); Durable's `adopt` run
-  inside the host's batch.
-- **`self.follow`** (was `durableView`, decision "Slice 6b D9"): a Chord source over Durable's synchronous observers (`observeConversation`, `observeTaskGraph`,
-  `observeDoc`; decision "Durable's synchronous observers"), marked inside Chord's batch in the store and grouped into
-  one batch per Durable commit on the next microtask outside it; `self.follow` (working name) and the Durable harness
-  carried in a registry entry. The task graph's `blocked` refresh arrives outside any commit.
-- **The applier for batch apply** (slice 6a builder, 2026-10-27): 6a's applier (`store/applier.ts`) applies the
-  writes an archive holds (`table`, `put`, `index`, `document.create`), checked against the store's records; the
-  replica's batch apply extends it to every `StoreWrite` kind (`alter`, `dropIndex`, `update`/`updateWhere` with their
-  recorded counts and `v`, `delete`/`deleteWhere`, `document.change`, `document.retire`), one code path with import.
-- Not carry-over any more: Durable's synchronous view-change hook is the upstream "Durable observers" change
-  (publication at adoption, `observeXXX`), which lands before 6a.
-
 ### Slice 7: reload and rollout
 
 - **A native restart drains first** (owner, 2026-10-26): park new calls, await running calls (bounded by
@@ -194,6 +172,9 @@ deleted (the slice's spec and code are the record). Moved here from `carry-over.
   per routine invocation; holds unsubscribed at seal and re-bound by member name; keyed members' versions mapped per
   key; in-memory `migrate` wired to reload (6a builds the slot version check and the migrate); `rebuild` (key and
   column-type changes) if a case needs it.
+- **From slice 6b:** a persisted run of another job version or fingerprint stays `blocked { version }` with its record
+  as stored (resolve it on reload); blocked persisted runs are retried on reload; runs of jobs the code no longer
+  declares (below).
 - **A run whose job the new code no longer declares** (slice 6a builder, 2026-10-27): 6a keeps it in its phase,
   waiting, not invoked (unreachable without reload); slice 7 decides `blocked` with a reason (design §15's
   `blocked { version }` family).
@@ -233,18 +214,16 @@ deleted (the slice's spec and code are the record). Moved here from `carry-over.
 
 ### Slice 8: registries and `host.root`
 
-- **`host.root(fn, context, { principal? })`**: a call scope for code outside objects, built with its first users
-  (Durable hooks, `chord(fn, context)`); decide what an aborted, uncooperative `fn` means for its references (match
-  the handler and `CallContext` rules). (Slice 3b, owner.)
-- **`retryOn`** retries a broken object as `ref.retry()` does. (Slice 2.)
-- **`host.activity` on the facet's host** (`FacetHost`), if the harness or a core facet needs it; today only
-  `references` is there. (Slice 4b.)
-- Registries recompose inside the owner's flush, never inside another owner's commit step; changing contributions are
-  native watchables (`self.writable`). (W4.)
+- **Durable's views from other objects** (from slice 6b): the harness carried in a registry entry, so an object other
+  than the one that opened Durable can `self.follow` its views.
+
+- Specified in `slice-8.md` (decided 2026-10-27): `host.root` (D3), `retryOn` (D2), registries recomposing in the
+  owner's flush (W4); `host.activity` on the facet's host dropped (nothing needs it).
 
 ### Slice 9: telemetry
 
 - Spans for routine calls and job runs (from slice 5).
+- The use of a persisted run's stored start trace carrier (`trace`, stored since slice 6b).
 
 - Round-3 cut to decide: C11 (`ctx.trace`).
 
