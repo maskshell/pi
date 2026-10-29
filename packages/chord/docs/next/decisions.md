@@ -1763,12 +1763,23 @@ validation and copies the v2 kernel added around Delta.
   back: `host.serve(R, { compose, accepts: { [old]: { contribution?: (old) => current, value?: (current) => old } } })`;
   a reader bundling an older token gets the composed value mapped to its version (computed once per composition and
   version, only while such a reader exists); without a `value` mapping, or for a reader newer than the provider, its
-  value is failed `contract_mismatch` (reported).
+  value is failed `contract_mismatch` (reported); such a reader fails `broken`, not `transient` (nothing heals it before
+  a reload, which retries broken objects; build review 2026-10-27).
 - **Slice 8 S3: `self.registry` is a dependency, as `self.get` (owner, 2026-10-27: "isn't self.registry meant to wait
   like self.get?"; my spec had it as a plain read, a mistake against design §6, §7 and §17):** activation waits until
-  the registry has a value (served and composed once; an empty table composes too, at the serve), bounded by
-  `readyTimeout`; without one in time the object fails `transient` (`unavailable/undeclared`) and is retried when the
-  registry gets its first value (R18); once live, a later failure of the registry changes nothing (last good value).
+  the registry has a value (served and composed once; an empty table composes too, at the serve); after `load`'s
+  setups a registry without a value cannot get one before a reload, so a reader then fails at once `transient`
+  (`unavailable/undeclared`) and is retried when the registry gets its first value (R18), as `self.get` of a type not
+  served here fails at once (refined 2026-10-27 after the second spec review: no `readyTimeout` wait at start); once live, a later failure of the registry changes nothing (last good value).
+- **No client providers for now (owner, 2026-10-28: "yeah, no client providers for now"; reviews
+  `/tmp/barrier-{astra,fable,opus,sol}.md`):** clients stay unaddressable and serve only `local` types (design §3).
+  Client-side capabilities (a phone's camera, clipboard, a page's WebMCP tools) go through an owner's state, as the
+  Questions service: a tool asks an owner store (`request`, `wait`), clients watching its open requests carry them out
+  and answer with a method call (the answer is method arguments, checked against the owner's schema; bytes as `bytes()`
+  leaves, chunked if large); a client may advertise the tools it can run to such a store, tied to its presence. Why:
+  a client as a provider would feed untrusted results, state and ops into server and worker objects (consumers never
+  validate them), needs client addresses, routing down through relays and a principal for clients; the owner pattern
+  needs nothing new in Chord and survives link drops and several devices by the owner's rule.
 - **Design audit of slices 1-6a (owner, 2026-10-27; `/tmp/design-audit-{opus,sol}.md`):** the built code follows the
   design except for five bugs, fixed after 6b's commit with the auditors' reproductions as tests: on a failed
   activation references are released after the natives closed (§6, §13); a dependency going live while the dependent
