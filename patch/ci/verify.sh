@@ -14,8 +14,12 @@ PKG="$ROOT/packages/coding-agent"
 # hydrate-model-data.sh). Unconditional because `npm run build` regenerates
 # live data, so a previous verify run leaves the catalog drifted. Best-effort
 # by design: a failed hydration lets the gates report the real regression.
-bash "$(dirname "$0")/hydrate-model-data.sh" "$ROOT" || \
-	echo ">> WARN: model data hydration failed; npm-check/suites import the generated catalog" >&2
+hydrate() {
+	bash "$(dirname "$0")/hydrate-model-data.sh" "$ROOT" || \
+		echo ">> WARN: model data hydration failed; npm-check/suites import the generated catalog" >&2
+}
+
+hydrate
 
 run_gate() {
 	local name="$1"; shift
@@ -31,11 +35,16 @@ run_gate() {
 rm -f "$ROOT/gate-results.txt"
 
 run_gate npm-check bash -c "cd '$ROOT' && npm run check" || FAILED=1
+# Build before the suites: they import workspace packages whose entry points
+# resolve through dist/, so a fresh worktree (L1 left no build output) fails
+# to resolve them. Re-hydrate afterwards because the build regenerates the
+# gitignored provider catalog from live data.
+run_gate build bash -c "cd '$ROOT' && npm run build" || FAILED=1
+hydrate
 run_gate suites bash -c "cd '$PKG' && node '$ROOT/node_modules/vitest/dist/cli.js' --run \
 	test/skills.test.ts test/prompt-templates.test.ts \
 	test/resource-loader.test.ts test/package-manager.test.ts \
 	test/version-check.test.ts" || FAILED=1
-run_gate build bash -c "cd '$ROOT' && npm run build" || FAILED=1
 run_gate lockfiles-public bash -c "! grep -rE '\"resolved\": \"https://(?!registry\\.npmjs\\.org)' \
 	'$ROOT/package-lock.json' '$ROOT/packages/coding-agent/npm-shrinkwrap.json' \
 	'$ROOT/packages/coding-agent/install-lock/package-lock.json' 2>/dev/null" || FAILED=1

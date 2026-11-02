@@ -6,6 +6,7 @@ export interface PiManifest {
 	skills?: string[];
 	prompts?: string[];
 	themes?: string[];
+	changelogPath?: string;
 	/** Opt-in namespace applied to name-keyed resources loaded from this package. */
 	namespace?: string;
 }
@@ -33,6 +34,12 @@ export function readPiManifest(packageJsonPath: string): PiManifest | null {
 				manifest[field] = entries;
 			}
 		}
+
+		const changelogPath = pkg.pi.changelogPath;
+		if (typeof changelogPath === "string") {
+			manifest.changelogPath = changelogPath;
+		}
+
 		if (typeof pkg.pi.namespace === "string") {
 			manifest.namespace = pkg.pi.namespace;
 		}
