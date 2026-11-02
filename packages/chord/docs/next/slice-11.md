@@ -72,14 +72,29 @@ releases, presence is the app's. No components, no styling.
 
 - **Launcher** (trusted, a Node process): `startTerminal({ url, token | tokenFile, pairing?, ... })` connects (a token
   from the owner token file, slice 13, or device pairing), downloads the base bundle and the TUI kind's plugin scripts
-  over HTTP, and starts the **sandbox**: a worker thread with dropped permissions (Node's permission model: no file
-  system, no child processes, no network except the bridge; p2's `tui-sandbox.ts`), always (P8), whose runtime gets a
+  over HTTP, and starts the **sandbox**: a child process on pipes (decision "The terminal's sandbox is a child
+  process", replacing p2's worker thread: empty environment, Node's permission model granting nothing, no SQLite; no
+  terminal, file system, child processes or network except the bridge), always (P8), whose runtime gets a
   bridge terminal (input events in, frames out), the Chord link (messages relayed by the launcher) and the evaluated
   scripts. The launcher keeps credentials, the real terminal and local preferences, and exposes a small set of actions
   to the sandbox (clipboard, open URL), each confirmed by the launcher's own UI when it touches the machine.
 - **Runtime** (inside the sandbox, in the base bundle): a client host like the page's, the same connection loop over
   the bridged link, in-place reloads through a `TuiScripts` object as the web.
 - **`TuiScope`** (P9): `new TuiScope(host, changed)` with `hold`, `watch`, `registry`, `dispose`; no pi-tui dependency.
+
+## 4b. Looks and themes (decision "Looks and themes", `docs/next/theming/`)
+
+- The kit ships `Themes` (`defineRegistry<Theme, readonly Theme[]>`, in the shared module the kit's apps re-export),
+  `Theme = { id, name, mode: "dark" | "light", colors: { accent, bg, fg, muted, error, warning, success, ...app roles },
+  web?, tui? }`, and a `themes` preference per user (`{ dark, light }` theme ids) stored by the kit's users plugin or a
+  local object for single-user apps.
+- Web: `startPage` watches `Themes` and the preference with `prefers-color-scheme`, and writes the active theme as CSS
+  variables on `:root` (`--accent`, ..., plus `web` extras), with no reload; the base bundle's stylesheet is the app's.
+- TUI: `TuiScope`'s host gets a `theme` lookup by role (true colour, else the nearest of 256 colours, `tui` overrides
+  first).
+- CSS modules (`*.module.css`) work in plugin builds (esbuild's local-css loader); documented in `plugin-authoring.md`.
+- Version 1 of `Themes`; a later role is added by a version bump mapping old entries (missing roles from the default
+  theme).
 
 ## 5. In the app kit
 
@@ -96,4 +111,4 @@ their facets. Without, an app has no web or TUI surface (an API-only app).
   TUI: the sandbox cannot read a file or spawn a process (a test plugin that tries), the bridge, an in-place reload,
   `TuiScope` disposal; pairing a TUI client against a kit app.
 - Examples: `56-web` (a kit app with a page, two web plugins, an edit applied in place), `57-tui` (a kit app with a
-  TUI client, sandboxed).
+  TUI client, sandboxed), `58-themes` (a theme plugin restyling a page and a TUI live).

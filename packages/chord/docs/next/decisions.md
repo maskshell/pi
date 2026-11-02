@@ -2299,7 +2299,8 @@ validation and copies the v2 kernel added around Delta.
   `useHold(Type, params)`, `useWatch(watchable)`, `useRegistry(R)`, `useRefState(ref)`; releasing holds on unmount,
   and a component unmounted by a reload never counts as leaving (design §21). No components, no styling; non-React apps
   never load it.
-- **Slice 11, P8: the terminal client always runs sandboxed (owner, 2026-11-01: "the terminal should always use the
+- **Slice 11, P8: the terminal client always runs sandboxed (**superseded in part** by "The terminal's sandbox is a
+  child process", 2026-11-02: no longer a worker thread) (owner, 2026-11-01: "the terminal should always use the
   sandbox approach"):** `chord/next/tui` is a Node client host that connects with a token (decision "The app kit, point
   3", (c)), downloads the base bundle and the TUI plugin scripts from the server and runs the app's TUI entry, always
   inside p2's sandbox: a permission-dropped worker thread with a bridge terminal, the trusted launcher outside it
@@ -2309,6 +2310,102 @@ validation and copies the v2 kernel added around Delta.
   `watch` and `registry`, releasing everything on dispose, calling one `changed` callback the app wires to its redraw
   (one line with pi-tui; any library works). p2's retry with backoff for gone references is not carried over (v2
   references wait and rebind by themselves). No pi-tui dependency.
+- **`chord.plugins` is a package's manifest of plugins, as pi's (owner, 2026-11-01: "yes"; slice 12 review, Opus H1;
+  refines "The plugin model ... imports and builds" (Imports) and `slice-12.md` §2, §5):** a package (npm, git, local)
+  declares the plugins it provides in its `package.json`, `"chord": { "plugins": ["./notes", "./search"] }` (globs and
+  exclusions as pi's `pi.extensions`); installing it picks up exactly those folders. Without the field discovery is
+  conventional: the package is one plugin when its top has facet files, else its subfolders with a `package.json`.
+  Depending on a plugin inside a multi-plugin repository is an ordinary dependency on the whole repository (npm version
+  or `github:bob/plugins#<commit>`, installed by plain npm), imported by path into it (`@bob/plugins/notes/contract.ts`)
+  or through its `exports`. Removed: the dependency form of `chord.plugins` (`"name": "github:...#ref:subfolder"`) and
+  its own clone-and-link installer (it could delete outside `node_modules`).
+- **Looks and themes (owner, 2026-11-02: "i suppose", then "do all the things"; proposal `docs/next/theming/`):**
+  shared components come from the app's per-kind API modules (one instance in the base bundle); looks are design
+  tokens, CSS custom properties on `:root` on the web, which the app's components and plugins' CSS read; plugins scope
+  their CSS with CSS modules (`*.module.css`); the terminal gets the app's components and a theme lookup by role. A
+  theme is data in one registry, `Themes`, shipped by the kit in its shared module with the code that writes the active
+  theme as CSS variables (web) and the lookup (TUI): a base set of roles the kit defines (accent, bg, fg, muted, error,
+  warning, success), apps may add roles; a user picks one dark and one light theme, the system preference chooses;
+  `web` extras may name fonts and assets of the plugin under the page's CSP. Plugins contribute themes; they cannot
+  change the app's base CSS or components. The open questions' recommendations taken.
+- **p3 meeting, 2026-11-02 (Mario and Armin; Armin's summary, relayed by the owner):** session sync: the session
+  repository talks to the server process to enumerate sessions; the session index in the server is updated by the
+  worker from events and sent to the server by RPC. Sync to R2 goes through Radius: Radius keys each session by id and
+  keeps its last sequence number, tells pi which sessions it has with their last sequence numbers (optimization: time
+  of last sync), and pi sends the delta commit log from that sequence number; R2 stores the SQLite file and the commit
+  log (SQLite DO to R2); sessions have an owner id. The index is a Chord table replicated like sessions; its entry is
+  updated only on a session metadata change, a session idle-state change and a subagent idle-state change. p3: each
+  host (server, worker, tui, web) has a kernel loading the plugins with contribution points via registries; p2's look
+  and feel made great; new session storage; hands (machine daemons) good, secure and connecting proactively.
+- **App kit naming and export (owner, 2026-11-02: "startApp > startServer?", "am i exporting an address? i'm exporting
+  the store a host created", "export should stop nothing before the export, it slots into the commit queue"; refines
+  slice 13):** `startApp` is `startServer` (the pair `startServer`/`startWorker`; an app always has one server).
+  `exportAddress`/`importAddress` are `exportData(address, path)`/`importData(path, address)`: the data a host created
+  (its store and files directory). Export stops nothing: a running worker exports its own store (`store.export()` holds
+  the commit queue while it reads, so the archive is one consistent point) and its finished files to the given path,
+  asked through a kit object on the worker; with no worker running, the server takes the worker's process lock (no
+  worker can start meanwhile) and reads the store itself. Import still takes the lock and refuses an address whose
+  directory exists (nothing is overwritten; replacing a session is delete, then import; a copy is an import under a new
+  address); registering the imported host in the app's index is the app's.
+- **p3 notes, 2026-11-02 (owner):** subagents may start with the main agent's context: `context: "inherit"` forks the
+  parent conversation (Durable's `conversation.fork`) at the last entry before the assistant message with the spawning
+  call; model, tools and location may differ; the tool's description names the cost (prompt cache only with the same
+  model). pi's `/tree` (in-session branches) is wanted for p3: proposed as forks inside the session's store (edit an
+  earlier message to fork, a branch list to switch; a full navigator and branch summaries later).
+- **Sync applies batches with the host stopped (owner, 2026-11-02: "sure"; sync example `60-session-sync`):**
+  `applyBatch` refuses while a host holds claims on the store; the sync layer stops the session's worker, applies,
+  restarts it. Usually nothing runs: Radius receiving uploads runs no host for a session it does not drive, and taking
+  a session back pulls before its worker starts. A live view of a replica (watching a session continue elsewhere) is a
+  later refinement: fewer pulls while watched, or a read-only view without the worker.
+- **The terminal's sandbox is a child process (owner, 2026-11-02: "yes"; refines "Slice 11, P8"; slice 11 recheck,
+  Opus E1, E2):** the hardened worker thread was escaped twice in one review round, because downloaded code shares
+  one JavaScript realm with Node's internals: E1 replaced `Set.prototype.has`, which the `require` allowlist used, and
+  `require("tty")` wrote raw to the terminal; E2 patched `EventEmitter.prototype.emit` and caught Node's real
+  `process` when Node emitted a warning on it (environment, `kill`, every builtin). Each fix closes one road and the
+  next reachable internal is another. So the sandbox is a child process of the launcher's Node binary: stdin, stdout
+  and stderr are pipes to the launcher (no descriptor is the terminal), its environment empty (only
+  `LD_LIBRARY_PATH` copied when the launcher has one: needed to run the same binary, set by the user), its directory
+  a private empty one, `--permission` with nothing granted (no file system, network, child processes, workers,
+  addons, inspector, WASI), `--no-experimental-sqlite` (SQLite opens files past the permission model, Node gist
+  https://gist.github.com/badlogic/a83cd80d0669dbcf77e029ac7b25ac96). Messages are length-prefixed binary frames on
+  the pipes, not Node's IPC. The JavaScript layer stays as a second barrier (evaluation only through the bootstrap,
+  the builtin allowlist, a frozen substitute `process`); the V8 code-generation toggle goes (the bridge evaluates
+  strings anyway). Known gaps, accepted until Node closes them: the child can signal the user's processes
+  (`process.kill`) and allocate memory outside its heap. Cost: one more Node process per terminal session (measured
+  by the build against the worker). Back to a worker only if Node ships per-worker permissions.
+- **Messages and languages in the app kit (owner, 2026-11-03: "i18n proposal is a go"; proposal `docs/next/i18n/`):**
+  text people read is translated per viewer, never per server. (1) **Messages in code, per plugin:**
+  `defineMessages(namespace, { en: {...}, de: {...} })` in the app's shared API returns a typed `t`; the first catalog
+  defines the keys and argument types, every other catalog must match them (a missing key or a wrong argument is a
+  type error); values may be functions (plurals, parameters in each language's order); dates and numbers through
+  `Intl` helpers (`formatTime`, `formatNumber`) in the viewer's locale. Named keys (`newNote`), the English catalog the
+  source of truth. A plugin keeps its messages in one shared file (`messages.ts`) every facet that renders imports.
+  (2) **Languages are contributions:** a `Translations` registry (`{ namespace, locale, messages, override? }`) in the
+  shared API; `MessagesOf<typeof t>` types a translation; a missing key falls back to the locale's base (`pt-BR` to
+  `pt`), then to the first catalog, key by key, reported once; two contributions for one namespace and locale: the first
+  by plugin name wins, the other reported; a plugin's own catalogs are its built-in contributions, `override: true`
+  replaces one. Contributions are per host, so a translation plugin keeps its catalogs in a shared file and contributes
+  them from each facet that renders (web, tui; server and worker facets only when they render final text, an email or
+  a push notification). Catalogs never cross links (they hold functions). (3) **The locale is a user preference**
+  (kept per principal like the theme choice), defaulting to the browser's `navigator.languages` or the system locale
+  in the terminal, matched against the locales the catalogs offer; switching re-renders live (`useMessages(t)` on the
+  web, the scope's redraw in the terminal), nothing reloads; the kit sets `lang` and `dir` on the page's root
+  (right-to-left through logical CSS properties, the app's components). (4) **Servers and workers send keys, not
+  text:** `t.message(key, ...args)` builds typed data `{ namespace, key, params }` (a `Message<"notes">`) for object
+  state, notices, tool summaries and errors shown to people (a code plus parameters); each client renders it with
+  `t.render` in its own language (checked at runtime across a link: an unknown key shows the key). Never translated:
+  the model's prompts and answers, log lines, error codes. No translator file format now; an export/import tool to JSON
+  when someone needs it. Built after slice 11 (carry-over "After slice 11").
+- **Chord v2 becomes the package's root (owner, 2026-11-03: "src/old", "subpaths", "yes", "yes", "no, chord is
+  wip"; for merging pi-private into pi this week; trial `/home/badlogic/chord-root-move/report.md`):** `src/next` is
+  the package's `src` (its main export), the Node parts `src/next-node` are `src/node` with short subpaths (`/http`,
+  `/workers`, `/plugins`, `/plugins/runtime`, `/app`, and slice 11's `/web`, `/web/server`, `/react`, `/tui`,
+  `/tui/launcher`), the shared foundations Durable and env use get their own subpaths (`/json`, `/watch`, next to
+  `/context`, `/delta`, `/sqlite`), `test/next` and `docs/next` move up (`test/`, `docs/`). Chord v1, which only p2
+  still runs on, moves to `src/old` (exported as `/old`, `/old/node`; its tests `test/old`, its docs `docs/old`), not
+  into p2 (its vitest tests and about 140 imports would need porting); it is deleted in the change that moves p2 to
+  v2. No version bump: Chord is work in progress. Done by a re-runnable script (move, import and link rewrites,
+  generated exports and aliases) on the base that includes slice 11; p2's imports updated in private.
 - **A plugin's npm dependencies are bundled; external only by opt-in (owner, 2026-10-29: "explicit opt in + (a)"):**
   a plugin's `dependencies` are installed into its own `node_modules` (`npm install --ignore-scripts`) and bundled into
   each facet that imports them (host packages, its `peerDependencies`, stay external and are passed in). On Node a

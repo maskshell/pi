@@ -1964,8 +1964,8 @@ type ReloadReport = {
   duplicate name). Dependencies between plugins resolve by contract name at runtime; names are prefixed
   (`<plugin>.<name>`; tools `<plugin>_<name>`). A plugin carries the contracts it was written against (decision "Contracts come from where the
   plugin's code came from"): plugins that change together import each other by relative path within a root
-  (copied into the importer's script); others take contracts as an npm dependency at a fixed version (slice 10 still
-  resolves imports by plugin name; the plugin slice changes it).
+  (copied into the importer's script); others take contracts as an npm dependency at a fixed version (built in slice 12,
+  which removed slice 10's imports by plugin name).
 - **Loader D:** one esbuild script per facet (its own files, copied files of other plugins, its npm `dependencies`
   inlined; host packages, `chord.external` packages and Node builtins external, passed in at evaluation); each facet kind is defined once, `kinds: { <kind>: { platform: "node" | "browser", hostPackages } }` (slice 11); evaluated with
   `vm.Script` under a stable filename per (plugin, kind, digest); no module map: old generations are reclaimed by the
@@ -1990,8 +1990,9 @@ rule underneath: a plugin carries what it was written against, never the running
   not a host package plugins may name; the API re-exports the Chord surface the app supports); its npm `dependencies`
   (bundled at the installed version); other plugins' contract files: by relative path within one repository
   (`../notes/contract.ts`, the same commit holds both sides), by package name across repositories (`@bob/notes`,
-  `@bob/notes/web`, pinned by an npm version or a git ref `github:bob/notes#<commit>`; a subfolder of a multi-plugin
-  repository is cloned and linked by the plugins component). One facet imports one API version only.
+  `@bob/notes/web`, pinned by an npm version or a git ref `github:bob/notes#<commit>`; a plugin inside a
+  multi-plugin repository through a dependency on the whole repository, by path into it or its `exports`). A package
+  lists the plugins it provides in `chord.plugins` (as pi's manifest). One facet imports one API version only.
 - **Versions:** the app lists the API versions it provides; an unlisted one is a build error naming the available ones.
   The process runs one Chord: an older API version is a layer over today's, re-exporting Chord's compatibility module
   for its previous API while Chord keeps one; contracts bind through `accepts` whatever Chord runs.
@@ -2271,11 +2272,11 @@ fails closed when stale; a start waits for a draining old holder without polling
 
 ### The app kit (`chord/next/app`; slice 13)
 
-Decisions "The app kit, point 1" to "point 5". `startApp(options)` on the server, `startWorker(options)` in a worker
+Decisions "The app kit, point 1" to "point 5". `startServer(options)` on the server, `startWorker(options)` in a worker
 entry. Opinionated and small: an app is its API, its built-in plugins and a start script.
 
 - **Shape:** the app's layout is fixed: `src/api/v<n>/` (shared and per-kind modules) and the built-in plugins root
-  `plugins/`. The data directory is a `startApp` option (no environment variables), default a dot directory named after
+  `plugins/`. The data directory is a `startServer` option (no environment variables), default a dot directory named after
   the app in the home directory. One server; worker kinds are a list the app defines, each a host kind with its own
   params (sharding is the app's) and how it starts (entry, start data, principal, idle time); zero kinds is a server
   with clients only.
@@ -2289,7 +2290,9 @@ entry. Opinionated and small: an app is its API, its built-in plugins and a star
 - **Storage:** one store for the server, a directory per worker under its kind and address with its store; plugins
   never use data-directory paths. A files plugin per address (`put`, chunked transfers, a watchable index, caps) is
   the default file storage; raw directories only where a real path is needed, owned by one object, under the worker's
-  directory. Export and import per address: the store's archive plus the worker's directory.
+  directory. Export and import the data a host created (`exportData`, `importData`): the store's archive plus its
+  files; export stops nothing (a running worker packs its own store; without one the server reads it under the
+  worker's lock), import refuses an address that has data (decision "App kit naming and export").
 - **Plugins:** the app's root (required) and the user's root in the data directory; installs from git or npm; one
   "apply changes" call builds and rolls out to the server, then every running worker, exposed by the app as it likes.
 
@@ -2304,9 +2307,26 @@ Decision "Slice 11's points" and "Slice 11, P3" to "P9".
   the page); pages learn of them through an object the web component serves (the current set); a base code change
   reloads the page.
 - `chord/next/react`: `HostProvider`, `useHold`, `useWatch`, `useRegistry`, `useRefState`.
-- `chord/next/tui`: a Node client connecting with a token, always running the downloaded code in a sandbox (a
-  permission-dropped worker thread, a bridge terminal, the trusted launcher outside); a component scope (`hold`,
+- `chord/next/tui`: a Node client connecting with a token, always running the downloaded code in a sandbox (decision
+  "The terminal's sandbox is a child process": a child process on pipes with an empty environment, `--permission`
+  granting nothing and no SQLite; the builtin allowlist and a frozen substitute `process` inside; a bridge terminal;
+  the trusted launcher outside, confirming copy, open and attach on its own prompt); a component scope (`hold`,
   `watch`, `registry`, released on dispose, one `changed` callback for the app's redraw), no pi-tui dependency.
+
+### Messages and languages (after slice 11)
+
+Decision "Messages and languages in the app kit". Text people read is rendered per viewer, never by a server.
+
+- **Messages in code:** `defineMessages(namespace, { en, de, ... })` per plugin, in a shared `messages.ts` every
+  rendering facet imports; typed `t(key, ...args)`, keys and signatures from the first catalog; functions for plurals
+  and word order; `formatTime`, `formatNumber` through `Intl` in the viewer's locale.
+- **Translations** registry (`{ namespace, locale, messages, override? }`), per host: a translation plugin contributes
+  its shared catalog file from each facet that renders. Fallback key by key: the locale's base, then the first catalog
+  (reported once); conflicts: the first by plugin name wins. Catalogs never cross links.
+- **The locale** is a per-principal preference (device default, live switch, `lang` and `dir` on the page).
+- **Messages as data:** `t.message(key, ...args)` gives `{ namespace, key, params }` for state, notices and errors;
+  each client renders it with `t.render` (checked at runtime across a link). Prompts, model output, logs and error
+  codes are never translated.
 
 ### Channels
 
