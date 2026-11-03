@@ -2416,9 +2416,28 @@ validation and copies the v2 kernel added around Delta.
   own SQLite files (catalog, shares, search, subagents) as natives (the rule against plugin databases is p3's); (6) p2's
   terminal uses Chord's child-process sandbox, exported upstream first; (7) `createHttp` for p2 later, optional; (8)
   Chord v1 (`src/old`) is deleted right after the switch; (9) p2's v1 plugin tutorial is retired for Chord's guide;
-  (10) the phone gets it after 1-2 days on slayer, about 10 minutes down, rollback by checkout; (11) a small shim
+  (10) the phone gets it once the switch is green on slayer (owner, later the same day: "no hours on slayer first";
+  was: after 1-2 days on slayer), about 10 minutes down, rollback by checkout; (11) a small shim
   reloads pages left open across the deploy, removed with v1. Server, workers, the terminal bundle and the web bundle
   switch in one deploy (v1 and v2 links do not talk); prep and cleanup steps deploy on their own.
+- **Mistakes that wait are reported at once (owner, 2026-11-03: "yes"; p2 port footguns 1, 2, 9,
+  `/home/badlogic/p2-port/chord-footguns.md`):** requests keep waiting for providers (slice 7a), but a mistake no
+  longer looks like slowness. (a) `get`, `hold` and `registry` on a host that has not loaded throw at once ("call
+  `host.load` first"; a client host with nothing to load calls `load([])`). (b) When a load or reload publishes, a
+  registry with contributions and no provider is reported through `onError` at once, naming the registry and its
+  contributors. (c) A request waiting unbound (`not_served`, `waiting`) is reported once through `onError` after 5 s,
+  naming what it waits for; it keeps waiting until its `readyTimeout` as before. (d) An invalid plugin name is a
+  programming error: `load` and `reload` throw instead of listing it in the report's `failed`. (e) (owner, 2026-11-03:
+  "add report"; p2 port footgun 10) Work a seal cancels before it ran (a document change or transaction waiting on its
+  object's line, started with a root's, handler's or attempt's context that ended first) is also reported through
+  `onError`, naming the object and the scope, besides rejecting: an empty `catch` cannot hide a change that never
+  happened. The rule itself stays: what is started with a context ends with it; await it.
+- **No limit on calls in progress per link; references in a method act as the caller (owner, 2026-11-03: "i guess
+  it's fine without, guess we document it"; p2 port footguns 7, 11):** v1's `maxCalls` per link has no counterpart and
+  gets none (the call window N bounds calls per origin; part limits bound sizes); documented. `ctx.get` in a method
+  acts as the method's caller (decision of slice 4a, unchanged): a server object acting as itself towards a worker
+  takes the reference with `self.get` in its own object or a server root; documented with p2's `Search.rebuildIndex`
+  example in the guide and the porting notes.
 - **A plugin's npm dependencies are bundled; external only by opt-in (owner, 2026-10-29: "explicit opt in + (a)"):**
   a plugin's `dependencies` are installed into its own `node_modules` (`npm install --ignore-scripts`) and bundled into
   each facet that imports them (host packages, its `peerDependencies`, stay external and are passed in). On Node a
