@@ -1,7 +1,6 @@
 # Chord v2: target design
 
-The design of Chord v2 (`packages/chord/src`, the package's root export `@earendil-works/chord`; Chord v1 is kept in
-`src/old`) and of how apps (the playground, p3) use it: **the one current statement of every rule** (owner,
+The design of Chord v2 (`packages/chord/src`, the package's root export `@earendil-works/chord`) and of how apps (the playground, p3) use it: **the one current statement of every rule** (owner,
 2026-10-24). Every decision is recorded in the decision log `packages/chord/docs/decisions.md` (the history and the
 reasons, kept complete) and folded into this document in the same commit. Where a rule is built, the slice is named
 (`slices.md`); the code follows this document. It replaces `apps/p2/docs/target-design.md`.
@@ -365,7 +364,10 @@ host.route(Session, {
   behind the window. A link silent for 30 s, the handshake included, is closed (its references go `loading`). Both
   numbers are host options (`heartbeat`). The heartbeat detects a silent transport (TCP does not notice a sleeping
   laptop), not a peer that answers pings but withholds acks (bounded by the window and the pending cap instead). A
-  handler that blocks the event loop longer than 30 s gets its links closed (documented).
+  handler that blocks the event loop longer than 30 s gets its links closed (documented). Time this process did not
+  run (a tick at least one interval late: a sleep, a blocked event loop) is no silence: each link's silence stays
+  what it was before, at least `ping`, so an open link pings at once (decision "A pause of the process is no
+  silence").
 - **Flow control: an ack-clocked window per origin** (owner, 2026-10-23; per origin 2026-10-24). Per (link, origin), at
   most **K = 2** of the provider's own `bound` and `state` messages are unacknowledged; only these two kinds count
   (everything else is control, never queued behind them). The consumer sends `ack` (with the message's origin) after
@@ -390,7 +392,7 @@ host.route(Session, {
   `closed` or the link closing. A call still queued when its hold rebinds (`loading`) is rejected `unavailable` (it may
   name a method of the old variant). A provider seeing more than N running calls of one origin closes the link
   (protocol error); a call naming a hold it does not know is ignored before it is counted (Q1). **There is no limit on
-  calls in progress per link** (owner, 2026-11-03; v1's `maxCalls` has no counterpart): the call window N per origin
+  calls in progress per link** (owner, 2026-11-03; Chord v1's `maxCalls` had no counterpart): the call window N per origin
   and the part limits (section 22) are the bounds; 200 concurrent calls over one socket all run, N at a time in
   flight. A per-link N, if ever needed, must bound a relay's forwarding too.
 - Holds are not limited by count (authorization and params checks protect them); size limits are a separate check
@@ -1947,6 +1949,14 @@ type ReloadReport = {
   would interleave unchecked. In practice a restart costs little (the Durable harness is base code, terminal PTYs live
   in their own process, model runtimes, sandboxes and the search index rebuild in milliseconds); reloading the plugin
   that owns SSH connections or the relay socket hurts.
+- **UI on client hosts** (decision "Slice 11, P4", refined by "Tutorial gaps" (1)): a page or terminal applies a new
+  plugin script with `host.reload`, as any host; the UI re-renders from its registries and keeps what lives outside
+  the changed plugin. A component of a reloaded plugin is a new function, so React (or a terminal scope reopened by the
+  app) mounts it anew and its own state (`useState`) starts over. What must survive a plugin update (a half-typed
+  message, a scroll position) is **page state**: values the client host keeps by key (`usePageState(key, initial)` in
+  `chord/react`, `scope.pageState(key, initial)` on a `TuiScope`, one store per host), any same-host value, never on
+  the wire, untouched by reloads and gone with the page (a page reload, a terminal's new base bundle). Rejected: React
+  Fast Refresh (a Babel or SWC transform in every web build, fragile when hooks change).
 - **No factory trial, no migrate dry run, no consumer contract check during staging:** staging records declarations;
   incompatible consumers wait at bind (`failed { waiting }`, `contract_mismatch`). The one exception is the closure
   rule above: when a plugin of the reload failed, a changed plugin's recorded requests are checked as a bind would
@@ -2284,15 +2294,17 @@ connect only (Q4). `workers.state` (a JSON watchable per address key), `stop`, `
 `workerMain(fn, { hostPackages, redact, onError })` is the child's side (`fn({ address, start, parent, plugins,
 onClose }, ctx)`, `plugins` a `WorkerPlugins` evaluating the shipped scripts, closers in reverse order). One live
 worker per address (`processLock`: an abstract socket on Linux, a named pipe on Windows, a socket file elsewhere that
-fails closed when stale; a start waits for a draining old holder without polling).
+fails closed when stale, the stale file cleared by the component before a start and after a child's exit by a signal,
+decision "Stale lock files are cleared by the starter"; a start waits for a draining old holder without polling).
 
 - **Keep-alive** (D9, R3, Q5): the child reports when `host.activity`'s references, jobs and lingering objects and the
   app's `busy` counts flip between all zero and not (local calls do not count; the first state with `ready`, which
   also carries the load report); the server stops a worker idle for `idleMs` (5 min).
-- **Never restarted by itself** (R2): a crash, a `fatal`, a link lost while its child lives (killed after a 5 s grace)
-  or a failed start leaves the address failed; its holders see `failed { waiting }` and stay on the path (Q1);
-  `retry(address)` or a rollout reaching workers clears it and starts the held ones (Q2). `stop` suspends the address
-  while it has holders (R1, Q3).
+- **Never restarted by itself** (R2): a crash, a `fatal` or a failed start leaves the address failed; its holders see
+  `failed { waiting }` and stay on the path (Q1); `retry(address)` or a rollout reaching workers clears it and starts
+  the held ones (Q2). `stop` suspends the address while it has holders (R1, Q3). A running worker's lost link (killed
+  after a 5 s grace) is a stop its holders start a new worker after (`worker_link_lost`); a second within a minute of
+  the last recovery fails the address (`worker lost its link`; decision "A lost worker link is recovered from").
 - **Errors in public and private** (decision "worker errors in public"): `state` and holders get a fixed message
   (`worker failed to start`, `worker exited (SIGSEGV)`) or the child's redacted `fatal`; the full error and the stderr
   tail go only to `onError` (`worker_failed`). Every app hook of a start (`start`, `principal`, `lock`, the fork) is
@@ -2308,7 +2320,9 @@ Decisions "The app kit, point 1" to "point 5". `startServer(options)` on the ser
 entry. Opinionated and small: an app is its API, its built-in plugins and a start script.
 
 - **Shape:** the app's layout is fixed: `src/api/v<n>/` (shared and per-kind modules) and the built-in plugins root
-  `plugins/`. The data directory is a `startServer` option (no environment variables), default a dot directory named after
+  `plugins/`. The API is a real package (decision "Tutorial gaps" (3)): a workspace package of the app's repository
+  (`"name": "@acme/app"`, `"exports": { "./v1": ..., "./v1/web": ... }`) that npm links, so Node, TypeScript, tests and
+  plugin builds resolve it alike (a test imports a plugin's `contract.ts`). The data directory is a `startServer` option (no environment variables), default a dot directory named after
   the app in the home directory. One server; worker kinds are a list the app defines, each a host kind with its own
   params (sharding is the app's) and how it starts (entry, start data, principal, idle time); zero kinds is a server
   with clients only.
@@ -2330,7 +2344,7 @@ entry. Opinionated and small: an app is its API, its built-in plugins and a star
 
 ### Web and TUI (slice 11)
 
-Decision "Slice 11's points" and "Slice 11, P3" to "P9".
+Decision "Slice 11's points", "Slice 11, P3" to "P9", and "Tutorial gaps" (1) (page state).
 
 - `chord/surfaces` serves the client surfaces (web and terminal) from the server; `chord/web` is a page's client host
   with its connection loop (p2's `keepConnected`), loading and applying the plugins' web facets. A base bundle per
@@ -2338,13 +2352,15 @@ Decision "Slice 11's points" and "Slice 11, P3" to "P9".
   one combined file named by its hash, later changed plugins one script each, each a script that registers itself (no
   eval); new scripts apply in place (`host.reload` in the page); pages learn of them through an object the web
   component serves (the current set); a base code change reloads the page.
-- `chord/react`: `HostProvider`, `useHold`, `useWatch`, `useRegistry`, `useRefState`.
+- `chord/react`: `HostProvider`, `useHold`, `useWatch`, `useRegistry`, `useRefState`, and `usePageState(key, initial)`:
+  `useState`'s pair kept by the page's host under a key, so a component remounted by a plugin reload (a new function)
+  keeps it (§21, "UI on client hosts").
 - `chord/tui/launcher`: a Node client connecting with a token, always running the downloaded code (the app's terminal
   entry on `chord/tui`) in a sandbox (decision "The terminal's sandbox is a child process": a child process on pipes
   with an empty environment, `--permission` granting nothing and no SQLite; the builtin allowlist and a frozen
   substitute `process` inside; a bridge terminal; the trusted launcher outside, confirming copy, open and attach on its
   own prompt); a component scope (`hold`, `watch`, `registry`, released on dispose, one `changed` callback for the
-  app's redraw), no pi-tui dependency.
+  app's redraw; `pageState(key, initial)`, the host's page state shared with `usePageState`), no pi-tui dependency.
 
 ### Messages and languages (after slice 11)
 
