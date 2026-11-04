@@ -359,6 +359,12 @@ p2 runs on Chord v2 (`packages/chord`, `docs/design.md` there); the port's notes
 - **Plugins:** see **Plugin layout** and **Plugin reloads**; the server loads its facets with `createPlugins`, workers
   get theirs from the workers component, the TUI and web bundles load theirs with `host.load`.
 - **Protocol versions:** a page or TUI reloads when the server speaks a newer link protocol (`newerPeerProtocol`).
+- **Contract versions:** pages and TUIs keep the contracts they were built with until they reload, so a deploy that
+  bumps a contract a client holds must keep serving the old version: write the history with `evolve` (the released
+  version as the base, verbatim, so old bundles' fingerprints match) and give the provider an `accepts` table mapping
+  current state and results back (`Sessions` v3/v4, `Catalog` v2/v3, `SessionTree` v1;
+  `test/p2/contract-versions.test.ts` binds the released declarations). Without it, old clients wait unbound
+  (`contract_mismatch`) until they reload.
 
 ## Radius and port forwards
 
@@ -444,7 +450,9 @@ navigates to its view before awaiting the worker, so a failed first start also h
 Host `onError`, refused reloads and worker failures publish bounded, redacted owner notices (`LogNotices`), with
 Show logs and Dismiss. Notices keep the latest error per source (at most 50 sources); normal shutdown/abort
 messages do not become worker-failure notices. Archived-session admission refusals are not cached as crashes,
-so restoring an archive still works without an extra Retry. Neither guests nor workers may read or dismiss notices, or invoke
+so restoring an archive still works without an extra Retry. Archiving stops the worker with
+`SessionWorkerControl.suspend`, not `stop`: holders of the session's objects (a page's lingering conversation) wait
+suspended until a restore (`retry`) or their release, instead of starting a worker the archive refuses. Neither guests nor workers may read or dismiss notices, or invoke
 the worker retry control. Dev controls additionally publish their own reload/restart results.
 
 The owner-only `logs` plugin adds **Logs** to `sidebar-foot:logs`. Its sheet selects Server, session workers,
@@ -543,7 +551,7 @@ translated phone drawer and intercept chat taps.
   Chord v2's `buildFacet` against the API.
 - **Runtime registries and locals** (`src/runtime`): `Routes` (HTTP by `METHOD /path`, exact path), `WorkerInitValues`
   (spawn parameters contributed per plugin; a throw refuses the start, e.g. archived sessions), `Hosts` (worker
-  states, stop), `HarnessHost`/`HarnessNative`, `Extensions`, `HarnessConfig`, `Slots`,
+  states, restart for the holders), `HarnessHost`/`HarnessNative`, `Extensions`, `HarnessConfig`, `Slots`,
   `useObject`/`useReadable`/`useStatus`.
 - **No configuration process globals.** Diagnostics alone have native process-scoped buffers because they capture
   stdout/stderr before/after object activation and survive facet reload. Host configuration is the core's: `Server` (server: `info` = data dir,

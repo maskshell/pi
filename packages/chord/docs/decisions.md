@@ -2503,6 +2503,69 @@ validation and copies the v2 kernel added around Delta.
   only when a removal empties the window or a bulk write hides which rows changed) is carry-over for when a case
   needs it. Rejected: a window document written beside the table (rows stored twice; app code mirroring every update
   and delete).
+- **Swaps: dependents first; calls during a swap never see `not_ready` (owner, 2026-11-04: "if swaps can be invisible
+  to dependents that's cool, but I fear correctness bugs"; analysis `/tmp/swap-analysis.md`):** the problem: a reload
+  swapping a provider and its pure dependent (61's `todo.store` and `todo.todos(groceries)`) parked the dependent
+  every time. `#objects` keeps objects in the order they went live, providers before dependents, and fates started in
+  that order: the store's swap showed `loading`, the view's new attempt bound it, parked, withdrew its contributions
+  (a registry gap) and unbound its holds over links (`loading` on the client). Worse, a parked swap resolved the gate:
+  a call over a link whose hold was still bound (the old instance draining) got `not_ready` while the client showed
+  `live`. Decided: (1) the gate (`ChordObject.call`) holds a call while any attempt activates (a swap, parked or not,
+  a restart after its drain) until the object is live, failed or ended, bounded by `readyTimeout`
+  (`unavailable/park_timeout`, as a call parked on a reference); a parked attempt showing `failed { waiting }`
+  rejects it with that cause. When a parked swap's hold then leaves the old instance it tells the consumer `loading`
+  and answers its calls in flight `unavailable` (the rule for any object leaving `live`): an error consistent with
+  what the client sees. (2) A reload starts the removals first, then the other fates dependents first (the reverse
+  of `#objects`); the report keeps the objects' order. A dependent's new attempt binds its provider while that is
+  still live, passes its check and reads the old instance until the new one is live (one frame): the path a
+  provider-only reload already takes, so no new state. A pure dependent still parks only when its new code needs the
+  provider's new version (the provider's `served` changes with its own fate, so the request waits unbound, then
+  parks on the swap; it never reads that version off the old instance), when its provider went live after it (a
+  provider that failed live and came back), or when it needs something that is not live (a new or missing
+  dependency); so a call waiting at the gate when a swap parks is rare. Rejected: same-host references showing
+  `live` during a swap by changing `ChordObject.state` (holds, keyed pins, versions and `variant` read it as "a live
+  instance exists"; a per-binding view is possible later, the blip is cosmetic). Carry-over: calls surviving a
+  `loading` unbind (slices.md, "Later: reload").
+- **Telemetry from browser pages (owner, 2026-11-04: "I just need this implemented"; "it couldn't really fuck the
+  server up"; tutorial gap):** a page records spans in memory (the click and the calls it makes, carriers on its calls
+  as any client) and sends finished spans in batches every few seconds and when hidden, over its existing Chord link,
+  to a telemetry object on the server (`ingest(batch)`): sign-in, principals, part limits and flow control apply as for
+  any call; an app may admit anonymous pages. The server treats them as untrusted, best effort: batch size and rate
+  capped per connection, every field checked and capped (names, attributes, events, ids printable ASCII), spans marked
+  as from that browser (`chord.host` `browser`, ids prefixed per sender by the store), never overwriting or posing as
+  server spans; the store writes finished spans it receives (a new ingest path). The viewer clamps a browser span
+  against its server children (clock skew). General Chord: the page recorder in the web surface, the ingest facet, the
+  store's ingest; the app kit serves the object when given a telemetry store and `startPage` records when the app asks.
+- **Who a span was for (owner, 2026-11-04: "that hook could also allow us to resolve the username and put that in the
+  telemetry if we're fine with that"; refines "IDs are attributes of spans" for principals):** method and call spans
+  record the principal's attributes, by default its principal key (`chord.principal`), never other app data. A hook in
+  the host's telemetry options maps a principal to the attributes to record (none, the key, or more, e.g. a user name
+  the app resolves from its own data). Chord calls the hook for each span it records with a principal; the hook must be
+  synchronous and cheap, and caching is the hook's own (owner: "the caching should be done by the hook"). The hook is
+  a Chord host option (`createHost({ telemetry, principalAttributes })`); the app kit passes it through `startServer`
+  and `startWorker`. Browser spans are stamped with the principal of the
+  link their batch came over. The viewer stays the owner's and filters by principal.
+- **The server is the one place telemetry is stored (owner, 2026-11-04: "who stores all the telemetry? There must be a
+  single place ... the client and the worker would just talk to that object on the server"; refines "Telemetry from
+  browser pages" and "Telemetry store"):** the server owns the telemetry store and is its only writer. Browsers and
+  workers record in memory and send finished spans in batches over the links they already have to the server's
+  telemetry object (`ingest(batch)`), which checks, stamps (`chord.host`, the link's principal for browsers) and writes
+  them. Browser batches get the strict checks and caps; a worker's (the server's own child, a trusted link) are
+  written as they are, stamped with the worker's host. No worker opens the store file; nothing passes its path to
+  workers. The store stays its own SQLite file in the data directory, not the server's Chord store (high volume, 7-day
+  retention: it would compete with app data in the commit queue and travel in exports and sync).
+- **Calls in flight survive a `loading` unbind (owner, 2026-11-04: "dunno, ask reviewers"; both reviewers, Opus
+  `/tmp/calls-survive-opus.md` and `/tmp/calls-survive-2.md`: build it; refines slice 7b's wire rule "A `failed` on a
+  bound hold unbinds it"):** a hold unbinding with `loading` (a restart, a parked swap, a live failure retrying) keeps
+  its calls in flight instead of rejecting them `unavailable`; `failed` and removal still reject. Each kept call gets
+  exactly one answer from what it already waits on: the instance it runs on (its result within `closeTimeout`, else
+  `released` at the seal) or the gate (the new code's result, `park_timeout` after `readyTimeout`, the parked cause, or
+  the object's end). Not rare: every restart of an object with natives hit it (a client still `live` during the drain
+  sends a call that waited at the gate). Calls sent before the client learns of the `loading` and arriving after the
+  unbind wait at the gate too (the unbound hold keeps its old method names, as the swap-in-place rebind does), never
+  `not_ready`. Consumers and relays need no change (they keep sent calls across `loading`; a method the new variant
+  lacks fails `invalid/member`, a dropped version `contract_mismatch`). Cost: kept calls hold call-window slots up to
+  `readyTimeout` while the object is parked.
 - **A plugin's npm dependencies are bundled; external only by opt-in (owner, 2026-10-29: "explicit opt in + (a)"):**
   a plugin's `dependencies` are installed into its own `node_modules` (`npm install --ignore-scripts`) and bundled into
   each facet that imports them (host packages, its `peerDependencies`, stay external and are passed in). On Node a
