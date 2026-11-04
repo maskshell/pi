@@ -57,6 +57,7 @@ versions and adapters · 28 building: slices · 29 telemetry · 30 cost model ·
 | reference | what `get` returns; keeps its object alive; live and hydrated when awaited |
 | document | a named JSON value an object owns, written in transactions |
 | derive | a value computed from watchables |
+| live query | a bounded query of an object's own table, kept current by its commits (`self.query`, section 11) |
 | native | an OS-level value opened with `self.open`; only in objects |
 | routine | standing behaviour of an object: `self.on(source, fn)`, `self.onLive(fn)` |
 | job | owned work a call starts that outlives it: intent, run, finish; optional state document per run |
@@ -1195,6 +1196,13 @@ host.serve(DraftStore, (_, self) => {               // local, empty params: may 
   }, ctx);
   await edits.get({ id }, ctx);                                    // outside: committed state, ctx last
   ```
+- **Live queries in the commit step (owner, 2026-11-03; section 11):** a transaction that writes a table with live
+  queries (`self.query`) stages one more step write after its own writes: it reads each such query on the step's
+  backend transaction (so it sees the commit's rows, one `SELECT` counted in `chord.store.statements` and
+  `chord.query.runs`), writes nothing and records nothing in the outbox; the rows are adopted with the documents in the
+  commit's batch. A refused step adopts nothing. At activation the queries run right after the tables are prepared,
+  before the references are bound. A transaction writing no table with a live query stages nothing (one map lookup per
+  written table).
 - **The outbox (owner, 2026-10-26):** optional, `openStore(backend, ctx, { outbox: true })` (an omitted option keeps the
   persisted setting; switching needs an explicit `true` or `false`), persisted in the store's
   metadata (turning it on starts sync from an archive at the current `lastSeq`); a table in the store's backend,
@@ -1251,10 +1259,27 @@ host.serve(DraftStore, (_, self) => {               // local, empty params: may 
 | Durable's views | the conversation view, task graph and Durable documents | `Watchable`s through Durable's watches; feed derives and state members |
 | paged method | large or queryable collections | a method returning pages (chat history) |
 | table | a plugin's own records with queries (owner, 2026-10-21) | `self.table`, the store's query DSL |
+| live query | a bounded window of the object's own table, live (owner, 2026-11-03) | `self.query(table, q, limit)` |
 | plugin database | derived data only: full-text search, caches (rebuilt, never synced) | a native opened by its owner |
 
 App state lives in Chord documents; only transcript-bound data (entries, documents that fork and rewind with a
 conversation) lives in Durable.
+
+**Live queries** (decision "Live queries over an object's own tables", owner, 2026-11-03): `self.query(table, q,
+limit)` in the factory of the table's owner returns a `Watchable` of `q`'s rows (at most `limit`, in its order): a
+state member, a derive source, an `on` source. Chord runs it before the object goes live (with its documents and
+tables, section 10) and again in the commit step of every commit of the object whose staged writes touch that table;
+the rows are adopted in the commit's batch and published as `diffRevisions` ops (W1), unchanged rows kept the same
+objects so the diff compares them by identity. Rules: only the object's own tables (only it writes them, so its
+commits are the exact invalidation: a commit not writing the table runs nothing); the query is fixed for the attempt
+(params decide it); **a limit is required** (`invalid/args` at declaration; the store's query language keeps the limit
+an argument of the runner, as `page` has it). A run that fails (a row the code cannot read) is a failed member, as a
+throwing derive (one failure call, `query_failed` once per episode, `[["r", rows]]` at the next good run); the object
+stays live. It is no native, so an object with live queries swaps on reload (section 21). Cost: one query per
+touching commit, bounded by the limit (100 rows: about 60 µs unwatched, 80 µs watched, `benchmarks.md`); **there may
+be dragons** for tables written hundreds of times a second. Incremental maintenance of the result (row-level changes
+kept in memory, a re-run only when a removal empties the window or a bulk write hides which rows changed) is left for
+when a case needs it.
 
 ### Watchables (owner, 2026-10-21; log "Watchable and one watch API", W1-W4)
 
@@ -1921,7 +1946,7 @@ type ReloadReport = {
   | --- | --- |
   | its type is removed | **ended**: as an end (natives close `end`, callers of running calls rejected `released`, handlers drained, in-memory documents gone, persisted ones kept); its holders' requests are not ended: they wait unbound `not_served` (§7) |
   | failed, parked, activating or waiting for its backoff | **retried** on the new code (`ref.retry()`'s rule, whatever broke it); an activating attempt is sealed and its natives close `reload` |
-  | live, neither its live attempt nor the new factory opens natives, and no table of the new factory is newer than the store's | **swapped** in place (below) |
+  | live, neither its live attempt nor the new factory opens natives, and no table of the new factory is newer than the store's | **swapped** in place (below); live queries are no natives (section 11): an object showing table rows through `self.query` swaps, one reading them in `self.open` restarts |
   | live, otherwise | **restarted**: new calls park (it shows `loading`), its contributions leave, running calls drain (bounded by `closeTimeout`; a call outliving the drain is cut off by the seal fence), the attempt is sealed (in-memory job runs end `aborted { reload }`, persisted ones are stopped and resumed, R3), natives close `reload`, the new attempt activates after that teardown (documents stay; eager table migrations run as at activation) |
   | any of the above whose new code waits for a dependency | **parked** (decision 4): no overlap of old and new code; reported with the cause |
 
@@ -1942,7 +1967,8 @@ type ReloadReport = {
   variant lacks fails `invalid/member`; §7); exposed derives are matched by their member names, internal ones are
   rebuilt; in-memory documents migrate through `migrate` when the new code declares a higher version; the
   contributions are replaced in one batch; `self.writable` starts at its new initial value (decision 2); `retryOn`
-  sources are re-declared. **Routines hand over per object:** the old attempt's routines are aborted; the new ones
+  sources are re-declared; the new attempt's live queries run at its activation (the old attempt's are re-run by the
+  commits of its remaining calls until it is sealed, then dropped). **Routines hand over per object:** the old attempt's routines are aborted; the new ones
   start once the old routine calls finished, bounded by `closeTimeout` (a stuck one is reported `drain_timeout` and
   the whole old attempt is sealed then, audit A12: one seal token per attempt); calls never wait.
 - **Natives are not kept across reloads by name:** natives have no line, transactions or schema, so old and new code
@@ -2362,20 +2388,71 @@ Decision "Slice 11's points", "Slice 11, P3" to "P9", and "Tutorial gaps" (1) (p
   own prompt); a component scope (`hold`, `watch`, `registry`, released on dispose, one `changed` callback for the
   app's redraw; `pageState(key, initial)`, the host's page state shared with `usePageState`), no pi-tui dependency.
 
-### Messages and languages (after slice 11)
+### Messages and languages (built after slice 11)
 
-Decision "Messages and languages in the app kit". Text people read is rendered per viewer, never by a server.
+Decision "Messages and languages in the app kit", refined in the build (2026-11-03). Text people read is rendered per
+viewer, never by a server. The shared parts are in Chord's root (`src/surfaces/`, portable), `useMessages` in
+`chord/react`, `scope.messages` in `chord/tui`, `lang` and `dir` in `chord/web`; the kit serves `Translations` on the
+server, workers, pages and terminals and `LocaleChoice` on the server. Apps re-export what their plugins use.
 
-- **Messages in code:** `defineMessages(namespace, { en, de, ... })` per plugin, in a shared `messages.ts` every
-  rendering facet imports; typed `t(key, ...args)`, keys and signatures from the first catalog; functions for plurals
-  and word order; `formatTime`, `formatNumber` through `Intl` in the viewer's locale.
-- **Translations** registry (`{ namespace, locale, messages, override? }`), per host: a translation plugin contributes
-  its shared catalog file from each facet that renders. Fallback key by key: the locale's base, then the first catalog
-  (reported once); conflicts: the first by plugin name wins. Catalogs never cross links.
-- **The locale** is a per-principal preference (device default, live switch, `lang` and `dir` on the page).
-- **Messages as data:** `t.message(key, ...args)` gives `{ namespace, key, params }` for state, notices and errors;
-  each client renders it with `t.render` (checked at runtime across a link). Prompts, model output, logs and error
-  codes are never translated.
+```ts
+// plugins/notes/messages.ts: one shared file every facet that renders imports
+export const messages = defineMessages("notes", {
+	en: { newNote: "New note", count: (n: number) => (n === 1 ? "1 note" : `${n} notes`), saved: (title: string, at: string) => `Saved "${title}" at ${formatTime(at)}` },
+	de: { newNote: "Neue Notiz", count: (n) => `${n} Notizen`, saved: (title, at) => `„${title}“ um ${formatTime(at)} gespeichert` },
+});
+// plugins/notes/web.tsx
+const { t, locale } = useMessages(messages);                 // re-renders on a locale or translation change
+self.contribute(Translations, messages.translations);        // in the facet: the plugin's own catalogs
+// plugins/notes/worker.ts: a message as data (state member `notice: union([MessageSchema, nul()])`)
+draft.notice = messages.message("saved", note.title, note.at);   // { namespace: "notes", key: "saved", params }
+// any client: t.render(notes.notice.value)
+```
+
+- **Messages in code:** `defineMessages(namespace, catalogs)` (a namespace is a name like a type's; catalog keys are
+  language tags, canonicalized) returns `t`, typed by the first catalog: the others take their functions' parameter
+  types from it, and a missing key, an unknown one or a wrong argument is a type error (when only strings differ,
+  TypeScript may report a missing key at the first catalog's line). Values are strings or functions; `formatTime(at,
+  options?)` (a `Date`, milliseconds or an ISO string; `timeStyle: "short"` by default) and `formatNumber(value,
+  options?)` use `Intl` with the locale being rendered, the platform's outside a render (a language's default
+  formatters are made once, kept in a `WeakMap` by the language).
+- **`t` is per host** (refinement (3)): `useMessages(t)` returns `{ t, locale }` bound to the `HostProvider`'s host and
+  its language; `scope.messages(t)` returns a `t` reading the host's language at each call, its change calling
+  `changed`; `t.in(language)` binds to any `Language`. The plain `t(key, ...args)` renders in the language of the
+  render under way (a **render scope**: synchronous, set while a bound `t` calls a message function, so a nested plain
+  `t` or `formatTime` follows it), and outside one in the first catalog (servers, tests, logs). No module-level current
+  language: one process runs many hosts, and a server renders per recipient.
+- **Rendering a key:** down the language's chain (`pt-BR`, `pt`): the host's `Translations` catalog for the namespace
+  and locale, else the plugin's own; else the first catalog. Each key found further down is reported (`fallback`), a
+  contributed message that throws is reported (`failed`, naming its plugin) and the chain goes on (use sites guard
+  contributions, §17).
+- **Translations** (refinements (1), (2)): a registry (`chord.translations`, version 1) whose contribution is a list of
+  `{ namespace, locale, messages, override? }` (a contributor contributes once per registry, and one translation
+  plugin translates several namespaces). A plugin's own catalogs are its built-in contributions literally: each
+  rendering facet contributes `t.translations`, so the registry knows every locale offered (for the device default and
+  a settings list); `t` still renders its own catalogs if a facet forgot. The composed `TranslationIndex` keeps one
+  catalog per namespace and canonical locale: the first by plugin name wins and the other is reported
+  (`registry_conflict`), `override: true` wins over a catalog without it; an invalid locale is left out, reported;
+  `locales` lists every locale offered. Catalogs may be partial (`MessagesOf<typeof t>` is the full shape a translation
+  fills); contributions are per host, so a translation plugin keeps them in a shared file and contributes them from
+  each facet that renders. Catalogs never cross links.
+- **The locale:** `LocaleChoice` (remote on the server, params `{}`, per principal: `pick`, a language tag of at most 35
+  characters or `null`, and `choose`), kept like the theme choice: both are a **preference** (`preferenceContract`,
+  `preferenceFacet`: one persisted document of picks by principal key, the last 10,000 choosers). A client's
+  `followActiveLanguage(host, preferred, changed, report, ctx)` resolves the locale: the pick when a catalog offers it
+  (or a base or another region of its language), else the first of the device's languages offered (`navigator.languages`
+  on a page, followed on `languagechange`; the system locale in the terminal: the launcher's `locales`, by default
+  `LANGUAGE`, `LC_ALL`, `LC_MESSAGES`, `LANG`, then `Intl`'s, passed in the bridge's start), else English (the source
+  of truth), else the first offered. The result, a `Language` (`{ locale, dir, chain, translations, report }`; `dir`
+  from the locale's likely script), is the host's page state under `chord.language`, which `useMessages` and
+  `scope.messages` follow; it changes only when the locale or the index does, nothing reloads. A page writes `lang`
+  and `dir` on its root element. Reports go to the client's `onError` once each (`{ kind: "messages", report }`).
+- **Messages as data:** `t.message(key, ...args)` returns `MessageData<"notes", "saved">` (`{ namespace, key, params }`;
+  `Message` is the link protocol's), only for keys whose arguments are JSON scalars (`MessageParam`), so a `Date`
+  argument does not compile. A contract member uses `MessageSchema` (any namespace and key). `t.render(message)`
+  refuses another literal namespace at the type level and checks at runtime what crossed a link: another namespace, a
+  key the first catalog lacks or params that are no list show the key (reported `unknown`), a message that throws on
+  its params shows the key (reported `failed`). Prompts, model output, logs and error codes are never translated.
 
 ### Channels
 

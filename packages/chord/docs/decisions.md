@@ -2419,7 +2419,21 @@ validation and copies the v2 kernel added around Delta.
   state, notices, tool summaries and errors shown to people (a code plus parameters); each client renders it with
   `t.render` in its own language (checked at runtime across a link: an unknown key shows the key). Never translated:
   the model's prompts and answers, log lines, error codes. No translator file format now; an export/import tool to JSON
-  when someone needs it. Built after slice 11 (carry-over "After slice 11").
+  when someone needs it. Built after slice 11 (carry-over "After slice 11"). **Refined in the build (2026-11-03;
+  asked by the build, accepted by the main session):** (1) a `Translations` contribution is a list
+  (`readonly Translation[]`): a contributor contributes once per registry, and the proposal's French plugin
+  contributes `notes/fr` and `app/fr` from one facet. (2) A plugin's own catalogs are its built-in contributions
+  literally: each facet that renders contributes them (`self.contribute(Translations, notes.translations)`), because
+  `defineMessages` runs at module evaluation, tied to no host, and a host must know every locale its catalogs offer
+  (the device default, a settings list); conflicts and `override` as decided (`override: true` wins over a catalog
+  without it), and `t` still renders its own catalogs if a facet forgot the contribution. (3) `t` is per host:
+  `useMessages(t)` returns `{ t, locale }` bound to the `HostProvider`'s host and its language, `scope.messages(t)`
+  likewise (a change redraws); the plain `t(key, ...args)` imported from `messages.ts` renders in the language of the
+  render under way (a synchronous render scope: nested `t` calls, `formatTime` in a message function), outside one in
+  the first catalog (servers, tests, logs); no module-level current locale, since one process may run many hosts and a
+  server renders per recipient. Also from the build: the typed message is `MessageData<N, K>` (the link protocol owns
+  `Message`), `t.message` takes only keys whose arguments are JSON scalars, and the theme choice and the locale choice
+  share one per-principal preference store (`src/surfaces/preference.ts`).
 - **Chord v2 becomes the package's root (owner, 2026-11-03: "src/old", "subpaths", "yes", "yes", "no, chord is
   wip"; for merging pi-private into pi this week; trial `/home/badlogic/chord-root-move/report.md`):** `src/next` is
   the package's `src` (its main export), the Node parts `src/next-node` are `src/node` with short subpaths (`/http`,
@@ -2476,17 +2490,19 @@ validation and copies the v2 kernel added around Delta.
   or SWC transform in every web build, fragile when hooks change). Open: a live view of table rows (the tutorial's
   and 59-chat's `self.open` read at activation, which makes every reload a restart): to explain first.
 - **Live queries over an object's own tables (owner, 2026-11-03: "if self.query is easy enough, and we document it as
-  'there may be dragons' then i guess it's ok"; resolves the tutorial's gap 2):** `self.query(table, q)` in a factory
-  returns a `Watchable` of the query's rows, usable as a state member and a derive source. Chord runs the query before
-  the object goes live (like loading its documents: no `self.open`, so a reload swaps the object), and again in the
-  publication step of every commit of the object that touched that table, diffing the new rows against the previous
-  ones (ops to watchers and holds, as for any member). Only the object's own tables (only it writes them, so its
-  commits are the exact invalidation); the query is fixed for the attempt (params decide it); it must have a `limit`.
-  Cost: one query per touching commit, bounded by the limit; documented with a warning ("there may be dragons": not
-  for tables written hundreds of times a second). Incremental maintenance of the result (an ordered, limited query
-  with row-level changes kept in memory, re-running only when a removal empties the window or a bulk write hides
-  which rows changed) is carry-over for when a case needs it. Rejected: a window document written beside the table
-  (rows stored twice; app code mirroring every update and delete).
+  'there may be dragons' then i guess it's ok"; resolves the tutorial's gap 2):** `self.query(table, q, limit)` in a
+  factory returns a `Watchable` of the query's rows, usable as a state member and a derive source. Chord runs the
+  query before the object goes live (like loading its documents: no `self.open`, so a reload swaps the object), and
+  again in the publication step of every commit of the object that touched that table, diffing the new rows against
+  the previous ones (ops to watchers and holds, as for any member). Only the object's own tables (only it writes them,
+  so its commits are the exact invalidation); the query is fixed for the attempt (params decide it); a limit is
+  required (the third argument, as `page` takes it: the query language keeps the limit an argument of the runner;
+  refused `invalid/args` at declaration; build, 2026-11-03). Cost: one query per touching commit, bounded by the
+  limit; documented with a warning ("there may be dragons": not for tables written hundreds of times a second).
+  Incremental maintenance of the result (an ordered, limited query with row-level changes kept in memory, re-running
+  only when a removal empties the window or a bulk write hides which rows changed) is carry-over for when a case
+  needs it. Rejected: a window document written beside the table (rows stored twice; app code mirroring every update
+  and delete).
 - **A plugin's npm dependencies are bundled; external only by opt-in (owner, 2026-10-29: "explicit opt in + (a)"):**
   a plugin's `dependencies` are installed into its own `node_modules` (`npm install --ignore-scripts`) and bundled into
   each facet that imports them (host packages, its `peerDependencies`, stay external and are passed in). On Node a
