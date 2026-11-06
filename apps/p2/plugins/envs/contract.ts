@@ -1,9 +1,22 @@
 import { arr, bool, nul, num, obj, opt, type Static, str, union } from "@earendil-works/pi-schema";
-import { DirectoryListingSchema, defineRegistry, literal, local, method, record, remote, serverHost } from "@p2/app/v1";
+import {
+	DirectoryListingSchema,
+	defineRegistry,
+	evolve,
+	literal,
+	local,
+	method,
+	record,
+	remote,
+	serverHost,
+} from "@p2/app/v1";
 import type { EnvManager } from "./manager.ts";
 import { EnvConfigSchema } from "./schema.ts";
 
-/** Whether an SSH env can host sandboxes: natively, through Docker, or not (`detail` says why or how). */
+/**
+ * Whether an SSH env can host sandboxes (`detail` says why or how). `docker` is no longer reported (launchers before
+ * Docker was dropped); it stays in the schema so open pages keep binding.
+ */
 export const SandboxSupportSchema = obj({
 	runtime: union([literal("native"), literal("docker"), literal("none")]),
 	detail: str(),
@@ -48,10 +61,15 @@ export const EnvTestSchema = union([
 	}),
 ]);
 export type EnvTest = Static<typeof EnvTestSchema>;
+/** A session using an environment (working there, or with a subagent whose own location is there). */
+export const EnvUserSchema = obj({ id: str(), title: str(), main: num(), archived: bool() });
+export type EnvUser = Static<typeof EnvUserSchema>;
 export const EnvSummarySchema = obj({
 	name: str(),
 	config: EnvConfigSchema,
 	sessions: num(),
+	/** The sessions counted in `sessions` (the Envs sheet's list; absent from `list`). */
+	users: opt(arr(EnvUserSchema)),
 	test: opt(EnvTestSchema),
 });
 export type EnvSummary = Static<typeof EnvSummarySchema>;
@@ -80,15 +98,25 @@ export const EnvManagers = defineRegistry<
 
 const Name = obj({ name: str() });
 const Key = obj({ publicKey: str(), identityFile: str() });
-export const Envs = remote("p2.envs", {
+
+/** 2a32a605a's `EnvSummarySchema`, for version 1 of `Envs`: without `users`. */
+const EnvSummarySchemaV1 = obj({
+	name: str(),
+	config: EnvConfigSchema,
+	sessions: num(),
+	test: opt(EnvTestSchema),
+});
+
+/** Version 1, as 2a32a605a released it (open pages built then still bind it). */
+const EnvsV1 = remote("p2.envs", {
 	version: 1,
 	params: {},
 	hostAddress: serverHost,
 	variants: {
 		owner: {
-			state: { envs: arr(EnvSummarySchema), failure: union([str(), nul()]) },
+			state: { envs: arr(EnvSummarySchemaV1), failure: union([str(), nul()]) },
 			methods: {
-				list: method(undefined, arr(EnvSummarySchema)),
+				list: method(undefined, arr(EnvSummarySchemaV1)),
 				/** Starts every environment's SSH connection in the background (the folder picker opened). */
 				warm: method(),
 				save: method(obj({ name: str(), config: EnvConfigSchema })),
@@ -110,6 +138,18 @@ export const Envs = remote("p2.envs", {
 		},
 	},
 });
+
+/**
+ * The owner's environments and sandboxes. 2: `EnvSummary.users` (the sessions using an environment), and `delete`'s
+ * `force`: refused while sessions use the env unless `force`; their history stays, and their tools refuse to run until
+ * they move to another location (never on this device instead). The provider still serves 1 (its `accepts`).
+ */
+export const Envs = evolve(EnvsV1, (e) =>
+	e
+		.state("owner", "envs", arr(EnvSummarySchema))
+		.result("list", arr(EnvSummarySchema))
+		.args("delete", obj({ name: str(), force: opt(bool()) })),
+);
 
 /** Browser-safe display: the machine is part of a directory's identity. */
 export function environmentPath(env: string | null | undefined, cwd: string): string {
