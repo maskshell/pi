@@ -5,16 +5,21 @@
 // them on a click of its row.
 import {
 	BranchIcon,
+	type CommandTargetRow,
 	HOME,
+	inPage,
 	locationLabel,
 	NavDisclosureIcon,
 	NavEditIcon,
 	NavWarningIcon,
 	PinIcon,
-	routePath,
+	type Route,
 	SideNavigation,
+	shortPath,
+	useCommandTargetRow,
+	useLinkHref,
 } from "@p2/app/v1/web";
-import { type MouseEvent, type ReactNode, useEffect, useId, useState, useSyncExternalStore } from "react";
+import { type ReactNode, useEffect, useId, useState, useSyncExternalStore } from "react";
 import { GlyphIcon } from "../../glyphs/GlyphIcon.tsx";
 import type { Activity, GlyphSeed, SidebarRow } from "./model.ts";
 
@@ -101,17 +106,17 @@ export function ago(time: number, now: number): string {
 }
 
 /**
- * A click handler for a link that acts in the page (`act`) on a plain primary click; any other click (a modifier, the
- * middle button, "Open in new tab") is the browser's, so the target opens in another tab or window.
+ * A folder's name in the sidebar: its last `segments` path segments, with its environment; its row's title has the
+ * whole path.
  */
-export const inPage = (act: () => void) => (event: MouseEvent<HTMLAnchorElement>) => {
-	if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-	event.preventDefault();
-	act();
-};
+export function folderName(env: string | null, cwd: string, segments: number): string {
+	const path = shortPath(cwd).split(/[\\/]/).filter(Boolean);
+	const base = path.slice(-segments).join("/") || cwd;
+	return env ? `${base} · ${env}` : base;
+}
 
-/** The address of a rollup's or a group's list page. */
-export const pageHref = (page: string): string => routePath({ ...HOME, page });
+/** The route of a rollup's or a group's list page, for its link (`useLinkHref`). */
+export const pageRoute = (page: string): Route => ({ ...HOME, page });
 
 const SCOPES_KEY = "p2-sidebar-opened-from";
 const scopeListeners = new Set<() => void>();
@@ -162,7 +167,8 @@ export const useOpenedFrom = (): Readonly<Record<string, string>> =>
  * trailing end. The label is a link to `href`, an action without one, or with `expanded`, the control that shows or
  * hides what is below the row (its chevron right after the label). The whole row is one control: its hover and selected
  * background spans it, and the label's hit area covers it (the controls stay above it). `after`: a control right after
- * the label (a rollup's or a session's chevron, `Toggle`).
+ * the label (a rollup's or a session's chevron, `Toggle`). `target`: the command menu's target while the row is hovered
+ * or has focus (`useCommandTargetRow`).
  */
 export function NavRow({
 	selected = false,
@@ -178,6 +184,7 @@ export function NavRow({
 	after,
 	details,
 	controls,
+	target,
 }: {
 	selected?: boolean;
 	className?: string;
@@ -198,10 +205,11 @@ export function NavRow({
 	details?: ReactNode;
 	/** Buttons at the trailing end. */
 	controls?: ReactNode;
+	target?: CommandTargetRow;
 }) {
 	const link = `nav-link ${linkClassName} ${selected ? "active" : ""}`;
 	return (
-		<div className={`nav-row ${selected ? "selected" : ""} ${className}`}>
+		<div className={`nav-row ${selected ? "selected" : ""} ${className}`} {...target}>
 			{marker !== undefined && <span className="nav-marker">{marker}</span>}
 			{href === undefined ? (
 				<button
@@ -309,6 +317,7 @@ export function SessionItem({
 	actions: RowActions;
 	glyph?: GlyphSeed;
 }) {
+	const linkHref = useLinkHref();
 	const {
 		activeId,
 		activeScope,
@@ -361,7 +370,7 @@ export function SessionItem({
 		// The main conversation is selected on the session's row.
 		const selected = active && conversationId === item.conversation && item.conversation !== session.main;
 		const busy = session.worker.busy.includes(item.conversation) ? <WorkingMark /> : null;
-		const href = routePath({ session: session.id, conversation: item.conversation, layers: [] });
+		const href = linkHref({ session: session.id, conversation: item.conversation, layers: [] });
 		if (item.kind === "branch") {
 			const main = item.conversation === session.main;
 			return (
@@ -460,6 +469,7 @@ export function SessionItem({
 	) : working ? (
 		<WorkingMark />
 	) : null;
+	const target = useCommandTargetRow({ type: "session", id: session.id, kind: "Session", label: session.title });
 	return (
 		<SideNavigation.Item className={`session-row ${aged ? "aged" : ""}`}>
 			<NavRow
@@ -470,7 +480,7 @@ export function SessionItem({
 					? { title: "Restore and open" }
 					: {
 							title: glyph?.title,
-							href: routePath({ session: session.id, conversation: session.main, layers: [] }),
+							href: linkHref({ session: session.id, conversation: session.main, layers: [] }),
 						})}
 				onActivate={() => {
 					if (archived) {
@@ -481,6 +491,7 @@ export function SessionItem({
 				}}
 				marker={marker}
 				label={title}
+				target={target}
 				after={
 					nested && (
 						<Toggle
