@@ -33,7 +33,6 @@ import { takeProcessLock } from "../runtime/process-lock.ts";
 import {
 	Authenticators,
 	findRoute,
-	LinkTokens,
 	PageCookies,
 	type PluginApply,
 	type PluginOutcome,
@@ -46,6 +45,7 @@ import {
 	Upgrades,
 	WorkerInitValues,
 } from "../runtime/server.ts";
+import { STALE_PAGE_CODE, STALE_PAGE_REASON } from "../runtime/stale-page.ts";
 import { WorkerBoundary, type WorkerInit } from "../runtime/worker.ts";
 import {
 	type BundleInput,
@@ -109,12 +109,6 @@ export type ServerOptions = {
 	readonly facets?: readonly PluginFacet<P2Principal>[];
 };
 
-/** The view kit's path, the one route a sandboxed frame's `Origin: null` request reaches (docs/rooms.md). */
-const VIEW_KIT = /^\/view-kit\/[0-9a-f]{64}\.js$/;
-
-/** A token link's path: `/chord/<kind>` (docs/rooms.md). */
-const TOKEN_LINK = /^\/chord\/([a-z][a-z0-9-]{0,31})$/;
-
 /** Old content-named files remain briefly so HTML returned just before a reload can finish loading. */
 const WEB_BUNDLE_GRACE_MS = 60_000;
 
@@ -128,6 +122,22 @@ export type P2Server = {
 	reload(plugins: readonly string[]): Promise<RolloutResult>;
 	close(): Promise<void>;
 };
+
+/** Who a principal is, for the owner's notices: the owner's access (and device) or a guest's name and ID. */
+function principalText(principal: P2Principal): string {
+	switch (principal.kind) {
+		case "owner":
+			return principal.access === "device"
+				? `the owner's device ${principal.device}`
+				: `the owner (${principal.access})`;
+		case "guest":
+			return `guest ${principal.name} (${principal.id})`;
+		case "worker":
+			return `session ${principal.session}'s worker`;
+		default:
+			return principal.kind;
+	}
+}
 
 export async function startServer(options: ServerOptions = {}): Promise<P2Server> {
 	// As Pi Mobile: a half-set default model from the environment refuses to start (before taking any lock).
@@ -211,13 +221,19 @@ export async function startServer(options: ServerOptions = {}): Promise<P2Server
 	});
 	http.on("upgrade", (request, socket, head) => {
 		const path = new URL(request.url ?? "/", "http://localhost").pathname;
-		/** `/chord/<kind>`: a link admitted by a token alone (`LinkTokens`). */
-		const tokenKind = TOKEN_LINK.exec(path)?.[1];
 		void loaded
-			.then(() => (tokenKind === undefined ? upgradePrincipal(request) : tokenPrincipal(request, tokenKind)))
+			.then(() => upgradePrincipal(request))
 			.catch(() => undefined)
 			.then(async (principal) => {
-				if ((path === "/chord" || tokenKind !== undefined) && principal !== undefined) {
+				if (path === "/chord" && principal !== undefined) {
+					const stale = await stalePage(request);
+					if (stale) {
+						// Its link would re-hold what its code holds, types removed since included (each waiting on the
+						// worker and reported there at every start): it reloads onto the current bundle instead.
+						reportStalePage(request, principal, stale);
+						sockets.handleUpgrade(request, socket, head, (ws) => ws.close(STALE_PAGE_CODE, STALE_PAGE_REASON));
+						return;
+					}
 					upgraded.set(request, principal);
 					sockets.handleUpgrade(request, socket, head, (ws) => sockets.emit("connection", ws, request));
 				} else if (principal !== undefined) {
@@ -706,19 +722,12 @@ export async function startServer(options: ServerOptions = {}): Promise<P2Server
 					// The Radius shell frames the relayed UI; X-Frame-Options cannot name another origin.
 					if (access.origin.relayShellOrigin !== undefined) response.removeHeader("X-Frame-Options");
 				}
-				// A sandboxed frame (an opaque origin: Chrome sends `Origin: null` even for its scripts) may load the view
-				// kit (views plugin, docs/rooms.md), and only that, as nobody: no cookie reaches the route.
-				const anonymous =
-					request.headers.origin === "null" &&
-					(request.method === "GET" || request.method === "HEAD") &&
-					VIEW_KIT.test(path);
-				if (access === undefined || (!anonymous && !sameOrigin(request, access.origin))) {
+				if (access === undefined || !sameOrigin(request, access.origin)) {
 					response.writeHead(403, { "Content-Type": "text/plain" });
 					response.end(access === undefined ? "Localhost only" : "Invalid origin");
 					return;
 				}
-				const { origin } = access;
-				const principal = anonymous ? undefined : access.principal;
+				const { principal, origin } = access;
 				// Unauthenticated readiness (Pi Mobile's /health, polled by launchers); known Hosts only.
 				if (path === "/health" && (request.method === "GET" || request.method === "HEAD")) {
 					response.writeHead(200, { "Content-Type": "application/json" });
@@ -829,27 +838,36 @@ export async function startServer(options: ServerOptions = {}): Promise<P2Server
 			return access !== undefined && sameOrigin(request, access.origin) ? access.principal : undefined;
 		}, BACKGROUND_CONTEXT);
 	};
-	/**
-	 * The principal of a token link (`/chord/<kind>?token=…`), or undefined to refuse it. Its caller may be a sandboxed
-	 * frame: `Origin` may be `null` (or this server's own), and its cookies are never read. The Host must be one this
-	 * server answers (loopback, an allowed tunnel, a relay's): DNS rebinding is refused as for every request.
-	 */
-	const tokenPrincipal = async (request: IncomingMessage, kind: string): Promise<P2Principal | undefined> =>
-		host.root(async (ctx) => {
-			let origin: RequestOrigin | undefined;
-			for (const resolve of (await host.registry(RequestResolvers, ctx)).value.values()) {
-				origin = resolve(request, ctx)?.origin;
-				if (origin !== undefined) break;
-			}
-			origin ??= requestOrigin(request, allowedHosts);
-			const from = request.headers.origin;
-			if (origin === undefined || (from !== undefined && from !== "null" && from !== origin.origin))
-				return undefined;
-			const token = new URL(request.url ?? "/", "http://localhost").searchParams.get("token");
-			const admit = (await host.registry(LinkTokens, ctx)).value.get(kind);
-			return token && admit ? admit(token, ctx) : undefined;
-		}, BACKGROUND_CONTEXT);
 	const upgraded = new WeakMap<IncomingMessage, P2Principal>();
+	/**
+	 * A page's link from a bundle other than the current one: its `web` query names the version it runs. Links naming
+	 * none are not asked: the TUI, Cloud Brain's pages (built elsewhere: scripts/cloud-bundle.ts) and pages from before
+	 * 2026-11-12 (they reload when shown; their requests for removed types still wait, see docs/p2-notes.md).
+	 */
+	const stalePage = async (request: IncomingMessage): Promise<{ sent: string; current: string } | undefined> => {
+		const sent = new URL(request.url ?? "/", "http://localhost").searchParams.get("web");
+		if (!serveWeb || sent === null) return undefined;
+		const current = await getWebBundle().then(
+			(bundle) => bundle.version,
+			() => undefined,
+		);
+		return current !== undefined && sent !== current ? { sent, current } : undefined;
+	};
+	/** Stale pages already reported, by who and which version: each is told the owner once per server run. */
+	const staleReported = new Set<string>();
+	const reportStalePage = (
+		request: IncomingMessage,
+		principal: P2Principal,
+		{ sent, current }: { sent: string; current: string },
+	): void => {
+		const who = principalText(principal);
+		const agent = String(request.headers["user-agent"] ?? "unknown browser").slice(0, 200);
+		const text = `A page running an older p2 (web bundle ${sent}, current ${current}) tried to connect and was told to reload: ${who}, ${agent}, from ${request.socket.remoteAddress ?? "unknown address"} (WebSocket /chord).`;
+		const key = `${who}\n${agent}\n${sent}`;
+		if (staleReported.has(key)) return;
+		staleReported.add(key);
+		processLogs.notice("stale-pages", text);
+	};
 	// Mobile's limits: frames up to 1 MiB, 4 MiB unsent output (socket-limits.ts); Chord queues calls behind its window.
 	sockets.on("connection", (socket, request: IncomingMessage) => {
 		const principal = upgraded.get(request);
