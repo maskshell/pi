@@ -2331,7 +2331,8 @@ validation and copies the v2 kernel added around Delta.
 - **Slice 11, P6: the connection loop (owner, 2026-11-01: "agree"):** p2's `keepConnected`: after a drop, reconnect
   with a growing pause (250 ms to 5 s); try at once when the tab becomes visible, the browser comes back online or the
   network changes; replace a socket open but silent; stop when the server reports an outdated protocol (the page
-  reloads) or the app's `canRetry` says no (a guest's share ended). References keep their last values and wait while
+  reloads) or the app's `canRetry` says no (a guest's share ended; asked beside the next attempt, never before it:
+  2026-11-13, the owner's PWA showed "Offline" for seconds on every return while a page's base check went first). References keep their last values and wait while
   down, so the UI shows a banner from the connection state. A network reconnect, not a crash restart.
 - **Slice 11, P7: React bindings (owner, 2026-11-01: "we definitely want something like that"; p2's `useObject`,
   `useReadable`, `useRegistry` in `runtime/web.tsx`):** an optional subpath (`chord/react`): `HostProvider`,
@@ -3524,6 +3525,14 @@ From `research/chord-on-durable-objects.md`, adopted for the Chord v2 kernel bec
   callbacks of several references sharing a replica run in subscription order, not hold order (and so may calls those
   listeners make). No wire, codec or protocol change. Rejected (design §31): keeping a hold past its last release,
   borrowed references and leases.
+- **Sign-ins, not sessions (owner, 2026-11-13):** the app kit's sign-in sessions clashed with agent sessions in p2 and p3.
+  The concept is a **sign-in**: one browser or device signed in as a user (its cookie or token, its expiry, its
+  revocation). Renamed: `Sessions` to `SignIns` (contract `chord.app.sign-ins`, its stored document
+  `chord.app.sign-ins` with the field `signIns`, the core facet `chord.app.sign-ins`), `SessionInfo` to `SignInInfo`,
+  `SessionKind` to `SignInKind`, `SESSION_COOKIE` to `SIGN_IN_COOKIE` (the cookie `chord-sign-in`), the start option
+  `limits.ephemeralSessions` to `limits.ephemeralSignIns`, the files `sign-ins.ts` and `ephemeral-sign-ins.ts`, example
+  `54-app-sign-ins`. No migration: nothing deployed uses the kit's sign-ins (p2 has its own); a kit app's existing
+  sign-ins and cookies are not read under the new names (everyone signs in again).
 
 ## Still valid from `target-design.md`
 

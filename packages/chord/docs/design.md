@@ -308,9 +308,9 @@ section 21), a job `finish` backs off 1 s to 60 s, provider-side `linger` is per
   method calls running on this host, running jobs, provider-side lingering objects. Counters are kept where the work
   happens; a change marks it dirty and it is published at most once per microtask turn with changes. A hold placed
   here counts from its arrival to its end, bound or not (one waiting for a missing provider keeps the worker alive;
-  slice 7a); a hold this host relays counts at its destination; `host.references` lists bound references only.
-  One entry and count per bound holder on the provider: a same-host binding or an arriving wire hold; several
-  references of a consuming host sharing one hold (§7) are one, until that hold ends. Core code
+  slice 7a); a hold this host relays counts at its destination; same-host bindings do not count.
+  `host.references` (§19) lists bound holders only: same-host bindings and arriving wire holds. Several references of a
+  consuming host sharing one hold (§7) are one entry there and one count here, until that hold ends. Core code
   reports it plus Durable tasks (the core `Harness`); the server's supervisor stops the worker when all are zero for
   the idle time (p2: 5 minutes, checked every second). Chord provides the counts, no idle logic.
 
@@ -2746,11 +2746,12 @@ entry. Opinionated and small: an app is its API, its built-in plugins and a star
   User data lives in objects keyed by the user's id. Optional kit plugins: users (accounts with an app-supplied profile
   schema), authenticators (device pairing, invite links, an ephemeral pick-a-name login).
 - **Authentication:** no owner by loopback alone: the start script prints a link with a one-time token that sets a
-  signed cookie of the owner's session; the owner link, the owner token file and device pairing sign in as the app's
+  signed cookie of the owner's sign-in; the owner link, the owner token file and device pairing sign in as the app's
   owner principal, and the owner-only routes (pairing's approval, invites) recognize it by canonical JSON, each
   principal's key computed once per principal object; a change of the owner between starts replaces the owner token file
-  and revokes its old session; deny by default (the HTTP component refuses requests without a principal unless the route
-  or socket is public); a session helper issues and revokes sessions; command-line clients send a token in a header (an
+  and revokes its old sign-in; deny by default (the HTTP component refuses requests without a principal unless the route
+  or socket is public); `SignIns` issues and revokes sign-ins (one browser or device signed in as a principal: its
+  cookie or token, its expiry, its revocation; decision "Sign-ins, not sessions"); command-line clients send a token in a header (an
   owner token file readable only by the app's OS user; a device pairing flow from other machines).
 - **Storage:** one store for the server, a directory per worker under its kind and address with its store; plugins
   never use data-directory paths. `Files`, one per host (decision "Files v2"), is the default file storage: its
