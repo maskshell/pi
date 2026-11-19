@@ -1,4 +1,4 @@
-From 563d058f374af6be30c29749f5589a4b10d4aec0 Mon Sep 17 00:00:00 2001
+From d0f797001b7f72642a78689c3cdf3e5029faa050 Mon Sep 17 00:00:00 2001
 From: Analyser <analyser@gmail.com>
 Date: Sat, 29 Aug 2026 20:24:21 +0800
 Subject: [PATCH] feat(coding-agent): opt-in package namespace (pi.namespace)
@@ -56,13 +56,13 @@ Out of scope: themes, runtime registrations, settings-level overrides.
  .../skills/ns-package/ns-one/SKILL.md         |   5 +
  .../skills/ns-package/ns-two-dup/SKILL.md     |   5 +
  .../skills/ns-package/ns-two/SKILL.md         |   5 +
- .../fixtures/skills/ns-package/package.json   |   4 +
+ .../fixtures/skills/ns-package/package.json   |   7 +
  .../skills/ns-user-dir/user-skill/SKILL.md    |   5 +
  .../coding-agent/test/package-manager.test.ts |  67 ++++++
  .../test/prompt-templates.test.ts             | 108 +++++++++
  .../coding-agent/test/resource-loader.test.ts | 163 ++++++++++++++
  packages/coding-agent/test/skills.test.ts     | 208 +++++++++++++++++-
- 19 files changed, 918 insertions(+), 18 deletions(-)
+ 19 files changed, 921 insertions(+), 18 deletions(-)
  create mode 100644 packages/coding-agent/test/fixtures/skills/ns-package/ns-one/SKILL.md
  create mode 100644 packages/coding-agent/test/fixtures/skills/ns-package/ns-two-dup/SKILL.md
  create mode 100644 packages/coding-agent/test/fixtures/skills/ns-package/ns-two/SKILL.md
@@ -768,13 +768,16 @@ index 000000000..3d98b6d30
 +Body two.
 diff --git a/packages/coding-agent/test/fixtures/skills/ns-package/package.json b/packages/coding-agent/test/fixtures/skills/ns-package/package.json
 new file mode 100644
-index 000000000..8c79365f5
+index 000000000..834db142e
 --- /dev/null
 +++ b/packages/coding-agent/test/fixtures/skills/ns-package/package.json
-@@ -0,0 +1,4 @@
+@@ -0,0 +1,7 @@
 +{
 +	"name": "ns-pkg-fixture",
-+	"pi": { "namespace": "solidforge" }
++	"pi": {
++		"namespace": "solidforge"
++	},
++	"private": true
 +}
 diff --git a/packages/coding-agent/test/fixtures/skills/ns-user-dir/user-skill/SKILL.md b/packages/coding-agent/test/fixtures/skills/ns-user-dir/user-skill/SKILL.md
 new file mode 100644
