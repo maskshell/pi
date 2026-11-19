@@ -1,12 +1,12 @@
-From c780a86b936f4fabfeb725c2c3f844ecd370969c Mon Sep 17 00:00:00 2001
-From: patch-repair-agent <agent@maskshell.github>
-Date: Mon, 2 Nov 2026 11:29:13 +0000
-Subject: [PATCH] patch: version stamp 1.5.0-namespace.1 (fork build
+From cc90d8f153b1d9a99a5cf1b0ce3a5233cacaf655 Mon Sep 17 00:00:00 2001
+From: "pi.namespace pipeline" <pi-namespace-pipeline@users.noreply.github.com>
+Date: Thu, 19 Nov 2026 07:49:51 +0000
+Subject: [PATCH] patch: version stamp 1.5.2-namespace.1 (fork build
  identification)
 
 ---
  .github/workflows/publish-namespace-patch.yml |   119 +
- package-lock.json                             | 12032 ++++++++--------
+ package-lock.json                             | 13270 ++++++++--------
  packages/agent/package.json                   |     6 +-
  packages/ai/package.json                      |     6 +-
  packages/chord/package.json                   |     6 +-
@@ -21,7 +21,7 @@ Subject: [PATCH] patch: version stamp 1.5.0-namespace.1 (fork build
  packages/schema/package.json                  |     2 +-
  packages/telemetry/package.json               |     2 +-
  packages/tui/package.json                     |     2 +-
- 16 files changed, 6176 insertions(+), 6099 deletions(-)
+ 16 files changed, 6795 insertions(+), 6718 deletions(-)
  create mode 100644 .github/workflows/publish-namespace-patch.yml
 
 diff --git a/.github/workflows/publish-namespace-patch.yml b/.github/workflows/publish-namespace-patch.yml
@@ -150,10 +150,10 @@ index 000000000..9c7f04ca6
 +          GH_TOKEN: ${{ github.token }}
 +        run: bash patch/ci/publish-npm.sh /tmp/pub/earendil-works-pi-coding-agent-*.tgz
 diff --git a/package-lock.json b/package-lock.json
-index a0749b93b..836813e6a 100644
+index 928957ec8..5dab03027 100644
 --- a/package-lock.json
 +++ b/package-lock.json
-@@ -1,6038 +1,5996 @@
+@@ -1,6657 +1,6615 @@
  {
 -	"name": "pi-monorepo",
 -	"version": "0.0.3",
@@ -166,6 +166,7 @@ index a0749b93b..836813e6a 100644
 -			"workspaces": [
 -				"packages/*",
 -				"apps/*",
+-				"packages/chord/test/examples/61-tutorial",
 -				"packages/coding-agent/examples/extensions/with-deps",
 -				"packages/coding-agent/examples/extensions/custom-provider-anthropic",
 -				"packages/coding-agent/examples/extensions/custom-provider-gitlab-duo",
@@ -183,6 +184,87 @@ index a0749b93b..836813e6a 100644
 -			},
 -			"engines": {
 -				"node": ">=22.19.0"
+-			}
+-		},
+-		"apps/p2": {
+-			"version": "0.0.3",
+-			"dependencies": {
+-				"@earendil-works/chord": "1.5.2",
+-				"@earendil-works/design-tokens": "0.1.0",
+-				"@earendil-works/elanor-fonts": "0.1.0",
+-				"@earendil-works/elanor-icons-react": "0.1.0",
+-				"@earendil-works/elanor-react": "0.1.0",
+-				"@earendil-works/pi-ai": "1.5.2",
+-				"@earendil-works/pi-codemode": "1.5.2",
+-				"@earendil-works/pi-durable": "1.5.2",
+-				"@earendil-works/pi-env": "1.5.2",
+-				"@earendil-works/pi-mcp": "1.5.2",
+-				"@earendil-works/pi-schema": "1.5.2",
+-				"@earendil-works/pi-tui": "1.5.2",
+-				"diff": "8.0.4",
+-				"discord.js": "14.28.1",
+-				"esbuild": "0.28.2",
+-				"grok-mermaid": "0.2.3",
+-				"lowlight": "3.3.0",
+-				"marked": "18.0.14",
+-				"proper-lockfile": "4.1.2",
+-				"react": "19.3.0",
+-				"react-dom": "19.3.0",
+-				"undici": "8.12.3",
+-				"ws": "8.21.0",
+-				"yaml": "2.9.1"
+-			},
+-			"devDependencies": {
+-				"@types/node": "22.19.19",
+-				"@types/proper-lockfile": "4.1.4",
+-				"@types/react": "19.2.14",
+-				"@types/react-dom": "19.2.3",
+-				"@types/ws": "8.18.2",
+-				"typescript": "5.9.3"
+-			},
+-			"engines": {
+-				"node": ">=22.19.0"
+-			}
+-		},
+-		"apps/p2/node_modules/marked": {
+-			"version": "18.0.14",
+-			"resolved": "https://registry.npmjs.org/marked/-/marked-18.0.14.tgz",
+-			"integrity": "sha512-mBHK6FBHuBAlhgRe88w9F0O1AbwwXJUcQibUbC/QcdTbVGAD7aWza+xt3N6oT/jCZx3/OMeS+8rnuiHZcQ9s7A==",
+-			"license": "MIT",
+-			"bin": {
+-				"marked": "bin/marked.js"
+-			},
+-			"engines": {
+-				"node": ">= 20"
+-			}
+-		},
+-		"apps/p2/node_modules/typescript": {
+-			"version": "5.9.3",
+-			"resolved": "https://registry.npmjs.org/typescript/-/typescript-5.9.3.tgz",
+-			"integrity": "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==",
+-			"dev": true,
+-			"license": "Apache-2.0",
+-			"bin": {
+-				"tsc": "bin/tsc",
+-				"tsserver": "bin/tsserver"
+-			},
+-			"engines": {
+-				"node": ">=14.17"
+-			}
+-		},
+-		"apps/p2/node_modules/yaml": {
+-			"version": "2.9.1",
+-			"resolved": "https://registry.npmjs.org/yaml/-/yaml-2.9.1.tgz",
+-			"integrity": "sha512-3NxN8+78OdzbT7C/WjGsyfPAtJaN3FNDsWxv7Y7mcDsT/oOmgW8BpyQQFFBnvZE3j9Y2Sdz1ULFLezL7Eb2yFw==",
+-			"license": "ISC",
+-			"bin": {
+-				"yaml": "bin.mjs"
+-			},
+-			"engines": {
+-				"node": ">= 14.6"
+-			},
+-			"funding": {
+-				"url": "https://github.com/sponsors/eemeli"
 -			}
 -		},
 -		"node_modules/@anthropic-ai/sdk": {
@@ -658,12 +740,72 @@ index a0749b93b..836813e6a 100644
 -			}
 -		},
 -		"node_modules/@babel/runtime": {
--			"version": "7.29.2",
--			"resolved": "https://registry.npmjs.org/@babel/runtime/-/runtime-7.29.2.tgz",
--			"integrity": "sha512-JiDShH45zKHWyGe4ZNVRrCjBz8Nh9TMmZG1kh4QTK8hCBTWBi8Da+i7s1fJw7/lYpM4ccepSNfqzZ/QvABBi5g==",
+-			"version": "7.29.10",
+-			"resolved": "https://registry.npmjs.org/@babel/runtime/-/runtime-7.29.10.tgz",
+-			"integrity": "sha512-NpugTzbKgGrNe45Ui32cN8vCFFMxVtP/9rtfwv0nP5FRDAjvYBxJcLVpYA9mr1jxP6cnIT7x9LUzuDTbWYYNRA==",
 -			"license": "MIT",
 -			"engines": {
 -				"node": ">=6.9.0"
+-			}
+-		},
+-		"node_modules/@base-ui/react": {
+-			"version": "1.8.0",
+-			"resolved": "https://registry.npmjs.org/@base-ui/react/-/react-1.8.0.tgz",
+-			"integrity": "sha512-P0/1sxo6SBVZOklKMIedvTWqw2s2IQzi9x5bIVsXu980cuSOD4NeuRSs+/L7LZQfDkZP/uRZyGPyfFl/B1oH+Q==",
+-			"license": "MIT",
+-			"dependencies": {
+-				"@babel/runtime": "^7.29.7",
+-				"@base-ui/utils": "0.4.0",
+-				"@floating-ui/react-dom": "^2.1.9",
+-				"@floating-ui/utils": "^0.2.12",
+-				"use-sync-external-store": "^1.6.0"
+-			},
+-			"engines": {
+-				"node": ">=14.0.0"
+-			},
+-			"funding": {
+-				"type": "opencollective",
+-				"url": "https://opencollective.com/mui-org"
+-			},
+-			"peerDependencies": {
+-				"@date-fns/tz": "^1.2.0",
+-				"@types/react": "^17 || ^18 || ^19",
+-				"date-fns": "^4.0.0",
+-				"react": "^17 || ^18 || ^19",
+-				"react-dom": "^17 || ^18 || ^19"
+-			},
+-			"peerDependenciesMeta": {
+-				"@date-fns/tz": {
+-					"optional": true
+-				},
+-				"@types/react": {
+-					"optional": true
+-				},
+-				"date-fns": {
+-					"optional": true
+-				}
+-			}
+-		},
+-		"node_modules/@base-ui/utils": {
+-			"version": "0.4.0",
+-			"resolved": "https://registry.npmjs.org/@base-ui/utils/-/utils-0.4.0.tgz",
+-			"integrity": "sha512-bO9fz25kKtPf+aZVyfQrC0PDmJdmVni31W2hCS5/Owb+inwdIL3XU26pCPRPlt4LSxZrBgLwubXQXQlKaFEZzw==",
+-			"license": "MIT",
+-			"dependencies": {
+-				"@babel/runtime": "^7.29.7",
+-				"@floating-ui/utils": "^0.2.12",
+-				"reselect": "^5.2.0",
+-				"use-sync-external-store": "^1.6.0"
+-			},
+-			"peerDependencies": {
+-				"@types/react": "^17 || ^18 || ^19",
+-				"react": "^17 || ^18 || ^19",
+-				"react-dom": "^17 || ^18 || ^19"
+-			},
+-			"peerDependenciesMeta": {
+-				"@types/react": {
+-					"optional": true
+-				}
 -			}
 -		},
 -		"node_modules/@biomejs/biome": {
@@ -1003,9 +1145,183 @@ index a0749b93b..836813e6a 100644
 -				"node": ">=20"
 -			}
 -		},
+-		"node_modules/@discordjs/builders": {
+-			"version": "1.15.0",
+-			"resolved": "https://registry.npmjs.org/@discordjs/builders/-/builders-1.15.0.tgz",
+-			"integrity": "sha512-AifaDWTw6WUDhKBn8E6mwwoyjDAcfsYq+ZE0nKSu1dMH1NLR22D3hGkNx+ctEv8NqHEHdAZnP5REteHDmn1lkA==",
+-			"license": "Apache-2.0",
+-			"dependencies": {
+-				"@discordjs/formatters": "^0.6.2",
+-				"@discordjs/util": "^1.2.0",
+-				"@sapphire/shapeshift": "^4.0.0",
+-				"discord-api-types": "^0.38.50",
+-				"fast-deep-equal": "^3.1.3",
+-				"ts-mixer": "^6.0.4",
+-				"tslib": "^2.6.3"
+-			},
+-			"engines": {
+-				"node": ">=16.11.0"
+-			},
+-			"funding": {
+-				"url": "https://github.com/discordjs/discord.js?sponsor"
+-			}
+-		},
+-		"node_modules/@discordjs/collection": {
+-			"version": "1.5.3",
+-			"resolved": "https://registry.npmjs.org/@discordjs/collection/-/collection-1.5.3.tgz",
+-			"integrity": "sha512-SVb428OMd3WO1paV3rm6tSjM4wC+Kecaa1EUGX7vc6/fddvw/6lg90z4QtCqm21zvVe92vMMDt9+DkIvjXImQQ==",
+-			"license": "Apache-2.0",
+-			"engines": {
+-				"node": ">=16.11.0"
+-			}
+-		},
+-		"node_modules/@discordjs/formatters": {
+-			"version": "0.6.2",
+-			"resolved": "https://registry.npmjs.org/@discordjs/formatters/-/formatters-0.6.2.tgz",
+-			"integrity": "sha512-y4UPwWhH6vChKRkGdMB4odasUbHOUwy7KL+OVwF86PvT6QVOwElx+TiI1/6kcmcEe+g5YRXJFiXSXUdabqZOvQ==",
+-			"license": "Apache-2.0",
+-			"dependencies": {
+-				"discord-api-types": "^0.38.33"
+-			},
+-			"engines": {
+-				"node": ">=16.11.0"
+-			},
+-			"funding": {
+-				"url": "https://github.com/discordjs/discord.js?sponsor"
+-			}
+-		},
+-		"node_modules/@discordjs/rest": {
+-			"version": "2.6.3",
+-			"resolved": "https://registry.npmjs.org/@discordjs/rest/-/rest-2.6.3.tgz",
+-			"integrity": "sha512-wvOylxNYJkwKjctS/Mn5GP1w9r3/rzyH+ThD1JlAca6zEdlHs8QWBBUQJpU5Q+W6DoIj/Ljh1IPlZs7hTU+UAg==",
+-			"license": "Apache-2.0",
+-			"dependencies": {
+-				"@discordjs/collection": "^2.1.1",
+-				"@discordjs/util": "^1.2.0",
+-				"@sapphire/async-queue": "^1.5.3",
+-				"@sapphire/snowflake": "^3.5.5",
+-				"@vladfrangu/async_event_emitter": "^2.4.6",
+-				"discord-api-types": "^0.38.50",
+-				"magic-bytes.js": "^1.13.0",
+-				"tslib": "^2.6.3",
+-				"undici": "^6.27.0"
+-			},
+-			"engines": {
+-				"node": ">=18"
+-			},
+-			"funding": {
+-				"url": "https://github.com/discordjs/discord.js?sponsor"
+-			}
+-		},
+-		"node_modules/@discordjs/rest/node_modules/@discordjs/collection": {
+-			"version": "2.1.1",
+-			"resolved": "https://registry.npmjs.org/@discordjs/collection/-/collection-2.1.1.tgz",
+-			"integrity": "sha512-LiSusze9Tc7qF03sLCujF5iZp7K+vRNEDBZ86FT9aQAv3vxMLihUvKvpsCWiQ2DJq1tVckopKm1rxomgNUc9hg==",
+-			"license": "Apache-2.0",
+-			"engines": {
+-				"node": ">=18"
+-			},
+-			"funding": {
+-				"url": "https://github.com/discordjs/discord.js?sponsor"
+-			}
+-		},
+-		"node_modules/@discordjs/rest/node_modules/undici": {
+-			"version": "6.29.1",
+-			"resolved": "https://registry.npmjs.org/undici/-/undici-6.29.1.tgz",
+-			"integrity": "sha512-EvRlUt/QqAEvXdQeRMYUfwOQsfzpDztykrG2owGEE/rBOBoYv9uF39ZzsNDh4lTFHhTr2XOZjKkYgueD12ZmGA==",
+-			"license": "MIT",
+-			"engines": {
+-				"node": ">=18.17"
+-			}
+-		},
+-		"node_modules/@discordjs/util": {
+-			"version": "1.2.0",
+-			"resolved": "https://registry.npmjs.org/@discordjs/util/-/util-1.2.0.tgz",
+-			"integrity": "sha512-3LKP7F2+atl9vJFhaBjn4nOaSWahZ/yWjOvA4e5pnXkt2qyXRCHLxoBQy81GFtLGCq7K9lPm9R517M1U+/90Qg==",
+-			"license": "Apache-2.0",
+-			"dependencies": {
+-				"discord-api-types": "^0.38.33"
+-			},
+-			"engines": {
+-				"node": ">=18"
+-			},
+-			"funding": {
+-				"url": "https://github.com/discordjs/discord.js?sponsor"
+-			}
+-		},
+-		"node_modules/@discordjs/ws": {
+-			"version": "1.2.3",
+-			"resolved": "https://registry.npmjs.org/@discordjs/ws/-/ws-1.2.3.tgz",
+-			"integrity": "sha512-wPlQDxEmlDg5IxhJPuxXr3Vy9AjYq5xCvFWGJyD7w7Np8ZGu+Mc+97LCoEc/+AYCo2IDpKioiH0/c/mj5ZR9Uw==",
+-			"license": "Apache-2.0",
+-			"dependencies": {
+-				"@discordjs/collection": "^2.1.0",
+-				"@discordjs/rest": "^2.5.1",
+-				"@discordjs/util": "^1.1.0",
+-				"@sapphire/async-queue": "^1.5.2",
+-				"@types/ws": "^8.5.10",
+-				"@vladfrangu/async_event_emitter": "^2.2.4",
+-				"discord-api-types": "^0.38.1",
+-				"tslib": "^2.6.2",
+-				"ws": "^8.17.0"
+-			},
+-			"engines": {
+-				"node": ">=16.11.0"
+-			},
+-			"funding": {
+-				"url": "https://github.com/discordjs/discord.js?sponsor"
+-			}
+-		},
+-		"node_modules/@discordjs/ws/node_modules/@discordjs/collection": {
+-			"version": "2.1.1",
+-			"resolved": "https://registry.npmjs.org/@discordjs/collection/-/collection-2.1.1.tgz",
+-			"integrity": "sha512-LiSusze9Tc7qF03sLCujF5iZp7K+vRNEDBZ86FT9aQAv3vxMLihUvKvpsCWiQ2DJq1tVckopKm1rxomgNUc9hg==",
+-			"license": "Apache-2.0",
+-			"engines": {
+-				"node": ">=18"
+-			},
+-			"funding": {
+-				"url": "https://github.com/discordjs/discord.js?sponsor"
+-			}
+-		},
 -		"node_modules/@earendil-works/chord": {
 -			"resolved": "packages/chord",
 -			"link": true
+-		},
+-		"node_modules/@earendil-works/design-tokens": {
+-			"version": "0.1.0",
+-			"resolved": "https://registry.npmjs.org/@earendil-works/design-tokens/-/design-tokens-0.1.0.tgz",
+-			"integrity": "sha512-xY6+O52jX7VJGso8kEA+bLdV7N8nSooJ2vjtrYq71gi1Hkd3qHwz2g3UprmgpcKSHtZO6vOxzGWxbT1jAS7sVA==",
+-			"license": "ISC"
+-		},
+-		"node_modules/@earendil-works/elanor-fonts": {
+-			"version": "0.1.0",
+-			"resolved": "https://registry.npmjs.org/@earendil-works/elanor-fonts/-/elanor-fonts-0.1.0.tgz",
+-			"integrity": "sha512-FumYoWIhXt8NHIwY8Ku0TecJox0aZ9rcGgu11sgOUhCPREgVkFS3C1Obo7FgT8IdqlFhzG87ryzx7bg5UPpVpQ==",
+-			"license": "OFL-1.1"
+-		},
+-		"node_modules/@earendil-works/elanor-icons-react": {
+-			"version": "0.1.0",
+-			"resolved": "https://registry.npmjs.org/@earendil-works/elanor-icons-react/-/elanor-icons-react-0.1.0.tgz",
+-			"integrity": "sha512-Ri6xEWAvuhbKWgKcjphhxOMGAISKAyCAttQx4qlxflSORnGc0nPCA8pD0LsmmSCpdi/GmSJwUibPkwC0xn9BrQ==",
+-			"license": "Apache-2.0",
+-			"peerDependencies": {
+-				"react": "^18.0.0 || ^19.0.0"
+-			}
+-		},
+-		"node_modules/@earendil-works/elanor-react": {
+-			"version": "0.1.0",
+-			"resolved": "https://registry.npmjs.org/@earendil-works/elanor-react/-/elanor-react-0.1.0.tgz",
+-			"integrity": "sha512-9zh26YB9Y64QOw//k4agAT9sWdYmE2unGavmUIHSDQRVIdfyVgdMXHCkgjEf1CTnmzCI069UnPWUdEmcS7RzUQ==",
+-			"license": "MIT",
+-			"dependencies": {
+-				"@base-ui/react": "1.8.0",
+-				"@earendil-works/elanor-icons-react": "0.1.0"
+-			},
+-			"peerDependencies": {
+-				"react": "^19.0.0",
+-				"react-dom": "^19.0.0"
+-			}
 -		},
 -		"node_modules/@earendil-works/gondolin": {
 -			"version": "0.14.0",
@@ -1539,6 +1855,44 @@ index a0749b93b..836813e6a 100644
 -			"engines": {
 -				"node": ">=18"
 -			}
+-		},
+-		"node_modules/@floating-ui/core": {
+-			"version": "1.8.0",
+-			"resolved": "https://registry.npmjs.org/@floating-ui/core/-/core-1.8.0.tgz",
+-			"integrity": "sha512-0CIZ5itps/8x7BG8dEIhs53BvCUH2PCoogtakwRTut+Arm58sJooJ0AuZhLw2HJYIR5cMLNPBSS728sPho2khQ==",
+-			"license": "MIT",
+-			"dependencies": {
+-				"@floating-ui/utils": "^0.2.12"
+-			}
+-		},
+-		"node_modules/@floating-ui/dom": {
+-			"version": "1.8.0",
+-			"resolved": "https://registry.npmjs.org/@floating-ui/dom/-/dom-1.8.0.tgz",
+-			"integrity": "sha512-yXSrzeHZBTZadLOlfyhCkJHNeLJnHRnRInwdZ40L7ZiaAtrBwoYlsDrX3v5zB1Utk7CLfzcOVnVVWoXEky7Ceg==",
+-			"license": "MIT",
+-			"dependencies": {
+-				"@floating-ui/core": "^1.8.0",
+-				"@floating-ui/utils": "^0.2.12"
+-			}
+-		},
+-		"node_modules/@floating-ui/react-dom": {
+-			"version": "2.1.9",
+-			"resolved": "https://registry.npmjs.org/@floating-ui/react-dom/-/react-dom-2.1.9.tgz",
+-			"integrity": "sha512-JDjEFGCpImxDCA7JJKviA0M9+RtmJdj0m/NVU5IMgBK+AmZouAQQ7/+2GLH0GXXY0YMw9oXPB8hKdbPYg5QLYg==",
+-			"license": "MIT",
+-			"dependencies": {
+-				"@floating-ui/dom": "^1.8.0"
+-			},
+-			"peerDependencies": {
+-				"react": ">=16.8.0",
+-				"react-dom": ">=16.8.0"
+-			}
+-		},
+-		"node_modules/@floating-ui/utils": {
+-			"version": "0.2.12",
+-			"resolved": "https://registry.npmjs.org/@floating-ui/utils/-/utils-0.2.12.tgz",
+-			"integrity": "sha512-HpCo8tmWzLVad5s2d19EhAz5zqrrQ6s69qd6moPMQvkOuSwDT1YgRfWSVuc4ennqrgv3OHppiOGMQ7oC13yIww==",
+-			"license": "MIT"
 -		},
 -		"node_modules/@google/genai": {
 -			"version": "2.21.0",
@@ -2560,6 +2914,39 @@ index a0749b93b..836813e6a 100644
 -			"dev": true,
 -			"license": "MIT"
 -		},
+-		"node_modules/@sapphire/async-queue": {
+-			"version": "1.5.5",
+-			"resolved": "https://registry.npmjs.org/@sapphire/async-queue/-/async-queue-1.5.5.tgz",
+-			"integrity": "sha512-cvGzxbba6sav2zZkH8GPf2oGk9yYoD5qrNWdu9fRehifgnFZJMV+nuy2nON2roRO4yQQ+v7MK/Pktl/HgfsUXg==",
+-			"license": "MIT",
+-			"engines": {
+-				"node": ">=v14.0.0",
+-				"npm": ">=7.0.0"
+-			}
+-		},
+-		"node_modules/@sapphire/shapeshift": {
+-			"version": "4.0.0",
+-			"resolved": "https://registry.npmjs.org/@sapphire/shapeshift/-/shapeshift-4.0.0.tgz",
+-			"integrity": "sha512-d9dUmWVA7MMiKobL3VpLF8P2aeanRTu6ypG2OIaEv/ZHH/SUQ2iHOVyi5wAPjQ+HmnMuL0whK9ez8I/raWbtIg==",
+-			"license": "MIT",
+-			"dependencies": {
+-				"fast-deep-equal": "^3.1.3",
+-				"lodash": "^4.17.21"
+-			},
+-			"engines": {
+-				"node": ">=v16"
+-			}
+-		},
+-		"node_modules/@sapphire/snowflake": {
+-			"version": "3.5.5",
+-			"resolved": "https://registry.npmjs.org/@sapphire/snowflake/-/snowflake-3.5.5.tgz",
+-			"integrity": "sha512-xzvBr1Q1c4lCe7i6sRnrofxeO1QTP/LKQ6A6qy0iB4x5yfiSfARMEQEghojzTNALDTcv8En04qYNIco9/K9eZQ==",
+-			"license": "MIT",
+-			"engines": {
+-				"node": ">=v14.0.0",
+-				"npm": ">=7.0.0"
+-			}
+-		},
 -		"node_modules/@silvia-odwyer/photon": {
 -			"version": "0.3.3",
 -			"resolved": "https://registry.npmjs.org/@silvia-odwyer/photon/-/photon-0.3.3.tgz",
@@ -2686,6 +3073,10 @@ index a0749b93b..836813e6a 100644
 -			"dev": true,
 -			"license": "MIT"
 -		},
+-		"node_modules/@todo/app": {
+-			"resolved": "packages/chord/test/examples/61-tutorial",
+-			"link": true
+-		},
 -		"node_modules/@types/chai": {
 -			"version": "5.2.3",
 -			"resolved": "https://registry.npmjs.org/@types/chai/-/chai-5.2.3.tgz",
@@ -2721,6 +3112,15 @@ index a0749b93b..836813e6a 100644
 -			"dev": true,
 -			"license": "MIT"
 -		},
+-		"node_modules/@types/hast": {
+-			"version": "3.0.5",
+-			"resolved": "https://registry.npmjs.org/@types/hast/-/hast-3.0.5.tgz",
+-			"integrity": "sha512-rp/ezSWaD1m44dPKICGhiskI13nVr7qTloFwDa/IYkhhf5nzwP+zIQcIJh3WIFSBOy/H1PzB40jPjMDksN4F+g==",
+-			"license": "MIT",
+-			"dependencies": {
+-				"@types/unist": "*"
+-			}
+-		},
 -		"node_modules/@types/hosted-git-info": {
 -			"version": "3.0.5",
 -			"resolved": "https://registry.npmjs.org/@types/hosted-git-info/-/hosted-git-info-3.0.5.tgz",
@@ -2754,6 +3154,26 @@ index a0749b93b..836813e6a 100644
 -				"@types/retry": "*"
 -			}
 -		},
+-		"node_modules/@types/react": {
+-			"version": "19.2.14",
+-			"resolved": "https://registry.npmjs.org/@types/react/-/react-19.2.14.tgz",
+-			"integrity": "sha512-ilcTH/UniCkMdtexkoCN0bI7pMcJDvmQFPvuPvmEaYA/NSfFTAgdUSLAoVjaRJm7+6PvcM+q1zYOwS4wTYMF9w==",
+-			"devOptional": true,
+-			"license": "MIT",
+-			"dependencies": {
+-				"csstype": "^3.2.2"
+-			}
+-		},
+-		"node_modules/@types/react-dom": {
+-			"version": "19.2.3",
+-			"resolved": "https://registry.npmjs.org/@types/react-dom/-/react-dom-19.2.3.tgz",
+-			"integrity": "sha512-jp2L/eY6fn+KgVVQAOqYItbF0VY/YApe5Mz2F0aykSO8gx31bYCZyvSeYxCHKvzHG5eZjc+zyaS5BrBWya2+kQ==",
+-			"dev": true,
+-			"license": "MIT",
+-			"peerDependencies": {
+-				"@types/react": "^19.2.0"
+-			}
+-		},
 -		"node_modules/@types/retry": {
 -			"version": "0.12.5",
 -			"resolved": "https://registry.npmjs.org/@types/retry/-/retry-0.12.5.tgz",
@@ -2768,11 +3188,16 @@ index a0749b93b..836813e6a 100644
 -			"dev": true,
 -			"license": "MIT"
 -		},
+-		"node_modules/@types/unist": {
+-			"version": "3.0.3",
+-			"resolved": "https://registry.npmjs.org/@types/unist/-/unist-3.0.3.tgz",
+-			"integrity": "sha512-ko/gIFJRv177XgZsZcBwnqJN5x/Gien8qNOn0D5bQU/zAzVf9Zt3BlcUiLqhV9y4ARk0GbT3tnUiPNgnTXzc/Q==",
+-			"license": "MIT"
+-		},
 -		"node_modules/@types/ws": {
 -			"version": "8.18.2",
 -			"resolved": "https://registry.npmjs.org/@types/ws/-/ws-8.18.2.tgz",
 -			"integrity": "sha512-67MQl+fpWKVTT1NYdnmo3U4sc/xPo/zQBncVnI74qmQa0z/b+1g6iYqNmGCPbxO+zz2aklb08a0oHfegiVd0/w==",
--			"dev": true,
 -			"license": "MIT",
 -			"dependencies": {
 -				"@types/node": "*"
@@ -3251,6 +3676,16 @@ index a0749b93b..836813e6a 100644
 -				"url": "https://opencollective.com/vitest"
 -			}
 -		},
+-		"node_modules/@vladfrangu/async_event_emitter": {
+-			"version": "2.4.7",
+-			"resolved": "https://registry.npmjs.org/@vladfrangu/async_event_emitter/-/async_event_emitter-2.4.7.tgz",
+-			"integrity": "sha512-Xfe6rpCTxSxfbswi/W/Pz7zp1WWSNn4A0eW4mLkQUewCrXXtMj31lCg+iQyTkh/CkusZSq9eDflu7tjEDXUY6g==",
+-			"license": "MIT",
+-			"engines": {
+-				"node": ">=v14.0.0",
+-				"npm": ">=7.0.0"
+-			}
+-		},
 -		"node_modules/@xterm/headless": {
 -			"version": "5.5.0",
 -			"resolved": "https://registry.npmjs.org/@xterm/headless/-/headless-5.5.0.tgz",
@@ -3587,6 +4022,13 @@ index a0749b93b..836813e6a 100644
 -				"node": ">= 8"
 -			}
 -		},
+-		"node_modules/csstype": {
+-			"version": "3.2.3",
+-			"resolved": "https://registry.npmjs.org/csstype/-/csstype-3.2.3.tgz",
+-			"integrity": "sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ==",
+-			"devOptional": true,
+-			"license": "MIT"
+-		},
 -		"node_modules/data-uri-to-buffer": {
 -			"version": "4.0.1",
 -			"resolved": "https://registry.npmjs.org/data-uri-to-buffer/-/data-uri-to-buffer-4.0.1.tgz",
@@ -3639,6 +4081,15 @@ index a0749b93b..836813e6a 100644
 -				"node": ">=4.0.0"
 -			}
 -		},
+-		"node_modules/dequal": {
+-			"version": "2.0.3",
+-			"resolved": "https://registry.npmjs.org/dequal/-/dequal-2.0.3.tgz",
+-			"integrity": "sha512-0je+qPKHEMohvfRTCEo3CrPG6cAzAYgmzKyxRiYSSDkS6eGJdyVJm7WaYA5ECaAD9wLB2T4EEeymA5aFVcYXCA==",
+-			"license": "MIT",
+-			"engines": {
+-				"node": ">=6"
+-			}
+-		},
 -		"node_modules/detect-libc": {
 -			"version": "2.1.2",
 -			"resolved": "https://registry.npmjs.org/detect-libc/-/detect-libc-2.1.2.tgz",
@@ -3649,6 +4100,19 @@ index a0749b93b..836813e6a 100644
 -				"node": ">=8"
 -			}
 -		},
+-		"node_modules/devlop": {
+-			"version": "1.1.0",
+-			"resolved": "https://registry.npmjs.org/devlop/-/devlop-1.1.0.tgz",
+-			"integrity": "sha512-RWmIqhcFf1lRYBvNmr7qTNuyCt/7/ns2jbpp1+PalgE/rDQcBT0fioSMUpJ93irlUhC5hrg4cYqe6U+0ImW0rA==",
+-			"license": "MIT",
+-			"dependencies": {
+-				"dequal": "^2.0.0"
+-			},
+-			"funding": {
+-				"type": "github",
+-				"url": "https://github.com/sponsors/wooorm"
+-			}
+-		},
 -		"node_modules/diff": {
 -			"version": "8.0.4",
 -			"resolved": "https://registry.npmjs.org/diff/-/diff-8.0.4.tgz",
@@ -3656,6 +4120,48 @@ index a0749b93b..836813e6a 100644
 -			"license": "BSD-3-Clause",
 -			"engines": {
 -				"node": ">=0.3.1"
+-			}
+-		},
+-		"node_modules/discord-api-types": {
+-			"version": "0.38.57",
+-			"resolved": "https://registry.npmjs.org/discord-api-types/-/discord-api-types-0.38.57.tgz",
+-			"integrity": "sha512-R1CTSSt4RshqCq23j2Xq2ZscvzB4LzG9OB1CYQdKUGdw8Ti/oF/72EEtK2mNpagG/Vj9NcBT7dw9lKLf+Dacfg==",
+-			"license": "MIT"
+-		},
+-		"node_modules/discord.js": {
+-			"version": "14.28.1",
+-			"resolved": "https://registry.npmjs.org/discord.js/-/discord.js-14.28.1.tgz",
+-			"integrity": "sha512-Je5OcqgurnIUQK4vR+gQnmzOf/lNQsD6d/UkV8ZOj+bFa5zJXPyiGXlbywp2EagwshVT18y7YNQNSRd3FjYkDw==",
+-			"license": "Apache-2.0",
+-			"dependencies": {
+-				"@discordjs/builders": "^1.15.0",
+-				"@discordjs/collection": "1.5.3",
+-				"@discordjs/formatters": "^0.6.2",
+-				"@discordjs/rest": "^2.6.3",
+-				"@discordjs/util": "^1.2.0",
+-				"@discordjs/ws": "^1.2.3",
+-				"@sapphire/snowflake": "3.5.5",
+-				"discord-api-types": "^0.38.50",
+-				"fast-deep-equal": "3.1.3",
+-				"lodash.snakecase": "4.1.1",
+-				"magic-bytes.js": "^1.13.0",
+-				"tslib": "^2.6.3",
+-				"undici": "^6.27.0"
+-			},
+-			"engines": {
+-				"node": ">=18"
+-			},
+-			"funding": {
+-				"url": "https://github.com/discordjs/discord.js?sponsor"
+-			}
+-		},
+-		"node_modules/discord.js/node_modules/undici": {
+-			"version": "6.29.1",
+-			"resolved": "https://registry.npmjs.org/undici/-/undici-6.29.1.tgz",
+-			"integrity": "sha512-EvRlUt/QqAEvXdQeRMYUfwOQsfzpDztykrG2owGEE/rBOBoYv9uF39ZzsNDh4lTFHhTr2XOZjKkYgueD12ZmGA==",
+-			"license": "MIT",
+-			"engines": {
+-				"node": ">=18.17"
 -			}
 -		},
 -		"node_modules/ecdsa-sig-formatter": {
@@ -3698,7 +4204,6 @@ index a0749b93b..836813e6a 100644
 -			"version": "0.28.2",
 -			"resolved": "https://registry.npmjs.org/esbuild/-/esbuild-0.28.2.tgz",
 -			"integrity": "sha512-HKVLS8dvII+xoKW9kmqxbRKrnWEXfJJr/FZhhJmiqIB0e053QNYFqOBouTMO/k5sID4MvCiUCvv8b9M4h32wIA==",
--			"devOptional": true,
 -			"hasInstallScript": true,
 -			"license": "MIT",
 -			"bin": {
@@ -3786,7 +4291,6 @@ index a0749b93b..836813e6a 100644
 -			"version": "3.1.3",
 -			"resolved": "https://registry.npmjs.org/fast-deep-equal/-/fast-deep-equal-3.1.3.tgz",
 -			"integrity": "sha512-f3qQ9oQy9j2AhBe/H9VC91wLmKBCCU/gDOnKNAYG5hswO7BLKj09Hc5HYNz9cGI++xlpDCIgDaitVs03ATR84Q==",
--			"dev": true,
 -			"license": "MIT"
 -		},
 -		"node_modules/fast-sha256": {
@@ -4440,11 +4944,56 @@ index a0749b93b..836813e6a 100644
 -				"url": "https://opencollective.com/parcel"
 -			}
 -		},
+-		"node_modules/lodash": {
+-			"version": "4.18.1",
+-			"resolved": "https://registry.npmjs.org/lodash/-/lodash-4.18.1.tgz",
+-			"integrity": "sha512-dMInicTPVE8d1e5otfwmmjlxkZoUpiVLwyeTdUsi/Caj/gfzzblBcCE5sRHV/AsjuCmxWrte2TNGSYuCeCq+0Q==",
+-			"license": "MIT"
+-		},
+-		"node_modules/lodash.snakecase": {
+-			"version": "4.1.1",
+-			"resolved": "https://registry.npmjs.org/lodash.snakecase/-/lodash.snakecase-4.1.1.tgz",
+-			"integrity": "sha512-QZ1d4xoBHYUeuouhEq3lk3Uq7ldgyFXGBhg04+oRLnIz8o9T65Eh+8YdroUwn846zchkA9yDsDl5CVVaV2nqYw==",
+-			"license": "MIT"
+-		},
 -		"node_modules/long": {
 -			"version": "5.3.2",
 -			"resolved": "https://registry.npmjs.org/long/-/long-5.3.2.tgz",
 -			"integrity": "sha512-mNAgZ1GmyNhD7AuqnTG3/VQ26o760+ZYBPKjPvugO8+nLbYfX6TVpJPseBvopbdY+qpZ/lKUnmEc1LeZYS3QAA==",
 -			"license": "Apache-2.0"
+-		},
+-		"node_modules/lovely-mermaid": {
+-			"version": "0.3.3",
+-			"resolved": "https://registry.npmjs.org/lovely-mermaid/-/lovely-mermaid-0.3.3.tgz",
+-			"integrity": "sha512-EMLJS934qwt2MLO/a5o+T/89HGbuXZPwmCpHIhHO+DVrm+y5tHlEHgpZzlC2o4yW/rFPHRFO9xSMafzqH4wH5A==",
+-			"license": "Apache-2.0",
+-			"engines": {
+-				"node": ">=18"
+-			}
+-		},
+-		"node_modules/lowlight": {
+-			"version": "3.3.0",
+-			"resolved": "https://registry.npmjs.org/lowlight/-/lowlight-3.3.0.tgz",
+-			"integrity": "sha512-0JNhgFoPvP6U6lE/UdVsSq99tn6DhjjpAj5MxG49ewd2mOBVtwWYIT8ClyABhq198aXXODMU6Ox8DrGy/CpTZQ==",
+-			"license": "MIT",
+-			"dependencies": {
+-				"@types/hast": "^3.0.0",
+-				"devlop": "^1.0.0",
+-				"highlight.js": "~11.11.0"
+-			},
+-			"funding": {
+-				"type": "github",
+-				"url": "https://github.com/sponsors/wooorm"
+-			}
+-		},
+-		"node_modules/lowlight/node_modules/highlight.js": {
+-			"version": "11.11.2",
+-			"resolved": "https://registry.npmjs.org/highlight.js/-/highlight.js-11.11.2.tgz",
+-			"integrity": "sha512-oaXMACAU0kzOMXBjWpNcX+vlwSBCIAiZ9BHa7gA15NOTtT2L/l8OSZDuqS2XppOhZBPJ7hm4o8ep2kyuip2uEQ==",
+-			"license": "BSD-3-Clause",
+-			"engines": {
+-				"node": ">=12.0.0"
+-			}
 -		},
 -		"node_modules/lru-cache": {
 -			"version": "11.4.0",
@@ -4454,6 +5003,12 @@ index a0749b93b..836813e6a 100644
 -			"engines": {
 -				"node": "20 || >=22"
 -			}
+-		},
+-		"node_modules/magic-bytes.js": {
+-			"version": "1.13.1",
+-			"resolved": "https://registry.npmjs.org/magic-bytes.js/-/magic-bytes.js-1.13.1.tgz",
+-			"integrity": "sha512-x5sn4UX2k5gCWlcfmoFwG4TPie8+dctESyqOBdhB5p6MsgWXdBKGmt9nXPObj/JI50TTL928lc5Yt1WntMn1bw==",
+-			"license": "MIT"
 -		},
 -		"node_modules/magic-string": {
 -			"version": "0.30.21",
@@ -4703,6 +5258,10 @@ index a0749b93b..836813e6a 100644
 -			"integrity": "sha512-wWKOClTTiizcZhXnPY4wikVAwmdYHp8q6DmC+EJUzAMsycb7HB32Kh9RN4+0gExjmPmZSAQjgURXIGATPegAvA==",
 -			"license": "MIT"
 -		},
+-		"node_modules/p2": {
+-			"resolved": "apps/p2",
+-			"link": true
+-		},
 -		"node_modules/partial-json": {
 -			"version": "0.1.7",
 -			"resolved": "https://registry.npmjs.org/partial-json/-/partial-json-0.1.7.tgz",
@@ -4937,6 +5496,27 @@ index a0749b93b..836813e6a 100644
 -				"rc": "cli.js"
 -			}
 -		},
+-		"node_modules/react": {
+-			"version": "19.3.0",
+-			"resolved": "https://registry.npmjs.org/react/-/react-19.3.0.tgz",
+-			"integrity": "sha512-E8LUcbtBWt20bbl2YoHfx4ZDBdxVTfOKtCZn9cDSJ4l6/nuoApcpIBcj47t2wZoVX8g2ZHuMHbiShgCR1T5Sog==",
+-			"license": "MIT",
+-			"engines": {
+-				"node": ">=0.10.0"
+-			}
+-		},
+-		"node_modules/react-dom": {
+-			"version": "19.3.0",
+-			"resolved": "https://registry.npmjs.org/react-dom/-/react-dom-19.3.0.tgz",
+-			"integrity": "sha512-JDk8dgif51OjFoDE70+OT9ICyYr+69HlmihNwp1+Nsfbna3t5sIiCa9ZJktDmQ4/1b/rn26hIAR2uYXDMr5r0Q==",
+-			"license": "MIT",
+-			"dependencies": {
+-				"scheduler": "^0.28.0"
+-			},
+-			"peerDependencies": {
+-				"react": "^19.3.0"
+-			}
+-		},
 -		"node_modules/readable-stream": {
 -			"version": "3.6.2",
 -			"resolved": "https://registry.npmjs.org/readable-stream/-/readable-stream-3.6.2.tgz",
@@ -4961,6 +5541,12 @@ index a0749b93b..836813e6a 100644
 -			"engines": {
 -				"node": ">=0.10.0"
 -			}
+-		},
+-		"node_modules/reselect": {
+-			"version": "5.3.0",
+-			"resolved": "https://registry.npmjs.org/reselect/-/reselect-5.3.0.tgz",
+-			"integrity": "sha512-XGoLeRAVzUTcJ1qkxPQhDJyIZ5d6zzZD9nT7AEZOaaU9UbWclhycElmhO+VD5bFeLuzhPBaOV2oXC8uG35ZSpg==",
+-			"license": "MIT"
 -		},
 -		"node_modules/retry": {
 -			"version": "0.13.1",
@@ -5029,6 +5615,12 @@ index a0749b93b..836813e6a 100644
 -			"version": "2.1.2",
 -			"resolved": "https://registry.npmjs.org/safer-buffer/-/safer-buffer-2.1.2.tgz",
 -			"integrity": "sha512-YZo3K82SD7Riyi0E1EQPojLz7kpepnSQI9IyPbHHg1XXXevb5dJI7tpyN2ADxGcQbHG7vcyRHk0cbwqcQriUtg==",
+-			"license": "MIT"
+-		},
+-		"node_modules/scheduler": {
+-			"version": "0.28.0",
+-			"resolved": "https://registry.npmjs.org/scheduler/-/scheduler-0.28.0.tgz",
+-			"integrity": "sha512-juorfCmIkIw8tT+p5BXSm6PJjQF/ycEYmKyzURCIt/RaZIhL+PulbQ9Yu2z1HdOJDdqDTlxA1+xKBmHXJsczAw==",
 -			"license": "MIT"
 -		},
 -		"node_modules/semver": {
@@ -5338,6 +5930,12 @@ index a0749b93b..836813e6a 100644
 -			"integrity": "sha512-FPAhNPFMrkwz76P7cdjdmiShwMynZYN6SgOujD1urY4oNm80Ou9oMdmbR45LotcKOXoy7wSmHkRFE6Mxbrhefw==",
 -			"license": "MIT"
 -		},
+-		"node_modules/ts-mixer": {
+-			"version": "6.0.4",
+-			"resolved": "https://registry.npmjs.org/ts-mixer/-/ts-mixer-6.0.4.tgz",
+-			"integrity": "sha512-ufKpbmrugz5Aou4wcr5Wc1UUFWOLhq+Fm6qa6P0w0K5Qw2yhaUoiWszhCVuNQyNwrlGiscHOmqYoAox1PtvgjA==",
+-			"license": "MIT"
+-		},
 -		"node_modules/tslib": {
 -			"version": "2.8.1",
 -			"resolved": "https://registry.npmjs.org/tslib/-/tslib-2.8.1.tgz",
@@ -5427,6 +6025,15 @@ index a0749b93b..836813e6a 100644
 -			"license": "MIT",
 -			"dependencies": {
 -				"pathe": "^2.0.3"
+-			}
+-		},
+-		"node_modules/use-sync-external-store": {
+-			"version": "1.7.0",
+-			"resolved": "https://registry.npmjs.org/use-sync-external-store/-/use-sync-external-store-1.7.0.tgz",
+-			"integrity": "sha512-6L+EeigHMQhdaIPNIFUKwfWJSwWFQ8gJbJ2DLOs5sDIegTwR9fRxvnM3uciHKjIZhFz+KAv2emhWMRvDmMcY8A==",
+-			"license": "MIT",
+-			"peerDependencies": {
+-				"react": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0"
 -			}
 -		},
 -		"node_modules/util-deprecate": {
@@ -5810,11 +6417,11 @@ index a0749b93b..836813e6a 100644
 -		},
 -		"packages/agent": {
 -			"name": "@earendil-works/pi-agent-core",
--			"version": "1.5.0",
+-			"version": "1.5.2",
 -			"license": "MIT",
 -			"dependencies": {
--				"@earendil-works/pi-ai": "1.5.0",
--				"@earendil-works/pi-schema": "1.5.0"
+-				"@earendil-works/pi-ai": "1.5.2",
+-				"@earendil-works/pi-schema": "1.5.2"
 -			},
 -			"devDependencies": {
 -				"@types/node": "22.19.19",
@@ -5833,13 +6440,13 @@ index a0749b93b..836813e6a 100644
 -		},
 -		"packages/ai": {
 -			"name": "@earendil-works/pi-ai",
--			"version": "1.5.0",
+-			"version": "1.5.2",
 -			"license": "MIT",
 -			"dependencies": {
 -				"@anthropic-ai/sdk": "0.129.0",
 -				"@aws-sdk/client-bedrock-runtime": "3.1127.0",
--				"@earendil-works/pi-schema": "1.5.0",
--				"@earendil-works/pi-telemetry": "1.5.0",
+-				"@earendil-works/pi-schema": "1.5.2",
+-				"@earendil-works/pi-telemetry": "1.5.2",
 -				"@google/genai": "2.21.0",
 -				"@smithy/node-http-handler": "4.12.1",
 -				"http-proxy-agent": "9.1.0",
@@ -5922,14 +6529,18 @@ index a0749b93b..836813e6a 100644
 -		},
 -		"packages/chord": {
 -			"name": "@earendil-works/chord",
--			"version": "1.5.0",
+-			"version": "1.5.2",
 -			"license": "MIT",
 -			"dependencies": {
--				"@earendil-works/pi-schema": "1.5.0",
--				"@earendil-works/pi-telemetry": "1.5.0"
+-				"@earendil-works/pi-schema": "1.5.2",
+-				"@earendil-works/pi-telemetry": "1.5.2"
 -			},
 -			"devDependencies": {
+-				"@types/react": "19.2.14",
+-				"@types/react-dom": "19.2.3",
 -				"@types/ws": "8.18.2",
+-				"react": "19.3.0",
+-				"react-dom": "19.3.0",
 -				"vitest": "4.1.12",
 -				"ws": "8.21.0"
 -			},
@@ -5938,10 +6549,14 @@ index a0749b93b..836813e6a 100644
 -			},
 -			"peerDependencies": {
 -				"esbuild": "0.28.2",
+-				"react": "19.3.0",
 -				"ws": "8.21.0"
 -			},
 -			"peerDependenciesMeta": {
 -				"esbuild": {
+-					"optional": true
+-				},
+-				"react": {
 -					"optional": true
 -				},
 -				"ws": {
@@ -5949,9 +6564,13 @@ index a0749b93b..836813e6a 100644
 -				}
 -			}
 -		},
+-		"packages/chord/test/examples/61-tutorial": {
+-			"name": "@todo/app",
+-			"version": "0.0.1"
+-		},
 -		"packages/codemode": {
 -			"name": "@earendil-works/pi-codemode",
--			"version": "1.5.0",
+-			"version": "1.5.2",
 -			"license": "MIT",
 -			"dependencies": {
 -				"quickjs-wasi": "3.6.2"
@@ -5965,24 +6584,24 @@ index a0749b93b..836813e6a 100644
 -		},
 -		"packages/coding-agent": {
 -			"name": "@earendil-works/pi-coding-agent",
--			"version": "1.5.0",
+-			"version": "1.5.2",
 -			"license": "MIT",
 -			"dependencies": {
--				"@earendil-works/pi-agent-core": "1.5.0",
--				"@earendil-works/pi-ai": "1.5.0",
--				"@earendil-works/pi-codemode": "1.5.0",
--				"@earendil-works/pi-mcp": "1.5.0",
--				"@earendil-works/pi-tui": "1.5.0",
+-				"@earendil-works/pi-agent-core": "1.5.2",
+-				"@earendil-works/pi-ai": "1.5.2",
+-				"@earendil-works/pi-codemode": "1.5.2",
+-				"@earendil-works/pi-mcp": "1.5.2",
+-				"@earendil-works/pi-tui": "1.5.2",
 -				"@silvia-odwyer/photon-node": "0.3.4",
 -				"brace-expansion": "5.0.12",
 -				"chalk": "6.0.0",
 -				"cross-spawn": "7.0.6",
 -				"diff": "8.0.4",
--				"grok-mermaid": "0.2.3",
 -				"highlight.js": "10.7.3",
 -				"hosted-git-info": "9.0.3",
 -				"ignore": "7.0.8",
 -				"jiti": "2.7.0",
+-				"lovely-mermaid": "0.3.3",
 -				"minimatch": "11.0.3",
 -				"proper-lockfile": "4.1.2",
 -				"quickjs-wasi": "3.6.2",
@@ -6009,25 +6628,25 @@ index a0749b93b..836813e6a 100644
 -		},
 -		"packages/coding-agent/examples/extensions/custom-provider-anthropic": {
 -			"name": "pi-extension-custom-provider-anthropic",
--			"version": "1.5.0",
+-			"version": "1.5.2",
 -			"dependencies": {
 -				"@anthropic-ai/sdk": "0.52.0"
 -			}
 -		},
 -		"packages/coding-agent/examples/extensions/custom-provider-gitlab-duo": {
 -			"name": "pi-extension-custom-provider-gitlab-duo",
--			"version": "1.5.0"
+-			"version": "1.5.2"
 -		},
 -		"packages/coding-agent/examples/extensions/gondolin": {
 -			"name": "pi-extension-gondolin",
--			"version": "1.5.0",
+-			"version": "1.5.2",
 -			"dependencies": {
 -				"@earendil-works/gondolin": "0.14.0"
 -			}
 -		},
 -		"packages/coding-agent/examples/extensions/with-deps": {
 -			"name": "pi-extension-with-deps",
--			"version": "1.5.0",
+-			"version": "1.5.2",
 -			"dependencies": {
 -				"ms": "2.1.3"
 -			},
@@ -6081,14 +6700,14 @@ index a0749b93b..836813e6a 100644
 -		},
 -		"packages/durable": {
 -			"name": "@earendil-works/pi-durable",
--			"version": "1.5.0",
+-			"version": "1.5.2",
 -			"license": "MIT",
 -			"dependencies": {
--				"@earendil-works/chord": "1.5.0",
--				"@earendil-works/pi-ai": "1.5.0",
--				"@earendil-works/pi-codemode": "1.5.0",
--				"@earendil-works/pi-schema": "1.5.0",
--				"@earendil-works/pi-telemetry": "1.5.0",
+-				"@earendil-works/chord": "1.5.2",
+-				"@earendil-works/pi-ai": "1.5.2",
+-				"@earendil-works/pi-codemode": "1.5.2",
+-				"@earendil-works/pi-schema": "1.5.2",
+-				"@earendil-works/pi-telemetry": "1.5.2",
 -				"@silvia-odwyer/photon": "0.3.3",
 -				"diff": "8.0.4"
 -			},
@@ -6103,11 +6722,11 @@ index a0749b93b..836813e6a 100644
 -		},
 -		"packages/env": {
 -			"name": "@earendil-works/pi-env",
--			"version": "1.5.0",
+-			"version": "1.5.2",
 -			"license": "MIT",
 -			"dependencies": {
--				"@earendil-works/chord": "1.5.0",
--				"@earendil-works/pi-durable": "1.5.0"
+-				"@earendil-works/chord": "1.5.2",
+-				"@earendil-works/pi-durable": "1.5.2"
 -			},
 -			"devDependencies": {
 -				"vitest": "4.1.12"
@@ -6118,10 +6737,10 @@ index a0749b93b..836813e6a 100644
 -		},
 -		"packages/evals": {
 -			"name": "@earendil-works/pi-evals",
--			"version": "1.5.0",
+-			"version": "1.5.2",
 -			"devDependencies": {
--				"@earendil-works/pi-ai": "1.5.0",
--				"@earendil-works/pi-coding-agent": "1.5.0",
+-				"@earendil-works/pi-ai": "1.5.2",
+-				"@earendil-works/pi-coding-agent": "1.5.2",
 -				"@types/node": "22.19.19",
 -				"@vitest-evals/core": "0.15.0",
 -				"vitest": "4.1.12",
@@ -6130,7 +6749,7 @@ index a0749b93b..836813e6a 100644
 -		},
 -		"packages/mcp": {
 -			"name": "@earendil-works/pi-mcp",
--			"version": "1.5.0",
+-			"version": "1.5.2",
 -			"license": "MIT",
 -			"dependencies": {
 -				"cross-spawn": "7.0.6"
@@ -6145,7 +6764,7 @@ index a0749b93b..836813e6a 100644
 -		},
 -		"packages/schema": {
 -			"name": "@earendil-works/pi-schema",
--			"version": "1.5.0",
+-			"version": "1.5.2",
 -			"license": "MIT",
 -			"devDependencies": {
 -				"@cfworker/json-schema": "4.1.1",
@@ -6163,7 +6782,7 @@ index a0749b93b..836813e6a 100644
 -		},
 -		"packages/telemetry": {
 -			"name": "@earendil-works/pi-telemetry",
--			"version": "1.5.0",
+-			"version": "1.5.2",
 -			"license": "MIT",
 -			"devDependencies": {
 -				"@types/node": "22.19.19",
@@ -6175,7 +6794,7 @@ index a0749b93b..836813e6a 100644
 -		},
 -		"packages/tui": {
 -			"name": "@earendil-works/pi-tui",
--			"version": "1.5.0",
+-			"version": "1.5.2",
 -			"license": "MIT",
 -			"dependencies": {
 -				"get-east-asian-width": "1.6.0",
@@ -6203,6 +6822,7 @@ index a0749b93b..836813e6a 100644
 +      "workspaces": [
 +        "packages/*",
 +        "apps/*",
++        "packages/chord/test/examples/61-tutorial",
 +        "packages/coding-agent/examples/extensions/with-deps",
 +        "packages/coding-agent/examples/extensions/custom-provider-anthropic",
 +        "packages/coding-agent/examples/extensions/custom-provider-gitlab-duo",
@@ -6220,6 +6840,87 @@ index a0749b93b..836813e6a 100644
 +      },
 +      "engines": {
 +        "node": ">=22.19.0"
++      }
++    },
++    "apps/p2": {
++      "version": "0.0.3",
++      "dependencies": {
++        "@earendil-works/chord": "1.5.2",
++        "@earendil-works/design-tokens": "0.1.0",
++        "@earendil-works/elanor-fonts": "0.1.0",
++        "@earendil-works/elanor-icons-react": "0.1.0",
++        "@earendil-works/elanor-react": "0.1.0",
++        "@earendil-works/pi-ai": "1.5.2",
++        "@earendil-works/pi-codemode": "1.5.2",
++        "@earendil-works/pi-durable": "1.5.2",
++        "@earendil-works/pi-env": "1.5.2",
++        "@earendil-works/pi-mcp": "1.5.2",
++        "@earendil-works/pi-schema": "1.5.2",
++        "@earendil-works/pi-tui": "1.5.2",
++        "diff": "8.0.4",
++        "discord.js": "14.28.1",
++        "esbuild": "0.28.2",
++        "grok-mermaid": "0.2.3",
++        "lowlight": "3.3.0",
++        "marked": "18.0.14",
++        "proper-lockfile": "4.1.2",
++        "react": "19.3.0",
++        "react-dom": "19.3.0",
++        "undici": "8.12.3",
++        "ws": "8.21.0",
++        "yaml": "2.9.1"
++      },
++      "devDependencies": {
++        "@types/node": "22.19.19",
++        "@types/proper-lockfile": "4.1.4",
++        "@types/react": "19.2.14",
++        "@types/react-dom": "19.2.3",
++        "@types/ws": "8.18.2",
++        "typescript": "5.9.3"
++      },
++      "engines": {
++        "node": ">=22.19.0"
++      }
++    },
++    "apps/p2/node_modules/marked": {
++      "version": "18.0.14",
++      "resolved": "https://registry.npmjs.org/marked/-/marked-18.0.14.tgz",
++      "integrity": "sha512-mBHK6FBHuBAlhgRe88w9F0O1AbwwXJUcQibUbC/QcdTbVGAD7aWza+xt3N6oT/jCZx3/OMeS+8rnuiHZcQ9s7A==",
++      "license": "MIT",
++      "bin": {
++        "marked": "bin/marked.js"
++      },
++      "engines": {
++        "node": ">= 20"
++      }
++    },
++    "apps/p2/node_modules/typescript": {
++      "version": "5.9.3",
++      "resolved": "https://registry.npmjs.org/typescript/-/typescript-5.9.3.tgz",
++      "integrity": "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==",
++      "dev": true,
++      "license": "Apache-2.0",
++      "bin": {
++        "tsc": "bin/tsc",
++        "tsserver": "bin/tsserver"
++      },
++      "engines": {
++        "node": ">=14.17"
++      }
++    },
++    "apps/p2/node_modules/yaml": {
++      "version": "2.9.1",
++      "resolved": "https://registry.npmjs.org/yaml/-/yaml-2.9.1.tgz",
++      "integrity": "sha512-3NxN8+78OdzbT7C/WjGsyfPAtJaN3FNDsWxv7Y7mcDsT/oOmgW8BpyQQFFBnvZE3j9Y2Sdz1ULFLezL7Eb2yFw==",
++      "license": "ISC",
++      "bin": {
++        "yaml": "bin.mjs"
++      },
++      "engines": {
++        "node": ">= 14.6"
++      },
++      "funding": {
++        "url": "https://github.com/sponsors/eemeli"
 +      }
 +    },
 +    "node_modules/@anthropic-ai/sdk": {
@@ -6695,12 +7396,72 @@ index a0749b93b..836813e6a 100644
 +      }
 +    },
 +    "node_modules/@babel/runtime": {
-+      "version": "7.29.2",
-+      "resolved": "https://registry.npmjs.org/@babel/runtime/-/runtime-7.29.2.tgz",
-+      "integrity": "sha512-JiDShH45zKHWyGe4ZNVRrCjBz8Nh9TMmZG1kh4QTK8hCBTWBi8Da+i7s1fJw7/lYpM4ccepSNfqzZ/QvABBi5g==",
++      "version": "7.29.10",
++      "resolved": "https://registry.npmjs.org/@babel/runtime/-/runtime-7.29.10.tgz",
++      "integrity": "sha512-NpugTzbKgGrNe45Ui32cN8vCFFMxVtP/9rtfwv0nP5FRDAjvYBxJcLVpYA9mr1jxP6cnIT7x9LUzuDTbWYYNRA==",
 +      "license": "MIT",
 +      "engines": {
 +        "node": ">=6.9.0"
++      }
++    },
++    "node_modules/@base-ui/react": {
++      "version": "1.8.0",
++      "resolved": "https://registry.npmjs.org/@base-ui/react/-/react-1.8.0.tgz",
++      "integrity": "sha512-P0/1sxo6SBVZOklKMIedvTWqw2s2IQzi9x5bIVsXu980cuSOD4NeuRSs+/L7LZQfDkZP/uRZyGPyfFl/B1oH+Q==",
++      "license": "MIT",
++      "dependencies": {
++        "@babel/runtime": "^7.29.7",
++        "@base-ui/utils": "0.4.0",
++        "@floating-ui/react-dom": "^2.1.9",
++        "@floating-ui/utils": "^0.2.12",
++        "use-sync-external-store": "^1.6.0"
++      },
++      "engines": {
++        "node": ">=14.0.0"
++      },
++      "funding": {
++        "type": "opencollective",
++        "url": "https://opencollective.com/mui-org"
++      },
++      "peerDependencies": {
++        "@date-fns/tz": "^1.2.0",
++        "@types/react": "^17 || ^18 || ^19",
++        "date-fns": "^4.0.0",
++        "react": "^17 || ^18 || ^19",
++        "react-dom": "^17 || ^18 || ^19"
++      },
++      "peerDependenciesMeta": {
++        "@date-fns/tz": {
++          "optional": true
++        },
++        "@types/react": {
++          "optional": true
++        },
++        "date-fns": {
++          "optional": true
++        }
++      }
++    },
++    "node_modules/@base-ui/utils": {
++      "version": "0.4.0",
++      "resolved": "https://registry.npmjs.org/@base-ui/utils/-/utils-0.4.0.tgz",
++      "integrity": "sha512-bO9fz25kKtPf+aZVyfQrC0PDmJdmVni31W2hCS5/Owb+inwdIL3XU26pCPRPlt4LSxZrBgLwubXQXQlKaFEZzw==",
++      "license": "MIT",
++      "dependencies": {
++        "@babel/runtime": "^7.29.7",
++        "@floating-ui/utils": "^0.2.12",
++        "reselect": "^5.2.0",
++        "use-sync-external-store": "^1.6.0"
++      },
++      "peerDependencies": {
++        "@types/react": "^17 || ^18 || ^19",
++        "react": "^17 || ^18 || ^19",
++        "react-dom": "^17 || ^18 || ^19"
++      },
++      "peerDependenciesMeta": {
++        "@types/react": {
++          "optional": true
++        }
 +      }
 +    },
 +    "node_modules/@biomejs/biome": {
@@ -7040,9 +7801,183 @@ index a0749b93b..836813e6a 100644
 +        "node": ">=20"
 +      }
 +    },
++    "node_modules/@discordjs/builders": {
++      "version": "1.15.0",
++      "resolved": "https://registry.npmjs.org/@discordjs/builders/-/builders-1.15.0.tgz",
++      "integrity": "sha512-AifaDWTw6WUDhKBn8E6mwwoyjDAcfsYq+ZE0nKSu1dMH1NLR22D3hGkNx+ctEv8NqHEHdAZnP5REteHDmn1lkA==",
++      "license": "Apache-2.0",
++      "dependencies": {
++        "@discordjs/formatters": "^0.6.2",
++        "@discordjs/util": "^1.2.0",
++        "@sapphire/shapeshift": "^4.0.0",
++        "discord-api-types": "^0.38.50",
++        "fast-deep-equal": "^3.1.3",
++        "ts-mixer": "^6.0.4",
++        "tslib": "^2.6.3"
++      },
++      "engines": {
++        "node": ">=16.11.0"
++      },
++      "funding": {
++        "url": "https://github.com/discordjs/discord.js?sponsor"
++      }
++    },
++    "node_modules/@discordjs/collection": {
++      "version": "1.5.3",
++      "resolved": "https://registry.npmjs.org/@discordjs/collection/-/collection-1.5.3.tgz",
++      "integrity": "sha512-SVb428OMd3WO1paV3rm6tSjM4wC+Kecaa1EUGX7vc6/fddvw/6lg90z4QtCqm21zvVe92vMMDt9+DkIvjXImQQ==",
++      "license": "Apache-2.0",
++      "engines": {
++        "node": ">=16.11.0"
++      }
++    },
++    "node_modules/@discordjs/formatters": {
++      "version": "0.6.2",
++      "resolved": "https://registry.npmjs.org/@discordjs/formatters/-/formatters-0.6.2.tgz",
++      "integrity": "sha512-y4UPwWhH6vChKRkGdMB4odasUbHOUwy7KL+OVwF86PvT6QVOwElx+TiI1/6kcmcEe+g5YRXJFiXSXUdabqZOvQ==",
++      "license": "Apache-2.0",
++      "dependencies": {
++        "discord-api-types": "^0.38.33"
++      },
++      "engines": {
++        "node": ">=16.11.0"
++      },
++      "funding": {
++        "url": "https://github.com/discordjs/discord.js?sponsor"
++      }
++    },
++    "node_modules/@discordjs/rest": {
++      "version": "2.6.3",
++      "resolved": "https://registry.npmjs.org/@discordjs/rest/-/rest-2.6.3.tgz",
++      "integrity": "sha512-wvOylxNYJkwKjctS/Mn5GP1w9r3/rzyH+ThD1JlAca6zEdlHs8QWBBUQJpU5Q+W6DoIj/Ljh1IPlZs7hTU+UAg==",
++      "license": "Apache-2.0",
++      "dependencies": {
++        "@discordjs/collection": "^2.1.1",
++        "@discordjs/util": "^1.2.0",
++        "@sapphire/async-queue": "^1.5.3",
++        "@sapphire/snowflake": "^3.5.5",
++        "@vladfrangu/async_event_emitter": "^2.4.6",
++        "discord-api-types": "^0.38.50",
++        "magic-bytes.js": "^1.13.0",
++        "tslib": "^2.6.3",
++        "undici": "^6.27.0"
++      },
++      "engines": {
++        "node": ">=18"
++      },
++      "funding": {
++        "url": "https://github.com/discordjs/discord.js?sponsor"
++      }
++    },
++    "node_modules/@discordjs/rest/node_modules/@discordjs/collection": {
++      "version": "2.1.1",
++      "resolved": "https://registry.npmjs.org/@discordjs/collection/-/collection-2.1.1.tgz",
++      "integrity": "sha512-LiSusze9Tc7qF03sLCujF5iZp7K+vRNEDBZ86FT9aQAv3vxMLihUvKvpsCWiQ2DJq1tVckopKm1rxomgNUc9hg==",
++      "license": "Apache-2.0",
++      "engines": {
++        "node": ">=18"
++      },
++      "funding": {
++        "url": "https://github.com/discordjs/discord.js?sponsor"
++      }
++    },
++    "node_modules/@discordjs/rest/node_modules/undici": {
++      "version": "6.29.1",
++      "resolved": "https://registry.npmjs.org/undici/-/undici-6.29.1.tgz",
++      "integrity": "sha512-EvRlUt/QqAEvXdQeRMYUfwOQsfzpDztykrG2owGEE/rBOBoYv9uF39ZzsNDh4lTFHhTr2XOZjKkYgueD12ZmGA==",
++      "license": "MIT",
++      "engines": {
++        "node": ">=18.17"
++      }
++    },
++    "node_modules/@discordjs/util": {
++      "version": "1.2.0",
++      "resolved": "https://registry.npmjs.org/@discordjs/util/-/util-1.2.0.tgz",
++      "integrity": "sha512-3LKP7F2+atl9vJFhaBjn4nOaSWahZ/yWjOvA4e5pnXkt2qyXRCHLxoBQy81GFtLGCq7K9lPm9R517M1U+/90Qg==",
++      "license": "Apache-2.0",
++      "dependencies": {
++        "discord-api-types": "^0.38.33"
++      },
++      "engines": {
++        "node": ">=18"
++      },
++      "funding": {
++        "url": "https://github.com/discordjs/discord.js?sponsor"
++      }
++    },
++    "node_modules/@discordjs/ws": {
++      "version": "1.2.3",
++      "resolved": "https://registry.npmjs.org/@discordjs/ws/-/ws-1.2.3.tgz",
++      "integrity": "sha512-wPlQDxEmlDg5IxhJPuxXr3Vy9AjYq5xCvFWGJyD7w7Np8ZGu+Mc+97LCoEc/+AYCo2IDpKioiH0/c/mj5ZR9Uw==",
++      "license": "Apache-2.0",
++      "dependencies": {
++        "@discordjs/collection": "^2.1.0",
++        "@discordjs/rest": "^2.5.1",
++        "@discordjs/util": "^1.1.0",
++        "@sapphire/async-queue": "^1.5.2",
++        "@types/ws": "^8.5.10",
++        "@vladfrangu/async_event_emitter": "^2.2.4",
++        "discord-api-types": "^0.38.1",
++        "tslib": "^2.6.2",
++        "ws": "^8.17.0"
++      },
++      "engines": {
++        "node": ">=16.11.0"
++      },
++      "funding": {
++        "url": "https://github.com/discordjs/discord.js?sponsor"
++      }
++    },
++    "node_modules/@discordjs/ws/node_modules/@discordjs/collection": {
++      "version": "2.1.1",
++      "resolved": "https://registry.npmjs.org/@discordjs/collection/-/collection-2.1.1.tgz",
++      "integrity": "sha512-LiSusze9Tc7qF03sLCujF5iZp7K+vRNEDBZ86FT9aQAv3vxMLihUvKvpsCWiQ2DJq1tVckopKm1rxomgNUc9hg==",
++      "license": "Apache-2.0",
++      "engines": {
++        "node": ">=18"
++      },
++      "funding": {
++        "url": "https://github.com/discordjs/discord.js?sponsor"
++      }
++    },
 +    "node_modules/@earendil-works/chord": {
 +      "resolved": "packages/chord",
 +      "link": true
++    },
++    "node_modules/@earendil-works/design-tokens": {
++      "version": "0.1.0",
++      "resolved": "https://registry.npmjs.org/@earendil-works/design-tokens/-/design-tokens-0.1.0.tgz",
++      "integrity": "sha512-xY6+O52jX7VJGso8kEA+bLdV7N8nSooJ2vjtrYq71gi1Hkd3qHwz2g3UprmgpcKSHtZO6vOxzGWxbT1jAS7sVA==",
++      "license": "ISC"
++    },
++    "node_modules/@earendil-works/elanor-fonts": {
++      "version": "0.1.0",
++      "resolved": "https://registry.npmjs.org/@earendil-works/elanor-fonts/-/elanor-fonts-0.1.0.tgz",
++      "integrity": "sha512-FumYoWIhXt8NHIwY8Ku0TecJox0aZ9rcGgu11sgOUhCPREgVkFS3C1Obo7FgT8IdqlFhzG87ryzx7bg5UPpVpQ==",
++      "license": "OFL-1.1"
++    },
++    "node_modules/@earendil-works/elanor-icons-react": {
++      "version": "0.1.0",
++      "resolved": "https://registry.npmjs.org/@earendil-works/elanor-icons-react/-/elanor-icons-react-0.1.0.tgz",
++      "integrity": "sha512-Ri6xEWAvuhbKWgKcjphhxOMGAISKAyCAttQx4qlxflSORnGc0nPCA8pD0LsmmSCpdi/GmSJwUibPkwC0xn9BrQ==",
++      "license": "Apache-2.0",
++      "peerDependencies": {
++        "react": "^18.0.0 || ^19.0.0"
++      }
++    },
++    "node_modules/@earendil-works/elanor-react": {
++      "version": "0.1.0",
++      "resolved": "https://registry.npmjs.org/@earendil-works/elanor-react/-/elanor-react-0.1.0.tgz",
++      "integrity": "sha512-9zh26YB9Y64QOw//k4agAT9sWdYmE2unGavmUIHSDQRVIdfyVgdMXHCkgjEf1CTnmzCI069UnPWUdEmcS7RzUQ==",
++      "license": "MIT",
++      "dependencies": {
++        "@base-ui/react": "1.8.0",
++        "@earendil-works/elanor-icons-react": "0.1.0"
++      },
++      "peerDependencies": {
++        "react": "^19.0.0",
++        "react-dom": "^19.0.0"
++      }
 +    },
 +    "node_modules/@earendil-works/gondolin": {
 +      "version": "0.14.0",
@@ -7576,6 +8511,44 @@ index a0749b93b..836813e6a 100644
 +      "engines": {
 +        "node": ">=18"
 +      }
++    },
++    "node_modules/@floating-ui/core": {
++      "version": "1.8.0",
++      "resolved": "https://registry.npmjs.org/@floating-ui/core/-/core-1.8.0.tgz",
++      "integrity": "sha512-0CIZ5itps/8x7BG8dEIhs53BvCUH2PCoogtakwRTut+Arm58sJooJ0AuZhLw2HJYIR5cMLNPBSS728sPho2khQ==",
++      "license": "MIT",
++      "dependencies": {
++        "@floating-ui/utils": "^0.2.12"
++      }
++    },
++    "node_modules/@floating-ui/dom": {
++      "version": "1.8.0",
++      "resolved": "https://registry.npmjs.org/@floating-ui/dom/-/dom-1.8.0.tgz",
++      "integrity": "sha512-yXSrzeHZBTZadLOlfyhCkJHNeLJnHRnRInwdZ40L7ZiaAtrBwoYlsDrX3v5zB1Utk7CLfzcOVnVVWoXEky7Ceg==",
++      "license": "MIT",
++      "dependencies": {
++        "@floating-ui/core": "^1.8.0",
++        "@floating-ui/utils": "^0.2.12"
++      }
++    },
++    "node_modules/@floating-ui/react-dom": {
++      "version": "2.1.9",
++      "resolved": "https://registry.npmjs.org/@floating-ui/react-dom/-/react-dom-2.1.9.tgz",
++      "integrity": "sha512-JDjEFGCpImxDCA7JJKviA0M9+RtmJdj0m/NVU5IMgBK+AmZouAQQ7/+2GLH0GXXY0YMw9oXPB8hKdbPYg5QLYg==",
++      "license": "MIT",
++      "dependencies": {
++        "@floating-ui/dom": "^1.8.0"
++      },
++      "peerDependencies": {
++        "react": ">=16.8.0",
++        "react-dom": ">=16.8.0"
++      }
++    },
++    "node_modules/@floating-ui/utils": {
++      "version": "0.2.12",
++      "resolved": "https://registry.npmjs.org/@floating-ui/utils/-/utils-0.2.12.tgz",
++      "integrity": "sha512-HpCo8tmWzLVad5s2d19EhAz5zqrrQ6s69qd6moPMQvkOuSwDT1YgRfWSVuc4ennqrgv3OHppiOGMQ7oC13yIww==",
++      "license": "MIT"
 +    },
 +    "node_modules/@google/genai": {
 +      "version": "2.21.0",
@@ -8597,6 +9570,39 @@ index a0749b93b..836813e6a 100644
 +      "dev": true,
 +      "license": "MIT"
 +    },
++    "node_modules/@sapphire/async-queue": {
++      "version": "1.5.5",
++      "resolved": "https://registry.npmjs.org/@sapphire/async-queue/-/async-queue-1.5.5.tgz",
++      "integrity": "sha512-cvGzxbba6sav2zZkH8GPf2oGk9yYoD5qrNWdu9fRehifgnFZJMV+nuy2nON2roRO4yQQ+v7MK/Pktl/HgfsUXg==",
++      "license": "MIT",
++      "engines": {
++        "node": ">=v14.0.0",
++        "npm": ">=7.0.0"
++      }
++    },
++    "node_modules/@sapphire/shapeshift": {
++      "version": "4.0.0",
++      "resolved": "https://registry.npmjs.org/@sapphire/shapeshift/-/shapeshift-4.0.0.tgz",
++      "integrity": "sha512-d9dUmWVA7MMiKobL3VpLF8P2aeanRTu6ypG2OIaEv/ZHH/SUQ2iHOVyi5wAPjQ+HmnMuL0whK9ez8I/raWbtIg==",
++      "license": "MIT",
++      "dependencies": {
++        "fast-deep-equal": "^3.1.3",
++        "lodash": "^4.17.21"
++      },
++      "engines": {
++        "node": ">=v16"
++      }
++    },
++    "node_modules/@sapphire/snowflake": {
++      "version": "3.5.5",
++      "resolved": "https://registry.npmjs.org/@sapphire/snowflake/-/snowflake-3.5.5.tgz",
++      "integrity": "sha512-xzvBr1Q1c4lCe7i6sRnrofxeO1QTP/LKQ6A6qy0iB4x5yfiSfARMEQEghojzTNALDTcv8En04qYNIco9/K9eZQ==",
++      "license": "MIT",
++      "engines": {
++        "node": ">=v14.0.0",
++        "npm": ">=7.0.0"
++      }
++    },
 +    "node_modules/@silvia-odwyer/photon": {
 +      "version": "0.3.3",
 +      "resolved": "https://registry.npmjs.org/@silvia-odwyer/photon/-/photon-0.3.3.tgz",
@@ -8723,6 +9729,10 @@ index a0749b93b..836813e6a 100644
 +      "dev": true,
 +      "license": "MIT"
 +    },
++    "node_modules/@todo/app": {
++      "resolved": "packages/chord/test/examples/61-tutorial",
++      "link": true
++    },
 +    "node_modules/@types/chai": {
 +      "version": "5.2.3",
 +      "resolved": "https://registry.npmjs.org/@types/chai/-/chai-5.2.3.tgz",
@@ -8758,6 +9768,15 @@ index a0749b93b..836813e6a 100644
 +      "dev": true,
 +      "license": "MIT"
 +    },
++    "node_modules/@types/hast": {
++      "version": "3.0.5",
++      "resolved": "https://registry.npmjs.org/@types/hast/-/hast-3.0.5.tgz",
++      "integrity": "sha512-rp/ezSWaD1m44dPKICGhiskI13nVr7qTloFwDa/IYkhhf5nzwP+zIQcIJh3WIFSBOy/H1PzB40jPjMDksN4F+g==",
++      "license": "MIT",
++      "dependencies": {
++        "@types/unist": "*"
++      }
++    },
 +    "node_modules/@types/hosted-git-info": {
 +      "version": "3.0.5",
 +      "resolved": "https://registry.npmjs.org/@types/hosted-git-info/-/hosted-git-info-3.0.5.tgz",
@@ -8791,6 +9810,26 @@ index a0749b93b..836813e6a 100644
 +        "@types/retry": "*"
 +      }
 +    },
++    "node_modules/@types/react": {
++      "version": "19.2.14",
++      "resolved": "https://registry.npmjs.org/@types/react/-/react-19.2.14.tgz",
++      "integrity": "sha512-ilcTH/UniCkMdtexkoCN0bI7pMcJDvmQFPvuPvmEaYA/NSfFTAgdUSLAoVjaRJm7+6PvcM+q1zYOwS4wTYMF9w==",
++      "devOptional": true,
++      "license": "MIT",
++      "dependencies": {
++        "csstype": "^3.2.2"
++      }
++    },
++    "node_modules/@types/react-dom": {
++      "version": "19.2.3",
++      "resolved": "https://registry.npmjs.org/@types/react-dom/-/react-dom-19.2.3.tgz",
++      "integrity": "sha512-jp2L/eY6fn+KgVVQAOqYItbF0VY/YApe5Mz2F0aykSO8gx31bYCZyvSeYxCHKvzHG5eZjc+zyaS5BrBWya2+kQ==",
++      "dev": true,
++      "license": "MIT",
++      "peerDependencies": {
++        "@types/react": "^19.2.0"
++      }
++    },
 +    "node_modules/@types/retry": {
 +      "version": "0.12.5",
 +      "resolved": "https://registry.npmjs.org/@types/retry/-/retry-0.12.5.tgz",
@@ -8805,11 +9844,16 @@ index a0749b93b..836813e6a 100644
 +      "dev": true,
 +      "license": "MIT"
 +    },
++    "node_modules/@types/unist": {
++      "version": "3.0.3",
++      "resolved": "https://registry.npmjs.org/@types/unist/-/unist-3.0.3.tgz",
++      "integrity": "sha512-ko/gIFJRv177XgZsZcBwnqJN5x/Gien8qNOn0D5bQU/zAzVf9Zt3BlcUiLqhV9y4ARk0GbT3tnUiPNgnTXzc/Q==",
++      "license": "MIT"
++    },
 +    "node_modules/@types/ws": {
 +      "version": "8.18.2",
 +      "resolved": "https://registry.npmjs.org/@types/ws/-/ws-8.18.2.tgz",
 +      "integrity": "sha512-67MQl+fpWKVTT1NYdnmo3U4sc/xPo/zQBncVnI74qmQa0z/b+1g6iYqNmGCPbxO+zz2aklb08a0oHfegiVd0/w==",
-+      "dev": true,
 +      "license": "MIT",
 +      "dependencies": {
 +        "@types/node": "*"
@@ -9288,6 +10332,16 @@ index a0749b93b..836813e6a 100644
 +        "url": "https://opencollective.com/vitest"
 +      }
 +    },
++    "node_modules/@vladfrangu/async_event_emitter": {
++      "version": "2.4.7",
++      "resolved": "https://registry.npmjs.org/@vladfrangu/async_event_emitter/-/async_event_emitter-2.4.7.tgz",
++      "integrity": "sha512-Xfe6rpCTxSxfbswi/W/Pz7zp1WWSNn4A0eW4mLkQUewCrXXtMj31lCg+iQyTkh/CkusZSq9eDflu7tjEDXUY6g==",
++      "license": "MIT",
++      "engines": {
++        "node": ">=v14.0.0",
++        "npm": ">=7.0.0"
++      }
++    },
 +    "node_modules/@xterm/headless": {
 +      "version": "5.5.0",
 +      "resolved": "https://registry.npmjs.org/@xterm/headless/-/headless-5.5.0.tgz",
@@ -9624,6 +10678,13 @@ index a0749b93b..836813e6a 100644
 +        "node": ">= 8"
 +      }
 +    },
++    "node_modules/csstype": {
++      "version": "3.2.3",
++      "resolved": "https://registry.npmjs.org/csstype/-/csstype-3.2.3.tgz",
++      "integrity": "sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ==",
++      "devOptional": true,
++      "license": "MIT"
++    },
 +    "node_modules/data-uri-to-buffer": {
 +      "version": "4.0.1",
 +      "resolved": "https://registry.npmjs.org/data-uri-to-buffer/-/data-uri-to-buffer-4.0.1.tgz",
@@ -9676,6 +10737,15 @@ index a0749b93b..836813e6a 100644
 +        "node": ">=4.0.0"
 +      }
 +    },
++    "node_modules/dequal": {
++      "version": "2.0.3",
++      "resolved": "https://registry.npmjs.org/dequal/-/dequal-2.0.3.tgz",
++      "integrity": "sha512-0je+qPKHEMohvfRTCEo3CrPG6cAzAYgmzKyxRiYSSDkS6eGJdyVJm7WaYA5ECaAD9wLB2T4EEeymA5aFVcYXCA==",
++      "license": "MIT",
++      "engines": {
++        "node": ">=6"
++      }
++    },
 +    "node_modules/detect-libc": {
 +      "version": "2.1.2",
 +      "resolved": "https://registry.npmjs.org/detect-libc/-/detect-libc-2.1.2.tgz",
@@ -9686,6 +10756,19 @@ index a0749b93b..836813e6a 100644
 +        "node": ">=8"
 +      }
 +    },
++    "node_modules/devlop": {
++      "version": "1.1.0",
++      "resolved": "https://registry.npmjs.org/devlop/-/devlop-1.1.0.tgz",
++      "integrity": "sha512-RWmIqhcFf1lRYBvNmr7qTNuyCt/7/ns2jbpp1+PalgE/rDQcBT0fioSMUpJ93irlUhC5hrg4cYqe6U+0ImW0rA==",
++      "license": "MIT",
++      "dependencies": {
++        "dequal": "^2.0.0"
++      },
++      "funding": {
++        "type": "github",
++        "url": "https://github.com/sponsors/wooorm"
++      }
++    },
 +    "node_modules/diff": {
 +      "version": "8.0.4",
 +      "resolved": "https://registry.npmjs.org/diff/-/diff-8.0.4.tgz",
@@ -9693,6 +10776,48 @@ index a0749b93b..836813e6a 100644
 +      "license": "BSD-3-Clause",
 +      "engines": {
 +        "node": ">=0.3.1"
++      }
++    },
++    "node_modules/discord-api-types": {
++      "version": "0.38.57",
++      "resolved": "https://registry.npmjs.org/discord-api-types/-/discord-api-types-0.38.57.tgz",
++      "integrity": "sha512-R1CTSSt4RshqCq23j2Xq2ZscvzB4LzG9OB1CYQdKUGdw8Ti/oF/72EEtK2mNpagG/Vj9NcBT7dw9lKLf+Dacfg==",
++      "license": "MIT"
++    },
++    "node_modules/discord.js": {
++      "version": "14.28.1",
++      "resolved": "https://registry.npmjs.org/discord.js/-/discord.js-14.28.1.tgz",
++      "integrity": "sha512-Je5OcqgurnIUQK4vR+gQnmzOf/lNQsD6d/UkV8ZOj+bFa5zJXPyiGXlbywp2EagwshVT18y7YNQNSRd3FjYkDw==",
++      "license": "Apache-2.0",
++      "dependencies": {
++        "@discordjs/builders": "^1.15.0",
++        "@discordjs/collection": "1.5.3",
++        "@discordjs/formatters": "^0.6.2",
++        "@discordjs/rest": "^2.6.3",
++        "@discordjs/util": "^1.2.0",
++        "@discordjs/ws": "^1.2.3",
++        "@sapphire/snowflake": "3.5.5",
++        "discord-api-types": "^0.38.50",
++        "fast-deep-equal": "3.1.3",
++        "lodash.snakecase": "4.1.1",
++        "magic-bytes.js": "^1.13.0",
++        "tslib": "^2.6.3",
++        "undici": "^6.27.0"
++      },
++      "engines": {
++        "node": ">=18"
++      },
++      "funding": {
++        "url": "https://github.com/discordjs/discord.js?sponsor"
++      }
++    },
++    "node_modules/discord.js/node_modules/undici": {
++      "version": "6.29.1",
++      "resolved": "https://registry.npmjs.org/undici/-/undici-6.29.1.tgz",
++      "integrity": "sha512-EvRlUt/QqAEvXdQeRMYUfwOQsfzpDztykrG2owGEE/rBOBoYv9uF39ZzsNDh4lTFHhTr2XOZjKkYgueD12ZmGA==",
++      "license": "MIT",
++      "engines": {
++        "node": ">=18.17"
 +      }
 +    },
 +    "node_modules/ecdsa-sig-formatter": {
@@ -9735,7 +10860,6 @@ index a0749b93b..836813e6a 100644
 +      "version": "0.28.2",
 +      "resolved": "https://registry.npmjs.org/esbuild/-/esbuild-0.28.2.tgz",
 +      "integrity": "sha512-HKVLS8dvII+xoKW9kmqxbRKrnWEXfJJr/FZhhJmiqIB0e053QNYFqOBouTMO/k5sID4MvCiUCvv8b9M4h32wIA==",
-+      "devOptional": true,
 +      "hasInstallScript": true,
 +      "license": "MIT",
 +      "bin": {
@@ -9823,7 +10947,6 @@ index a0749b93b..836813e6a 100644
 +      "version": "3.1.3",
 +      "resolved": "https://registry.npmjs.org/fast-deep-equal/-/fast-deep-equal-3.1.3.tgz",
 +      "integrity": "sha512-f3qQ9oQy9j2AhBe/H9VC91wLmKBCCU/gDOnKNAYG5hswO7BLKj09Hc5HYNz9cGI++xlpDCIgDaitVs03ATR84Q==",
-+      "dev": true,
 +      "license": "MIT"
 +    },
 +    "node_modules/fast-sha256": {
@@ -10477,11 +11600,56 @@ index a0749b93b..836813e6a 100644
 +        "url": "https://opencollective.com/parcel"
 +      }
 +    },
++    "node_modules/lodash": {
++      "version": "4.18.1",
++      "resolved": "https://registry.npmjs.org/lodash/-/lodash-4.18.1.tgz",
++      "integrity": "sha512-dMInicTPVE8d1e5otfwmmjlxkZoUpiVLwyeTdUsi/Caj/gfzzblBcCE5sRHV/AsjuCmxWrte2TNGSYuCeCq+0Q==",
++      "license": "MIT"
++    },
++    "node_modules/lodash.snakecase": {
++      "version": "4.1.1",
++      "resolved": "https://registry.npmjs.org/lodash.snakecase/-/lodash.snakecase-4.1.1.tgz",
++      "integrity": "sha512-QZ1d4xoBHYUeuouhEq3lk3Uq7ldgyFXGBhg04+oRLnIz8o9T65Eh+8YdroUwn846zchkA9yDsDl5CVVaV2nqYw==",
++      "license": "MIT"
++    },
 +    "node_modules/long": {
 +      "version": "5.3.2",
 +      "resolved": "https://registry.npmjs.org/long/-/long-5.3.2.tgz",
 +      "integrity": "sha512-mNAgZ1GmyNhD7AuqnTG3/VQ26o760+ZYBPKjPvugO8+nLbYfX6TVpJPseBvopbdY+qpZ/lKUnmEc1LeZYS3QAA==",
 +      "license": "Apache-2.0"
++    },
++    "node_modules/lovely-mermaid": {
++      "version": "0.3.3",
++      "resolved": "https://registry.npmjs.org/lovely-mermaid/-/lovely-mermaid-0.3.3.tgz",
++      "integrity": "sha512-EMLJS934qwt2MLO/a5o+T/89HGbuXZPwmCpHIhHO+DVrm+y5tHlEHgpZzlC2o4yW/rFPHRFO9xSMafzqH4wH5A==",
++      "license": "Apache-2.0",
++      "engines": {
++        "node": ">=18"
++      }
++    },
++    "node_modules/lowlight": {
++      "version": "3.3.0",
++      "resolved": "https://registry.npmjs.org/lowlight/-/lowlight-3.3.0.tgz",
++      "integrity": "sha512-0JNhgFoPvP6U6lE/UdVsSq99tn6DhjjpAj5MxG49ewd2mOBVtwWYIT8ClyABhq198aXXODMU6Ox8DrGy/CpTZQ==",
++      "license": "MIT",
++      "dependencies": {
++        "@types/hast": "^3.0.0",
++        "devlop": "^1.0.0",
++        "highlight.js": "~11.11.0"
++      },
++      "funding": {
++        "type": "github",
++        "url": "https://github.com/sponsors/wooorm"
++      }
++    },
++    "node_modules/lowlight/node_modules/highlight.js": {
++      "version": "11.11.2",
++      "resolved": "https://registry.npmjs.org/highlight.js/-/highlight.js-11.11.2.tgz",
++      "integrity": "sha512-oaXMACAU0kzOMXBjWpNcX+vlwSBCIAiZ9BHa7gA15NOTtT2L/l8OSZDuqS2XppOhZBPJ7hm4o8ep2kyuip2uEQ==",
++      "license": "BSD-3-Clause",
++      "engines": {
++        "node": ">=12.0.0"
++      }
 +    },
 +    "node_modules/lru-cache": {
 +      "version": "11.4.0",
@@ -10491,6 +11659,12 @@ index a0749b93b..836813e6a 100644
 +      "engines": {
 +        "node": "20 || >=22"
 +      }
++    },
++    "node_modules/magic-bytes.js": {
++      "version": "1.13.1",
++      "resolved": "https://registry.npmjs.org/magic-bytes.js/-/magic-bytes.js-1.13.1.tgz",
++      "integrity": "sha512-x5sn4UX2k5gCWlcfmoFwG4TPie8+dctESyqOBdhB5p6MsgWXdBKGmt9nXPObj/JI50TTL928lc5Yt1WntMn1bw==",
++      "license": "MIT"
 +    },
 +    "node_modules/magic-string": {
 +      "version": "0.30.21",
@@ -10740,6 +11914,10 @@ index a0749b93b..836813e6a 100644
 +      "integrity": "sha512-wWKOClTTiizcZhXnPY4wikVAwmdYHp8q6DmC+EJUzAMsycb7HB32Kh9RN4+0gExjmPmZSAQjgURXIGATPegAvA==",
 +      "license": "MIT"
 +    },
++    "node_modules/p2": {
++      "resolved": "apps/p2",
++      "link": true
++    },
 +    "node_modules/partial-json": {
 +      "version": "0.1.7",
 +      "resolved": "https://registry.npmjs.org/partial-json/-/partial-json-0.1.7.tgz",
@@ -10974,6 +12152,27 @@ index a0749b93b..836813e6a 100644
 +        "rc": "cli.js"
 +      }
 +    },
++    "node_modules/react": {
++      "version": "19.3.0",
++      "resolved": "https://registry.npmjs.org/react/-/react-19.3.0.tgz",
++      "integrity": "sha512-E8LUcbtBWt20bbl2YoHfx4ZDBdxVTfOKtCZn9cDSJ4l6/nuoApcpIBcj47t2wZoVX8g2ZHuMHbiShgCR1T5Sog==",
++      "license": "MIT",
++      "engines": {
++        "node": ">=0.10.0"
++      }
++    },
++    "node_modules/react-dom": {
++      "version": "19.3.0",
++      "resolved": "https://registry.npmjs.org/react-dom/-/react-dom-19.3.0.tgz",
++      "integrity": "sha512-JDk8dgif51OjFoDE70+OT9ICyYr+69HlmihNwp1+Nsfbna3t5sIiCa9ZJktDmQ4/1b/rn26hIAR2uYXDMr5r0Q==",
++      "license": "MIT",
++      "dependencies": {
++        "scheduler": "^0.28.0"
++      },
++      "peerDependencies": {
++        "react": "^19.3.0"
++      }
++    },
 +    "node_modules/readable-stream": {
 +      "version": "3.6.2",
 +      "resolved": "https://registry.npmjs.org/readable-stream/-/readable-stream-3.6.2.tgz",
@@ -10998,6 +12197,12 @@ index a0749b93b..836813e6a 100644
 +      "engines": {
 +        "node": ">=0.10.0"
 +      }
++    },
++    "node_modules/reselect": {
++      "version": "5.3.0",
++      "resolved": "https://registry.npmjs.org/reselect/-/reselect-5.3.0.tgz",
++      "integrity": "sha512-XGoLeRAVzUTcJ1qkxPQhDJyIZ5d6zzZD9nT7AEZOaaU9UbWclhycElmhO+VD5bFeLuzhPBaOV2oXC8uG35ZSpg==",
++      "license": "MIT"
 +    },
 +    "node_modules/retry": {
 +      "version": "0.13.1",
@@ -11066,6 +12271,12 @@ index a0749b93b..836813e6a 100644
 +      "version": "2.1.2",
 +      "resolved": "https://registry.npmjs.org/safer-buffer/-/safer-buffer-2.1.2.tgz",
 +      "integrity": "sha512-YZo3K82SD7Riyi0E1EQPojLz7kpepnSQI9IyPbHHg1XXXevb5dJI7tpyN2ADxGcQbHG7vcyRHk0cbwqcQriUtg==",
++      "license": "MIT"
++    },
++    "node_modules/scheduler": {
++      "version": "0.28.0",
++      "resolved": "https://registry.npmjs.org/scheduler/-/scheduler-0.28.0.tgz",
++      "integrity": "sha512-juorfCmIkIw8tT+p5BXSm6PJjQF/ycEYmKyzURCIt/RaZIhL+PulbQ9Yu2z1HdOJDdqDTlxA1+xKBmHXJsczAw==",
 +      "license": "MIT"
 +    },
 +    "node_modules/semver": {
@@ -11375,6 +12586,12 @@ index a0749b93b..836813e6a 100644
 +      "integrity": "sha512-FPAhNPFMrkwz76P7cdjdmiShwMynZYN6SgOujD1urY4oNm80Ou9oMdmbR45LotcKOXoy7wSmHkRFE6Mxbrhefw==",
 +      "license": "MIT"
 +    },
++    "node_modules/ts-mixer": {
++      "version": "6.0.4",
++      "resolved": "https://registry.npmjs.org/ts-mixer/-/ts-mixer-6.0.4.tgz",
++      "integrity": "sha512-ufKpbmrugz5Aou4wcr5Wc1UUFWOLhq+Fm6qa6P0w0K5Qw2yhaUoiWszhCVuNQyNwrlGiscHOmqYoAox1PtvgjA==",
++      "license": "MIT"
++    },
 +    "node_modules/tslib": {
 +      "version": "2.8.1",
 +      "resolved": "https://registry.npmjs.org/tslib/-/tslib-2.8.1.tgz",
@@ -11464,6 +12681,15 @@ index a0749b93b..836813e6a 100644
 +      "license": "MIT",
 +      "dependencies": {
 +        "pathe": "^2.0.3"
++      }
++    },
++    "node_modules/use-sync-external-store": {
++      "version": "1.7.0",
++      "resolved": "https://registry.npmjs.org/use-sync-external-store/-/use-sync-external-store-1.7.0.tgz",
++      "integrity": "sha512-6L+EeigHMQhdaIPNIFUKwfWJSwWFQ8gJbJ2DLOs5sDIegTwR9fRxvnM3uciHKjIZhFz+KAv2emhWMRvDmMcY8A==",
++      "license": "MIT",
++      "peerDependencies": {
++        "react": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0"
 +      }
 +    },
 +    "node_modules/util-deprecate": {
@@ -11847,11 +13073,11 @@ index a0749b93b..836813e6a 100644
 +    },
 +    "packages/agent": {
 +      "name": "@earendil-works/pi-agent-core",
-+      "version": "1.5.0+namespace.1",
++      "version": "1.5.2+namespace.1",
 +      "license": "MIT",
 +      "dependencies": {
-+        "@earendil-works/pi-ai": "1.5.0+namespace.1",
-+        "@earendil-works/pi-schema": "1.5.0+namespace.1"
++        "@earendil-works/pi-ai": "1.5.2+namespace.1",
++        "@earendil-works/pi-schema": "1.5.2+namespace.1"
 +      },
 +      "devDependencies": {
 +        "@types/node": "22.19.19",
@@ -11863,13 +13089,13 @@ index a0749b93b..836813e6a 100644
 +    },
 +    "packages/ai": {
 +      "name": "@earendil-works/pi-ai",
-+      "version": "1.5.0+namespace.1",
++      "version": "1.5.2+namespace.1",
 +      "license": "MIT",
 +      "dependencies": {
 +        "@anthropic-ai/sdk": "0.129.0",
 +        "@aws-sdk/client-bedrock-runtime": "3.1127.0",
-+        "@earendil-works/pi-schema": "1.5.0+namespace.1",
-+        "@earendil-works/pi-telemetry": "1.5.0+namespace.1",
++        "@earendil-works/pi-schema": "1.5.2+namespace.1",
++        "@earendil-works/pi-telemetry": "1.5.2+namespace.1",
 +        "@google/genai": "2.21.0",
 +        "@smithy/node-http-handler": "4.12.1",
 +        "http-proxy-agent": "9.1.0",
@@ -11952,14 +13178,18 @@ index a0749b93b..836813e6a 100644
 +    },
 +    "packages/chord": {
 +      "name": "@earendil-works/chord",
-+      "version": "1.5.0+namespace.1",
++      "version": "1.5.2+namespace.1",
 +      "license": "MIT",
 +      "dependencies": {
-+        "@earendil-works/pi-schema": "1.5.0+namespace.1",
-+        "@earendil-works/pi-telemetry": "1.5.0+namespace.1"
++        "@earendil-works/pi-schema": "1.5.2+namespace.1",
++        "@earendil-works/pi-telemetry": "1.5.2+namespace.1"
 +      },
 +      "devDependencies": {
++        "@types/react": "19.2.14",
++        "@types/react-dom": "19.2.3",
 +        "@types/ws": "8.18.2",
++        "react": "19.3.0",
++        "react-dom": "19.3.0",
 +        "vitest": "4.1.12",
 +        "ws": "8.21.0"
 +      },
@@ -11968,10 +13198,14 @@ index a0749b93b..836813e6a 100644
 +      },
 +      "peerDependencies": {
 +        "esbuild": "0.28.2",
++        "react": "19.3.0",
 +        "ws": "8.21.0"
 +      },
 +      "peerDependenciesMeta": {
 +        "esbuild": {
++          "optional": true
++        },
++        "react": {
 +          "optional": true
 +        },
 +        "ws": {
@@ -11979,9 +13213,13 @@ index a0749b93b..836813e6a 100644
 +        }
 +      }
 +    },
++    "packages/chord/test/examples/61-tutorial": {
++      "name": "@todo/app",
++      "version": "0.0.1"
++    },
 +    "packages/codemode": {
 +      "name": "@earendil-works/pi-codemode",
-+      "version": "1.5.0+namespace.1",
++      "version": "1.5.2+namespace.1",
 +      "license": "MIT",
 +      "dependencies": {
 +        "quickjs-wasi": "3.6.2"
@@ -11995,24 +13233,24 @@ index a0749b93b..836813e6a 100644
 +    },
 +    "packages/coding-agent": {
 +      "name": "@earendil-works/pi-coding-agent",
-+      "version": "1.5.0+namespace.1",
++      "version": "1.5.2+namespace.1",
 +      "license": "MIT",
 +      "dependencies": {
-+        "@earendil-works/pi-agent-core": "1.5.0+namespace.1",
-+        "@earendil-works/pi-ai": "1.5.0+namespace.1",
-+        "@earendil-works/pi-codemode": "1.5.0+namespace.1",
-+        "@earendil-works/pi-mcp": "1.5.0+namespace.1",
-+        "@earendil-works/pi-tui": "1.5.0+namespace.1",
++        "@earendil-works/pi-agent-core": "1.5.2+namespace.1",
++        "@earendil-works/pi-ai": "1.5.2+namespace.1",
++        "@earendil-works/pi-codemode": "1.5.2+namespace.1",
++        "@earendil-works/pi-mcp": "1.5.2+namespace.1",
++        "@earendil-works/pi-tui": "1.5.2+namespace.1",
 +        "@silvia-odwyer/photon-node": "0.3.4",
 +        "brace-expansion": "5.0.12",
 +        "chalk": "6.0.0",
 +        "cross-spawn": "7.0.6",
 +        "diff": "8.0.4",
-+        "grok-mermaid": "0.2.3",
 +        "highlight.js": "10.7.3",
 +        "hosted-git-info": "9.0.3",
 +        "ignore": "7.0.8",
 +        "jiti": "2.7.0",
++        "lovely-mermaid": "0.3.3",
 +        "minimatch": "11.0.3",
 +        "proper-lockfile": "4.1.2",
 +        "quickjs-wasi": "3.6.2",
@@ -12039,25 +13277,25 @@ index a0749b93b..836813e6a 100644
 +    },
 +    "packages/coding-agent/examples/extensions/custom-provider-anthropic": {
 +      "name": "pi-extension-custom-provider-anthropic",
-+      "version": "1.5.0",
++      "version": "1.5.2",
 +      "dependencies": {
 +        "@anthropic-ai/sdk": "0.52.0"
 +      }
 +    },
 +    "packages/coding-agent/examples/extensions/custom-provider-gitlab-duo": {
 +      "name": "pi-extension-custom-provider-gitlab-duo",
-+      "version": "1.5.0"
++      "version": "1.5.2"
 +    },
 +    "packages/coding-agent/examples/extensions/gondolin": {
 +      "name": "pi-extension-gondolin",
-+      "version": "1.5.0",
++      "version": "1.5.2",
 +      "dependencies": {
 +        "@earendil-works/gondolin": "0.14.0"
 +      }
 +    },
 +    "packages/coding-agent/examples/extensions/with-deps": {
 +      "name": "pi-extension-with-deps",
-+      "version": "1.5.0",
++      "version": "1.5.2",
 +      "dependencies": {
 +        "ms": "2.1.3"
 +      },
@@ -12076,14 +13314,14 @@ index a0749b93b..836813e6a 100644
 +    },
 +    "packages/durable": {
 +      "name": "@earendil-works/pi-durable",
-+      "version": "1.5.0+namespace.1",
++      "version": "1.5.2+namespace.1",
 +      "license": "MIT",
 +      "dependencies": {
-+        "@earendil-works/chord": "1.5.0+namespace.1",
-+        "@earendil-works/pi-ai": "1.5.0+namespace.1",
-+        "@earendil-works/pi-codemode": "1.5.0+namespace.1",
-+        "@earendil-works/pi-schema": "1.5.0+namespace.1",
-+        "@earendil-works/pi-telemetry": "1.5.0+namespace.1",
++        "@earendil-works/chord": "1.5.2+namespace.1",
++        "@earendil-works/pi-ai": "1.5.2+namespace.1",
++        "@earendil-works/pi-codemode": "1.5.2+namespace.1",
++        "@earendil-works/pi-schema": "1.5.2+namespace.1",
++        "@earendil-works/pi-telemetry": "1.5.2+namespace.1",
 +        "@silvia-odwyer/photon": "0.3.3",
 +        "diff": "8.0.4"
 +      },
@@ -12098,11 +13336,11 @@ index a0749b93b..836813e6a 100644
 +    },
 +    "packages/env": {
 +      "name": "@earendil-works/pi-env",
-+      "version": "1.5.0+namespace.1",
++      "version": "1.5.2+namespace.1",
 +      "license": "MIT",
 +      "dependencies": {
-+        "@earendil-works/chord": "1.5.0+namespace.1",
-+        "@earendil-works/pi-durable": "1.5.0+namespace.1"
++        "@earendil-works/chord": "1.5.2+namespace.1",
++        "@earendil-works/pi-durable": "1.5.2+namespace.1"
 +      },
 +      "devDependencies": {
 +        "vitest": "4.1.12"
@@ -12113,10 +13351,10 @@ index a0749b93b..836813e6a 100644
 +    },
 +    "packages/evals": {
 +      "name": "@earendil-works/pi-evals",
-+      "version": "1.5.0+namespace.1",
++      "version": "1.5.2+namespace.1",
 +      "devDependencies": {
-+        "@earendil-works/pi-ai": "1.5.0+namespace.1",
-+        "@earendil-works/pi-coding-agent": "1.5.0+namespace.1",
++        "@earendil-works/pi-ai": "1.5.2+namespace.1",
++        "@earendil-works/pi-coding-agent": "1.5.2+namespace.1",
 +        "@types/node": "22.19.19",
 +        "@vitest-evals/core": "0.15.0",
 +        "vitest": "4.1.12",
@@ -12125,7 +13363,7 @@ index a0749b93b..836813e6a 100644
 +    },
 +    "packages/mcp": {
 +      "name": "@earendil-works/pi-mcp",
-+      "version": "1.5.0+namespace.1",
++      "version": "1.5.2+namespace.1",
 +      "license": "MIT",
 +      "dependencies": {
 +        "cross-spawn": "7.0.6"
@@ -12140,7 +13378,7 @@ index a0749b93b..836813e6a 100644
 +    },
 +    "packages/schema": {
 +      "name": "@earendil-works/pi-schema",
-+      "version": "1.5.0+namespace.1",
++      "version": "1.5.2+namespace.1",
 +      "license": "MIT",
 +      "devDependencies": {
 +        "@cfworker/json-schema": "4.1.1",
@@ -12158,7 +13396,7 @@ index a0749b93b..836813e6a 100644
 +    },
 +    "packages/telemetry": {
 +      "name": "@earendil-works/pi-telemetry",
-+      "version": "1.5.0+namespace.1",
++      "version": "1.5.2+namespace.1",
 +      "license": "MIT",
 +      "devDependencies": {
 +        "@types/node": "22.19.19",
@@ -12170,7 +13408,7 @@ index a0749b93b..836813e6a 100644
 +    },
 +    "packages/tui": {
 +      "name": "@earendil-works/pi-tui",
-+      "version": "1.5.0+namespace.1",
++      "version": "1.5.2+namespace.1",
 +      "license": "MIT",
 +      "dependencies": {
 +        "get-east-asian-width": "1.6.0",
@@ -12189,14 +13427,14 @@ index a0749b93b..836813e6a 100644
 +}
 \ No newline at end of file
 diff --git a/packages/agent/package.json b/packages/agent/package.json
-index e00a8e1e7..3a137a6c9 100644
+index 82a42a407..fb2974b48 100644
 --- a/packages/agent/package.json
 +++ b/packages/agent/package.json
 @@ -1,6 +1,6 @@
  {
  	"name": "@earendil-works/pi-agent-core",
--	"version": "1.5.0",
-+	"version": "1.5.0+namespace.1",
+-	"version": "1.5.2",
++	"version": "1.5.2+namespace.1",
  	"description": "General-purpose agent with transport abstraction, state management, and attachment support",
  	"type": "module",
  	"main": "./dist/index.js",
@@ -12204,90 +13442,90 @@ index e00a8e1e7..3a137a6c9 100644
  		"prepublishOnly": "npm run build"
  	},
  	"dependencies": {
--		"@earendil-works/pi-ai": "1.5.0",
--		"@earendil-works/pi-schema": "1.5.0"
-+		"@earendil-works/pi-ai": "1.5.0+namespace.1",
-+		"@earendil-works/pi-schema": "1.5.0+namespace.1"
+-		"@earendil-works/pi-ai": "1.5.2",
+-		"@earendil-works/pi-schema": "1.5.2"
++		"@earendil-works/pi-ai": "1.5.2+namespace.1",
++		"@earendil-works/pi-schema": "1.5.2+namespace.1"
  	},
  	"keywords": [
  		"ai",
 diff --git a/packages/ai/package.json b/packages/ai/package.json
-index 57e8f262c..e2feeba51 100644
+index a009ecade..5b6923e5c 100644
 --- a/packages/ai/package.json
 +++ b/packages/ai/package.json
 @@ -1,6 +1,6 @@
  {
  	"name": "@earendil-works/pi-ai",
--	"version": "1.5.0",
-+	"version": "1.5.0+namespace.1",
+-	"version": "1.5.2",
++	"version": "1.5.2+namespace.1",
  	"description": "Unified LLM API with automatic model discovery and provider configuration",
  	"type": "module",
  	"main": "./dist/index.js",
-@@ -69,8 +69,8 @@
+@@ -77,8 +77,8 @@
  	"dependencies": {
  		"@anthropic-ai/sdk": "0.129.0",
  		"@aws-sdk/client-bedrock-runtime": "3.1127.0",
--		"@earendil-works/pi-schema": "1.5.0",
--		"@earendil-works/pi-telemetry": "1.5.0",
-+		"@earendil-works/pi-schema": "1.5.0+namespace.1",
-+		"@earendil-works/pi-telemetry": "1.5.0+namespace.1",
+-		"@earendil-works/pi-schema": "1.5.2",
+-		"@earendil-works/pi-telemetry": "1.5.2",
++		"@earendil-works/pi-schema": "1.5.2+namespace.1",
++		"@earendil-works/pi-telemetry": "1.5.2+namespace.1",
  		"@google/genai": "2.21.0",
  		"@smithy/node-http-handler": "4.12.1",
  		"http-proxy-agent": "9.1.0",
 diff --git a/packages/chord/package.json b/packages/chord/package.json
-index 6e8e12a4d..ea90b7f1e 100644
+index e87f8e3e6..07d41bd45 100644
 --- a/packages/chord/package.json
 +++ b/packages/chord/package.json
 @@ -1,6 +1,6 @@
  {
  	"name": "@earendil-works/chord",
--	"version": "1.5.0",
-+	"version": "1.5.0+namespace.1",
- 	"description": "Typed host runtime for plugins, contracts, replicated state, and RPC over JSON links",
+-	"version": "1.5.2",
++	"version": "1.5.2+namespace.1",
+ 	"description": "Object runtime for apps across processes: contracts, documents, a store, links, plugins with hot reload, HTTP, workers, web and terminal clients",
  	"type": "module",
  	"main": "./dist/index.js",
-@@ -90,8 +90,8 @@
+@@ -165,8 +165,8 @@
  		"node": ">=22.19.0"
  	},
  	"dependencies": {
--		"@earendil-works/pi-schema": "1.5.0",
--		"@earendil-works/pi-telemetry": "1.5.0"
-+		"@earendil-works/pi-schema": "1.5.0+namespace.1",
-+		"@earendil-works/pi-telemetry": "1.5.0+namespace.1"
+-		"@earendil-works/pi-schema": "1.5.2",
+-		"@earendil-works/pi-telemetry": "1.5.2"
++		"@earendil-works/pi-schema": "1.5.2+namespace.1",
++		"@earendil-works/pi-telemetry": "1.5.2+namespace.1"
  	},
  	"peerDependencies": {
  		"esbuild": "0.28.2",
 diff --git a/packages/codemode/package.json b/packages/codemode/package.json
-index 006549146..92a93aa13 100644
+index ae6f204d5..a1e67aafd 100644
 --- a/packages/codemode/package.json
 +++ b/packages/codemode/package.json
 @@ -1,6 +1,6 @@
  {
  	"name": "@earendil-works/pi-codemode",
--	"version": "1.5.0",
-+	"version": "1.5.0+namespace.1",
+-	"version": "1.5.2",
++	"version": "1.5.2+namespace.1",
  	"description": "Sandboxed JavaScript execution where the only capability is calling injected tools",
  	"type": "module",
  	"main": "./dist/index.js",
 diff --git a/packages/coding-agent/install-lock/package-lock.json b/packages/coding-agent/install-lock/package-lock.json
-index e37a4fb76..c90b075f4 100644
+index 1bb50ca3f..0dd3bf54a 100644
 --- a/packages/coding-agent/install-lock/package-lock.json
 +++ b/packages/coding-agent/install-lock/package-lock.json
 @@ -1,14 +1,14 @@
  {
  	"name": "@earendil-works/pi-coding-agent-install",
--	"version": "1.5.0",
-+	"version": "1.5.0+namespace.1",
+-	"version": "1.5.2",
++	"version": "1.5.2+namespace.1",
  	"lockfileVersion": 3,
  	"requires": true,
  	"packages": {
  		"": {
  			"name": "@earendil-works/pi-coding-agent-install",
--			"version": "1.5.0",
-+			"version": "1.5.0+namespace.1",
+-			"version": "1.5.2",
++			"version": "1.5.2+namespace.1",
  			"dependencies": {
--				"@earendil-works/pi-coding-agent": "1.5.0"
-+				"@earendil-works/pi-coding-agent": "1.5.0+namespace.1"
+-				"@earendil-works/pi-coding-agent": "1.5.2"
++				"@earendil-works/pi-coding-agent": "1.5.2+namespace.1"
  			},
  			"engines": {
  				"node": ">=22.19.0"
@@ -12295,34 +13533,34 @@ index e37a4fb76..c90b075f4 100644
  			}
  		},
  		"node_modules/@earendil-works/pi-agent-core": {
--			"version": "1.5.0",
--			"resolved": "https://registry.npmjs.org/@earendil-works/pi-agent-core/-/pi-agent-core-1.5.0.tgz",
-+			"version": "1.5.0+namespace.1",
-+			"resolved": "https://registry.npmjs.org/@earendil-works/pi-agent-core/-/pi-agent-core-1.5.0+namespace.1.tgz",
+-			"version": "1.5.2",
+-			"resolved": "https://registry.npmjs.org/@earendil-works/pi-agent-core/-/pi-agent-core-1.5.2.tgz",
++			"version": "1.5.2+namespace.1",
++			"resolved": "https://registry.npmjs.org/@earendil-works/pi-agent-core/-/pi-agent-core-1.5.2+namespace.1.tgz",
  			"license": "MIT",
  			"dependencies": {
--				"@earendil-works/pi-ai": "1.5.0",
--				"@earendil-works/pi-schema": "1.5.0"
-+				"@earendil-works/pi-ai": "1.5.0+namespace.1",
-+				"@earendil-works/pi-schema": "1.5.0+namespace.1"
+-				"@earendil-works/pi-ai": "1.5.2",
+-				"@earendil-works/pi-schema": "1.5.2"
++				"@earendil-works/pi-ai": "1.5.2+namespace.1",
++				"@earendil-works/pi-schema": "1.5.2+namespace.1"
  			},
  			"engines": {
  				"node": ">=22.19.0"
  			}
  		},
  		"node_modules/@earendil-works/pi-ai": {
--			"version": "1.5.0",
--			"resolved": "https://registry.npmjs.org/@earendil-works/pi-ai/-/pi-ai-1.5.0.tgz",
-+			"version": "1.5.0+namespace.1",
-+			"resolved": "https://registry.npmjs.org/@earendil-works/pi-ai/-/pi-ai-1.5.0+namespace.1.tgz",
+-			"version": "1.5.2",
+-			"resolved": "https://registry.npmjs.org/@earendil-works/pi-ai/-/pi-ai-1.5.2.tgz",
++			"version": "1.5.2+namespace.1",
++			"resolved": "https://registry.npmjs.org/@earendil-works/pi-ai/-/pi-ai-1.5.2+namespace.1.tgz",
  			"license": "MIT",
  			"dependencies": {
  				"@anthropic-ai/sdk": "0.129.0",
  				"@aws-sdk/client-bedrock-runtime": "3.1127.0",
--				"@earendil-works/pi-schema": "1.5.0",
--				"@earendil-works/pi-telemetry": "1.5.0",
-+				"@earendil-works/pi-schema": "1.5.0+namespace.1",
-+				"@earendil-works/pi-telemetry": "1.5.0+namespace.1",
+-				"@earendil-works/pi-schema": "1.5.2",
+-				"@earendil-works/pi-telemetry": "1.5.2",
++				"@earendil-works/pi-schema": "1.5.2+namespace.1",
++				"@earendil-works/pi-telemetry": "1.5.2+namespace.1",
  				"@google/genai": "2.21.0",
  				"@smithy/node-http-handler": "4.12.1",
  				"http-proxy-agent": "9.1.0",
@@ -12330,10 +13568,10 @@ index e37a4fb76..c90b075f4 100644
  			}
  		},
  		"node_modules/@earendil-works/pi-codemode": {
--			"version": "1.5.0",
--			"resolved": "https://registry.npmjs.org/@earendil-works/pi-codemode/-/pi-codemode-1.5.0.tgz",
-+			"version": "1.5.0+namespace.1",
-+			"resolved": "https://registry.npmjs.org/@earendil-works/pi-codemode/-/pi-codemode-1.5.0+namespace.1.tgz",
+-			"version": "1.5.2",
+-			"resolved": "https://registry.npmjs.org/@earendil-works/pi-codemode/-/pi-codemode-1.5.2.tgz",
++			"version": "1.5.2+namespace.1",
++			"resolved": "https://registry.npmjs.org/@earendil-works/pi-codemode/-/pi-codemode-1.5.2+namespace.1.tgz",
  			"license": "MIT",
  			"dependencies": {
  				"quickjs-wasi": "3.6.2"
@@ -12341,22 +13579,22 @@ index e37a4fb76..c90b075f4 100644
  			}
  		},
  		"node_modules/@earendil-works/pi-coding-agent": {
--			"version": "1.5.0",
--			"resolved": "https://registry.npmjs.org/@earendil-works/pi-coding-agent/-/pi-coding-agent-1.5.0.tgz",
-+			"version": "1.5.0+namespace.1",
-+			"resolved": "https://registry.npmjs.org/@earendil-works/pi-coding-agent/-/pi-coding-agent-1.5.0+namespace.1.tgz",
+-			"version": "1.5.2",
+-			"resolved": "https://registry.npmjs.org/@earendil-works/pi-coding-agent/-/pi-coding-agent-1.5.2.tgz",
++			"version": "1.5.2+namespace.1",
++			"resolved": "https://registry.npmjs.org/@earendil-works/pi-coding-agent/-/pi-coding-agent-1.5.2+namespace.1.tgz",
  			"license": "MIT",
  			"dependencies": {
--				"@earendil-works/pi-agent-core": "1.5.0",
--				"@earendil-works/pi-ai": "1.5.0",
--				"@earendil-works/pi-codemode": "1.5.0",
--				"@earendil-works/pi-mcp": "1.5.0",
--				"@earendil-works/pi-tui": "1.5.0",
-+				"@earendil-works/pi-agent-core": "1.5.0+namespace.1",
-+				"@earendil-works/pi-ai": "1.5.0+namespace.1",
-+				"@earendil-works/pi-codemode": "1.5.0+namespace.1",
-+				"@earendil-works/pi-mcp": "1.5.0+namespace.1",
-+				"@earendil-works/pi-tui": "1.5.0+namespace.1",
+-				"@earendil-works/pi-agent-core": "1.5.2",
+-				"@earendil-works/pi-ai": "1.5.2",
+-				"@earendil-works/pi-codemode": "1.5.2",
+-				"@earendil-works/pi-mcp": "1.5.2",
+-				"@earendil-works/pi-tui": "1.5.2",
++				"@earendil-works/pi-agent-core": "1.5.2+namespace.1",
++				"@earendil-works/pi-ai": "1.5.2+namespace.1",
++				"@earendil-works/pi-codemode": "1.5.2+namespace.1",
++				"@earendil-works/pi-mcp": "1.5.2+namespace.1",
++				"@earendil-works/pi-tui": "1.5.2+namespace.1",
  				"@silvia-odwyer/photon-node": "0.3.4",
  				"brace-expansion": "5.0.12",
  				"chalk": "6.0.0",
@@ -12364,10 +13602,10 @@ index e37a4fb76..c90b075f4 100644
  			}
  		},
  		"node_modules/@earendil-works/pi-mcp": {
--			"version": "1.5.0",
--			"resolved": "https://registry.npmjs.org/@earendil-works/pi-mcp/-/pi-mcp-1.5.0.tgz",
-+			"version": "1.5.0+namespace.1",
-+			"resolved": "https://registry.npmjs.org/@earendil-works/pi-mcp/-/pi-mcp-1.5.0+namespace.1.tgz",
+-			"version": "1.5.2",
+-			"resolved": "https://registry.npmjs.org/@earendil-works/pi-mcp/-/pi-mcp-1.5.2.tgz",
++			"version": "1.5.2+namespace.1",
++			"resolved": "https://registry.npmjs.org/@earendil-works/pi-mcp/-/pi-mcp-1.5.2+namespace.1.tgz",
  			"license": "MIT",
  			"dependencies": {
  				"cross-spawn": "7.0.6"
@@ -12375,59 +13613,59 @@ index e37a4fb76..c90b075f4 100644
  			}
  		},
  		"node_modules/@earendil-works/pi-schema": {
--			"version": "1.5.0",
--			"resolved": "https://registry.npmjs.org/@earendil-works/pi-schema/-/pi-schema-1.5.0.tgz",
-+			"version": "1.5.0+namespace.1",
-+			"resolved": "https://registry.npmjs.org/@earendil-works/pi-schema/-/pi-schema-1.5.0+namespace.1.tgz",
+-			"version": "1.5.2",
+-			"resolved": "https://registry.npmjs.org/@earendil-works/pi-schema/-/pi-schema-1.5.2.tgz",
++			"version": "1.5.2+namespace.1",
++			"resolved": "https://registry.npmjs.org/@earendil-works/pi-schema/-/pi-schema-1.5.2+namespace.1.tgz",
  			"license": "MIT",
  			"engines": {
  				"node": ">=22.19.0"
  			}
  		},
  		"node_modules/@earendil-works/pi-telemetry": {
--			"version": "1.5.0",
--			"resolved": "https://registry.npmjs.org/@earendil-works/pi-telemetry/-/pi-telemetry-1.5.0.tgz",
-+			"version": "1.5.0+namespace.1",
-+			"resolved": "https://registry.npmjs.org/@earendil-works/pi-telemetry/-/pi-telemetry-1.5.0+namespace.1.tgz",
+-			"version": "1.5.2",
+-			"resolved": "https://registry.npmjs.org/@earendil-works/pi-telemetry/-/pi-telemetry-1.5.2.tgz",
++			"version": "1.5.2+namespace.1",
++			"resolved": "https://registry.npmjs.org/@earendil-works/pi-telemetry/-/pi-telemetry-1.5.2+namespace.1.tgz",
  			"license": "MIT",
  			"engines": {
  				"node": ">=22.19.0"
  			}
  		},
  		"node_modules/@earendil-works/pi-tui": {
--			"version": "1.5.0",
--			"resolved": "https://registry.npmjs.org/@earendil-works/pi-tui/-/pi-tui-1.5.0.tgz",
-+			"version": "1.5.0+namespace.1",
-+			"resolved": "https://registry.npmjs.org/@earendil-works/pi-tui/-/pi-tui-1.5.0+namespace.1.tgz",
+-			"version": "1.5.2",
+-			"resolved": "https://registry.npmjs.org/@earendil-works/pi-tui/-/pi-tui-1.5.2.tgz",
++			"version": "1.5.2+namespace.1",
++			"resolved": "https://registry.npmjs.org/@earendil-works/pi-tui/-/pi-tui-1.5.2+namespace.1.tgz",
  			"license": "MIT",
  			"dependencies": {
  				"get-east-asian-width": "1.6.0",
 diff --git a/packages/coding-agent/install-lock/package.json b/packages/coding-agent/install-lock/package.json
-index a8746dfab..0fe15de99 100644
+index 50fe6507a..3806d7d50 100644
 --- a/packages/coding-agent/install-lock/package.json
 +++ b/packages/coding-agent/install-lock/package.json
 @@ -1,10 +1,10 @@
  {
  	"name": "@earendil-works/pi-coding-agent-install",
--	"version": "1.5.0",
-+	"version": "1.5.0+namespace.1",
+-	"version": "1.5.2",
++	"version": "1.5.2+namespace.1",
  	"private": true,
  	"description": "Lockfile root used by the Pi installer and updater.",
  	"dependencies": {
--		"@earendil-works/pi-coding-agent": "1.5.0"
-+		"@earendil-works/pi-coding-agent": "1.5.0+namespace.1"
+-		"@earendil-works/pi-coding-agent": "1.5.2"
++		"@earendil-works/pi-coding-agent": "1.5.2+namespace.1"
  	},
  	"overrides": {
  		"protobufjs": "7.6.6"
 diff --git a/packages/coding-agent/package.json b/packages/coding-agent/package.json
-index 705be3d3d..7212ba5e3 100644
+index eb981977d..cf3c58196 100644
 --- a/packages/coding-agent/package.json
 +++ b/packages/coding-agent/package.json
 @@ -1,6 +1,6 @@
  {
  	"name": "@earendil-works/pi-coding-agent",
--	"version": "1.5.0",
-+	"version": "1.5.0+namespace.1",
+-	"version": "1.5.2",
++	"version": "1.5.2+namespace.1",
  	"description": "Coding agent CLI with read, bash, edit, write tools and session management",
  	"type": "module",
  	"piConfig": {
@@ -12435,28 +13673,28 @@ index 705be3d3d..7212ba5e3 100644
  		"prepublishOnly": "npm run clean && npm run build"
  	},
  	"dependencies": {
--		"@earendil-works/pi-agent-core": "1.5.0",
--		"@earendil-works/pi-ai": "1.5.0",
--		"@earendil-works/pi-codemode": "1.5.0",
--		"@earendil-works/pi-mcp": "1.5.0",
--		"@earendil-works/pi-tui": "1.5.0",
-+		"@earendil-works/pi-agent-core": "1.5.0+namespace.1",
-+		"@earendil-works/pi-ai": "1.5.0+namespace.1",
-+		"@earendil-works/pi-codemode": "1.5.0+namespace.1",
-+		"@earendil-works/pi-mcp": "1.5.0+namespace.1",
-+		"@earendil-works/pi-tui": "1.5.0+namespace.1",
+-		"@earendil-works/pi-agent-core": "1.5.2",
+-		"@earendil-works/pi-ai": "1.5.2",
+-		"@earendil-works/pi-codemode": "1.5.2",
+-		"@earendil-works/pi-mcp": "1.5.2",
+-		"@earendil-works/pi-tui": "1.5.2",
++		"@earendil-works/pi-agent-core": "1.5.2+namespace.1",
++		"@earendil-works/pi-ai": "1.5.2+namespace.1",
++		"@earendil-works/pi-codemode": "1.5.2+namespace.1",
++		"@earendil-works/pi-mcp": "1.5.2+namespace.1",
++		"@earendil-works/pi-tui": "1.5.2+namespace.1",
  		"@silvia-odwyer/photon-node": "0.3.4",
  		"brace-expansion": "5.0.12",
  		"chalk": "6.0.0",
 diff --git a/packages/durable/package.json b/packages/durable/package.json
-index c32091c32..d07084d67 100644
+index 060a14d24..883d44e21 100644
 --- a/packages/durable/package.json
 +++ b/packages/durable/package.json
 @@ -1,6 +1,6 @@
  {
  	"name": "@earendil-works/pi-durable",
--	"version": "1.5.0",
-+	"version": "1.5.0+namespace.1",
+-	"version": "1.5.2",
++	"version": "1.5.2+namespace.1",
  	"description": "Durable conversation, task, and document runtime for Pi",
  	"type": "module",
  	"main": "./dist/index.js",
@@ -12464,28 +13702,28 @@ index c32091c32..d07084d67 100644
  		"node": ">=22.19.0"
  	},
  	"dependencies": {
--		"@earendil-works/chord": "1.5.0",
--		"@earendil-works/pi-ai": "1.5.0",
--		"@earendil-works/pi-codemode": "1.5.0",
--		"@earendil-works/pi-schema": "1.5.0",
--		"@earendil-works/pi-telemetry": "1.5.0",
-+		"@earendil-works/chord": "1.5.0+namespace.1",
-+		"@earendil-works/pi-ai": "1.5.0+namespace.1",
-+		"@earendil-works/pi-codemode": "1.5.0+namespace.1",
-+		"@earendil-works/pi-schema": "1.5.0+namespace.1",
-+		"@earendil-works/pi-telemetry": "1.5.0+namespace.1",
+-		"@earendil-works/chord": "1.5.2",
+-		"@earendil-works/pi-ai": "1.5.2",
+-		"@earendil-works/pi-codemode": "1.5.2",
+-		"@earendil-works/pi-schema": "1.5.2",
+-		"@earendil-works/pi-telemetry": "1.5.2",
++		"@earendil-works/chord": "1.5.2+namespace.1",
++		"@earendil-works/pi-ai": "1.5.2+namespace.1",
++		"@earendil-works/pi-codemode": "1.5.2+namespace.1",
++		"@earendil-works/pi-schema": "1.5.2+namespace.1",
++		"@earendil-works/pi-telemetry": "1.5.2+namespace.1",
  		"@silvia-odwyer/photon": "0.3.3",
  		"diff": "8.0.4"
  	},
 diff --git a/packages/env/package.json b/packages/env/package.json
-index f78d49c20..fe53b7432 100644
+index b1eea6a0d..11fda1546 100644
 --- a/packages/env/package.json
 +++ b/packages/env/package.json
 @@ -1,6 +1,6 @@
  {
  	"name": "@earendil-works/pi-env",
--	"version": "1.5.0",
-+	"version": "1.5.0+namespace.1",
+-	"version": "1.5.2",
++	"version": "1.5.2+namespace.1",
  	"description": "Remote execution environments for Pi Durable: a small daemon deployed over SSH and its ExecutionEnv client",
  	"type": "module",
  	"main": "./dist/index.js",
@@ -12493,22 +13731,22 @@ index f78d49c20..fe53b7432 100644
  		"node": ">=22.19.0"
  	},
  	"dependencies": {
--		"@earendil-works/chord": "1.5.0",
--		"@earendil-works/pi-durable": "1.5.0"
-+		"@earendil-works/chord": "1.5.0+namespace.1",
-+		"@earendil-works/pi-durable": "1.5.0+namespace.1"
+-		"@earendil-works/chord": "1.5.2",
+-		"@earendil-works/pi-durable": "1.5.2"
++		"@earendil-works/chord": "1.5.2+namespace.1",
++		"@earendil-works/pi-durable": "1.5.2+namespace.1"
  	},
  	"devDependencies": {
  		"vitest": "4.1.12"
 diff --git a/packages/evals/package.json b/packages/evals/package.json
-index f740c3368..6b5c85f6f 100644
+index ab66f9045..b056b7314 100644
 --- a/packages/evals/package.json
 +++ b/packages/evals/package.json
 @@ -1,6 +1,6 @@
  {
  	"name": "@earendil-works/pi-evals",
--	"version": "1.5.0",
-+	"version": "1.5.0+namespace.1",
+-	"version": "1.5.2",
++	"version": "1.5.2+namespace.1",
  	"private": true,
  	"type": "module",
  	"scripts": {
@@ -12516,61 +13754,61 @@ index f740c3368..6b5c85f6f 100644
  		"test": "vitest run --config vitest.test.config.ts"
  	},
  	"devDependencies": {
--		"@earendil-works/pi-ai": "1.5.0",
--		"@earendil-works/pi-coding-agent": "1.5.0",
-+		"@earendil-works/pi-ai": "1.5.0+namespace.1",
-+		"@earendil-works/pi-coding-agent": "1.5.0+namespace.1",
+-		"@earendil-works/pi-ai": "1.5.2",
+-		"@earendil-works/pi-coding-agent": "1.5.2",
++		"@earendil-works/pi-ai": "1.5.2+namespace.1",
++		"@earendil-works/pi-coding-agent": "1.5.2+namespace.1",
  		"@types/node": "22.19.19",
  		"@vitest-evals/core": "0.15.0",
  		"vitest": "4.1.12",
 diff --git a/packages/mcp/package.json b/packages/mcp/package.json
-index 8a9bac663..50f11d3e8 100644
+index d388334da..985e44fd0 100644
 --- a/packages/mcp/package.json
 +++ b/packages/mcp/package.json
 @@ -1,6 +1,6 @@
  {
  	"name": "@earendil-works/pi-mcp",
--	"version": "1.5.0",
-+	"version": "1.5.0+namespace.1",
+-	"version": "1.5.2",
++	"version": "1.5.2+namespace.1",
  	"description": "Standalone Model Context Protocol client for pi and other applications",
  	"type": "module",
  	"main": "./dist/index.js",
 diff --git a/packages/schema/package.json b/packages/schema/package.json
-index 4e176a57c..16c728483 100644
+index 484540783..380ddda94 100644
 --- a/packages/schema/package.json
 +++ b/packages/schema/package.json
 @@ -1,6 +1,6 @@
  {
  	"name": "@earendil-works/pi-schema",
--	"version": "1.5.0",
-+	"version": "1.5.0+namespace.1",
+-	"version": "1.5.2",
++	"version": "1.5.2+namespace.1",
  	"description": "JSON Schema validation without eval: drafts 2020-12 and 7, compiled into plain closures",
  	"type": "module",
  	"main": "./dist/index.js",
 diff --git a/packages/telemetry/package.json b/packages/telemetry/package.json
-index eeb30b234..9fbb2b83a 100644
+index a7b7f3228..17453030a 100644
 --- a/packages/telemetry/package.json
 +++ b/packages/telemetry/package.json
 @@ -1,6 +1,6 @@
  {
  	"name": "@earendil-works/pi-telemetry",
--	"version": "1.5.0",
-+	"version": "1.5.0+namespace.1",
+-	"version": "1.5.2",
++	"version": "1.5.2+namespace.1",
  	"description": "Vendor-neutral telemetry contracts and typed schema utilities for pi",
  	"type": "module",
  	"main": "./dist/index.js",
 diff --git a/packages/tui/package.json b/packages/tui/package.json
-index 74a49f0d3..57724023d 100644
+index 4305ce98a..723cd76f1 100644
 --- a/packages/tui/package.json
 +++ b/packages/tui/package.json
 @@ -1,6 +1,6 @@
  {
  	"name": "@earendil-works/pi-tui",
--	"version": "1.5.0",
-+	"version": "1.5.0+namespace.1",
+-	"version": "1.5.2",
++	"version": "1.5.2+namespace.1",
  	"description": "Terminal User Interface library with differential rendering for efficient text-based applications",
  	"type": "module",
  	"main": "dist/index.js",
 -- 
-2.56.0
+2.56.1
 

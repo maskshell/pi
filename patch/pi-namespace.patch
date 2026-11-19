@@ -1,4 +1,4 @@
-From ec49d9dc29279833c2532095256b13d6b6b61c5b Mon Sep 17 00:00:00 2001
+From 563d058f374af6be30c29749f5589a4b10d4aec0 Mon Sep 17 00:00:00 2001
 From: Analyser <analyser@gmail.com>
 Date: Sat, 29 Aug 2026 20:24:21 +0800
 Subject: [PATCH] feat(coding-agent): opt-in package namespace (pi.namespace)
@@ -120,12 +120,12 @@ index 6aa1d8afc..ca2c182bf 100644
  
  Put runtime packages imported by extensions in `dependencies`. Pi installs package dependencies when it installs an npm or git source.
 diff --git a/packages/coding-agent/docs/prompt-templates.md b/packages/coding-agent/docs/prompt-templates.md
-index 8fee1a3fe..5e2e8e70c 100644
+index 3c4950829..5cf55bce7 100644
 --- a/packages/coding-agent/docs/prompt-templates.md
 +++ b/packages/coding-agent/docs/prompt-templates.md
 @@ -48,6 +48,22 @@ Templates support these substitutions:
  
- Arguments follow shell-like quoting, so `/review "API compatibility"` supplies one argument containing a space.
+ Arguments follow shell-like quoting, so `/review "API compatibility"` supplies one argument containing a space. A quote only starts quoting at the beginning of an argument, so apostrophes inside words such as `doesn't` stay as text, and a quote with no closing match is kept as text. Inside a quoted argument, a backslash before the same quote character keeps it as text, so `/review "the \"fast\" path"` supplies `the "fast" path`; other backslashes are kept as typed.
  
 +## Package Namespaces
 +
@@ -192,10 +192,10 @@ index 19d2bf289..c04c30ba5 100644
  
  Run Pi from a location where the skill is discoverable, then inspect the startup diagnostics and `/skill:name` command. Run `/reload` after editing a skill during an active session.
 diff --git a/packages/coding-agent/src/core/agent-session.ts b/packages/coding-agent/src/core/agent-session.ts
-index dbe36c365..adb33a398 100644
+index f76247d56..0435d4d38 100644
 --- a/packages/coding-agent/src/core/agent-session.ts
 +++ b/packages/coding-agent/src/core/agent-session.ts
-@@ -137,6 +137,7 @@ import {
+@@ -138,6 +138,7 @@ import {
  	DEFAULT_TOOL_NAMES,
  	type SettingsManager,
  } from "./settings-manager.ts";
@@ -203,7 +203,7 @@ index dbe36c365..adb33a398 100644
  import type { SlashCommandInfo } from "./slash-commands.ts";
  import { BUILTIN_PATH_PREFIX, createSyntheticSourceInfo, isSyntheticPath, type SourceInfo } from "./source-info.ts";
  import {
-@@ -2151,6 +2152,7 @@ export class AgentSession {
+@@ -2220,6 +2221,7 @@ export class AgentSession {
  		let expandedText = currentText;
  		if (expandPromptTemplates) {
  			expandedText = this._expandSkillCommand(expandedText);
@@ -211,7 +211,7 @@ index dbe36c365..adb33a398 100644
  			expandedText = expandPromptTemplate(expandedText, [...this.promptTemplates]);
  		}
  
-@@ -2234,11 +2236,41 @@ export class AgentSession {
+@@ -2301,11 +2303,41 @@ export class AgentSession {
  
  		const spaceIndex = text.indexOf(" ");
  		const skillName = spaceIndex === -1 ? text.slice(7) : text.slice(7, spaceIndex);
@@ -255,7 +255,7 @@ index dbe36c365..adb33a398 100644
  		try {
  			const content = readFileSync(skill.filePath, "utf-8");
  			const body = stripFrontmatter(content).trim();
-@@ -2274,6 +2306,7 @@ export class AgentSession {
+@@ -2341,6 +2373,7 @@ export class AgentSession {
  		if (!processedInput) return "handled";
  
  		let expandedText = this._expandSkillCommand(processedInput.text);
@@ -264,7 +264,7 @@ index dbe36c365..adb33a398 100644
  
  		if (behavior === "steer") {
 diff --git a/packages/coding-agent/src/core/package-manager.ts b/packages/coding-agent/src/core/package-manager.ts
-index 5f4229b24..7c522533d 100644
+index 5fd93754e..c1239223b 100644
 --- a/packages/coding-agent/src/core/package-manager.ts
 +++ b/packages/coding-agent/src/core/package-manager.ts
 @@ -52,7 +52,7 @@ import {
@@ -276,7 +276,7 @@ index 5f4229b24..7c522533d 100644
  import type { PackageSource, SettingsManager } from "./settings-manager.ts";
  import { BUILTIN_PATH_PREFIX, getResourcePathKey } from "./source-info.ts";
  
-@@ -81,6 +81,8 @@ export interface PathMetadata {
+@@ -82,6 +82,8 @@ export interface PathMetadata {
  	baseDir?: string;
  	changelogPath?: string;
  	packageRoot?: string;
@@ -285,7 +285,7 @@ index 5f4229b24..7c522533d 100644
  }
  
  export interface ResolvedResource {
-@@ -2363,7 +2365,11 @@ export class DefaultPackageManager implements PackageManager {
+@@ -2424,7 +2426,11 @@ export class DefaultPackageManager implements PackageManager {
  		} else {
  			delete metadata.changelogPath;
  		}
@@ -298,7 +298,7 @@ index 5f4229b24..7c522533d 100644
  		if (filter) {
  			for (const resourceType of RESOURCE_TYPES) {
  				const patterns = filter[resourceType];
-@@ -2381,7 +2387,7 @@ export class DefaultPackageManager implements PackageManager {
+@@ -2442,7 +2448,7 @@ export class DefaultPackageManager implements PackageManager {
  
  		if (manifest && hasManifestResourceFields(manifest)) {
  			for (const resourceType of RESOURCE_TYPES) {
@@ -307,7 +307,7 @@ index 5f4229b24..7c522533d 100644
  				this.addManifestEntries(
  					entries,
  					packageRoot,
-@@ -2415,7 +2421,7 @@ export class DefaultPackageManager implements PackageManager {
+@@ -2476,7 +2482,7 @@ export class DefaultPackageManager implements PackageManager {
  		metadata: PathMetadata,
  	): void {
  		const manifest = readPiManifest(join(packageRoot, "package.json"));
@@ -316,7 +316,7 @@ index 5f4229b24..7c522533d 100644
  		if (entries) {
  			this.addManifestEntries(entries, packageRoot, resourceType, target, metadata);
  			return;
-@@ -2484,7 +2490,7 @@ export class DefaultPackageManager implements PackageManager {
+@@ -2545,7 +2551,7 @@ export class DefaultPackageManager implements PackageManager {
  		resourceType: ResourceType,
  	): { allFiles: string[]; enabledByManifest: Set<string> } {
  		const manifest = readPiManifest(join(packageRoot, "package.json"));
@@ -356,7 +356,7 @@ index 0dca39385..3fa09f099 100644
  	} catch {
  		return null;
 diff --git a/packages/coding-agent/src/core/prompt-templates.ts b/packages/coding-agent/src/core/prompt-templates.ts
-index 7a0b34432..e75409c1b 100644
+index 07562f406..19f358610 100644
 --- a/packages/coding-agent/src/core/prompt-templates.ts
 +++ b/packages/coding-agent/src/core/prompt-templates.ts
 @@ -4,6 +4,7 @@ import { CONFIG_DIR_NAME } from "../config.ts";
@@ -378,7 +378,7 @@ index 7a0b34432..e75409c1b 100644
  }
  
  /**
-@@ -211,6 +216,8 @@ export interface LoadPromptTemplatesOptions {
+@@ -227,6 +232,8 @@ export interface LoadPromptTemplatesOptions {
  	promptPaths: string[];
  	/** Include default prompt directories. */
  	includeDefaults: boolean;
@@ -387,7 +387,7 @@ index 7a0b34432..e75409c1b 100644
  }
  
  export interface LoadPromptTemplatesResult {
-@@ -229,14 +236,28 @@ export function loadPromptTemplates(options: LoadPromptTemplatesOptions): LoadPr
+@@ -245,14 +252,28 @@ export function loadPromptTemplates(options: LoadPromptTemplatesOptions): LoadPr
  	const resolvedAgentDir = resolvePath(options.agentDir);
  	const promptPaths = options.promptPaths;
  	const includeDefaults = options.includeDefaults;
@@ -417,7 +417,7 @@ index 7a0b34432..e75409c1b 100644
  	const globalPromptsDir = join(resolvedAgentDir, "prompts");
  	const projectPromptsDir = resolve(resolvedCwd, CONFIG_DIR_NAME, "prompts");
  
-@@ -289,7 +310,7 @@ export function loadPromptTemplates(options: LoadPromptTemplatesOptions): LoadPr
+@@ -305,7 +326,7 @@ export function loadPromptTemplates(options: LoadPromptTemplatesOptions): LoadPr
  			} else if (stats.isFile() && resolvedPath.endsWith(".md")) {
  				const result = loadTemplateFromFile(resolvedPath, getSourceInfo(resolvedPath));
  				if (result.template) {
@@ -426,7 +426,7 @@ index 7a0b34432..e75409c1b 100644
  				}
  				diagnostics.push(...result.diagnostics);
  			}
-@@ -315,10 +336,21 @@ export function expandPromptTemplate(text: string, templates: PromptTemplate[]):
+@@ -331,10 +352,21 @@ export function expandPromptTemplate(text: string, templates: PromptTemplate[]):
  	const templateName = match[1];
  	const argsString = match[2] ?? "";
  
@@ -706,10 +706,10 @@ index 48df4536b..a064122da 100644
  			if (existing) {
  				collisionDiagnostics.push({
 diff --git a/packages/coding-agent/src/modes/interactive/interactive-mode.ts b/packages/coding-agent/src/modes/interactive/interactive-mode.ts
-index 6c6fbcf37..55cc43120 100644
+index d8e2390c4..bcfe4a81e 100644
 --- a/packages/coding-agent/src/modes/interactive/interactive-mode.ts
 +++ b/packages/coding-agent/src/modes/interactive/interactive-mode.ts
-@@ -815,6 +815,7 @@ export class InteractiveMode {
+@@ -833,6 +833,7 @@ export class InteractiveMode {
  		this.skillCommands.clear();
  		const skillCommandList: SlashCommand[] = [];
  		if (this.settingsManager.getEnableSkillCommands()) {
@@ -717,7 +717,7 @@ index 6c6fbcf37..55cc43120 100644
  			for (const skill of this.session.resourceLoader.getSkills().skills) {
  				const commandName = `skill:${skill.name}`;
  				this.skillCommands.set(commandName, skill.filePath);
-@@ -822,6 +823,15 @@ export class InteractiveMode {
+@@ -840,6 +841,15 @@ export class InteractiveMode {
  					name: commandName,
  					description: this.prefixAutocompleteDescription(skill.description, skill.sourceInfo),
  				});
@@ -788,10 +788,10 @@ index 000000000..c93e61fb8
 +---
 +User body.
 diff --git a/packages/coding-agent/test/package-manager.test.ts b/packages/coding-agent/test/package-manager.test.ts
-index b5895b331..f9f9234ed 100644
+index 7d01a4ece..7af7f95c1 100644
 --- a/packages/coding-agent/test/package-manager.test.ts
 +++ b/packages/coding-agent/test/package-manager.test.ts
-@@ -3171,4 +3171,71 @@ export default function(api) { api.registerTool({ name: "test", description: "te
+@@ -3188,4 +3188,71 @@ export default function(api) { api.registerTool({ name: "test", description: "te
  			await expect(capturePromise).resolves.toBe("abc123");
  		});
  	});
@@ -864,10 +864,10 @@ index b5895b331..f9f9234ed 100644
 +	});
  });
 diff --git a/packages/coding-agent/test/prompt-templates.test.ts b/packages/coding-agent/test/prompt-templates.test.ts
-index d67346ab9..61517d15c 100644
+index 57e4e7069..9271ba257 100644
 --- a/packages/coding-agent/test/prompt-templates.test.ts
 +++ b/packages/coding-agent/test/prompt-templates.test.ts
-@@ -672,3 +672,111 @@ describe("loadPromptTemplates - diagnostics", () => {
+@@ -700,3 +700,111 @@ describe("loadPromptTemplates - diagnostics", () => {
  		}
  	});
  });
@@ -1379,5 +1379,5 @@ index 039801994..5a57d409a 100644
 +	});
 +});
 -- 
-2.56.0
+2.56.1
 
