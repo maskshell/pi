@@ -1,4 +1,4 @@
-From ec2aa9fb0088c1db6ef4447c8897155d101b8170 Mon Sep 17 00:00:00 2001
+From d0f797001b7f72642a78689c3cdf3e5029faa050 Mon Sep 17 00:00:00 2001
 From: Analyser <analyser@gmail.com>
 Date: Sat, 29 Aug 2026 20:24:21 +0800
 Subject: [PATCH] feat(coding-agent): opt-in package namespace (pi.namespace)
@@ -56,13 +56,13 @@ Out of scope: themes, runtime registrations, settings-level overrides.
  .../skills/ns-package/ns-one/SKILL.md         |   5 +
  .../skills/ns-package/ns-two-dup/SKILL.md     |   5 +
  .../skills/ns-package/ns-two/SKILL.md         |   5 +
- .../fixtures/skills/ns-package/package.json   |   4 +
+ .../fixtures/skills/ns-package/package.json   |   7 +
  .../skills/ns-user-dir/user-skill/SKILL.md    |   5 +
  .../coding-agent/test/package-manager.test.ts |  67 ++++++
  .../test/prompt-templates.test.ts             | 108 +++++++++
  .../coding-agent/test/resource-loader.test.ts | 163 ++++++++++++++
  packages/coding-agent/test/skills.test.ts     | 208 +++++++++++++++++-
- 19 files changed, 919 insertions(+), 17 deletions(-)
+ 19 files changed, 921 insertions(+), 18 deletions(-)
  create mode 100644 packages/coding-agent/test/fixtures/skills/ns-package/ns-one/SKILL.md
  create mode 100644 packages/coding-agent/test/fixtures/skills/ns-package/ns-two-dup/SKILL.md
  create mode 100644 packages/coding-agent/test/fixtures/skills/ns-package/ns-two/SKILL.md
@@ -70,12 +70,12 @@ Out of scope: themes, runtime registrations, settings-level overrides.
  create mode 100644 packages/coding-agent/test/fixtures/skills/ns-user-dir/user-skill/SKILL.md
 
 diff --git a/packages/coding-agent/docs/packages.md b/packages/coding-agent/docs/packages.md
-index 284dd8cb4..5b1bb6368 100644
+index 6aa1d8afc..ca2c182bf 100644
 --- a/packages/coding-agent/docs/packages.md
 +++ b/packages/coding-agent/docs/packages.md
-@@ -73,6 +73,45 @@ Paths are relative to the package root. Arrays accept glob patterns and exclusio
+@@ -97,6 +97,45 @@ By default Pi reads `CHANGELOG.md` from the package root. Point `pi.changelogPat
  
- The `pi-package` keyword makes an npm package eligible for discovery in the [Pi package gallery](https://pi.dev/packages). Optional `pi.image` and `pi.video` fields add gallery previews.
+ Use version headings in the same format as Pi's changelog, such as `## [1.2.0]` or `## 1.2.0 - 2026-01-01`. Entries are matched against the `version` field in `package.json`, so a git package only shows a changelog when that field increases. The `collapseChangelog` setting condenses the section to one line per package, such as `Updated my-pi-package to v1.2.0.` Unlike Pi's own changelog, `/changelog` does not show package changelogs, so read the package's changelog file or repository for details.
  
 +### Namespace
 +
@@ -120,12 +120,12 @@ index 284dd8cb4..5b1bb6368 100644
  
  Put runtime packages imported by extensions in `dependencies`. Pi installs package dependencies when it installs an npm or git source.
 diff --git a/packages/coding-agent/docs/prompt-templates.md b/packages/coding-agent/docs/prompt-templates.md
-index 8fee1a3fe..5e2e8e70c 100644
+index 3c4950829..5cf55bce7 100644
 --- a/packages/coding-agent/docs/prompt-templates.md
 +++ b/packages/coding-agent/docs/prompt-templates.md
 @@ -48,6 +48,22 @@ Templates support these substitutions:
  
- Arguments follow shell-like quoting, so `/review "API compatibility"` supplies one argument containing a space.
+ Arguments follow shell-like quoting, so `/review "API compatibility"` supplies one argument containing a space. A quote only starts quoting at the beginning of an argument, so apostrophes inside words such as `doesn't` stay as text, and a quote with no closing match is kept as text. Inside a quoted argument, a backslash before the same quote character keeps it as text, so `/review "the \"fast\" path"` supplies `the "fast" path`; other backslashes are kept as typed.
  
 +## Package Namespaces
 +
@@ -192,18 +192,18 @@ index 19d2bf289..c04c30ba5 100644
  
  Run Pi from a location where the skill is discoverable, then inspect the startup diagnostics and `/skill:name` command. Run `/reload` after editing a skill during an active session.
 diff --git a/packages/coding-agent/src/core/agent-session.ts b/packages/coding-agent/src/core/agent-session.ts
-index 63aa588da..f0897e92f 100644
+index f76247d56..0435d4d38 100644
 --- a/packages/coding-agent/src/core/agent-session.ts
 +++ b/packages/coding-agent/src/core/agent-session.ts
-@@ -130,6 +130,7 @@ import {
- 	type SessionProjection,
- } from "./session-manager.ts";
- import { type CacheWarmingMode, DEFAULT_TOOL_NAMES, type SettingsManager } from "./settings-manager.ts";
+@@ -138,6 +138,7 @@ import {
+ 	DEFAULT_TOOL_NAMES,
+ 	type SettingsManager,
+ } from "./settings-manager.ts";
 +import { findSkillByInvocationName, resolveBareNamespaceSkill } from "./skills.ts";
  import type { SlashCommandInfo } from "./slash-commands.ts";
  import { BUILTIN_PATH_PREFIX, createSyntheticSourceInfo, isSyntheticPath, type SourceInfo } from "./source-info.ts";
  import {
-@@ -1959,6 +1960,7 @@ export class AgentSession {
+@@ -2220,6 +2221,7 @@ export class AgentSession {
  		let expandedText = currentText;
  		if (expandPromptTemplates) {
  			expandedText = this._expandSkillCommand(expandedText);
@@ -211,7 +211,7 @@ index 63aa588da..f0897e92f 100644
  			expandedText = expandPromptTemplate(expandedText, [...this.promptTemplates]);
  		}
  
-@@ -2102,11 +2104,41 @@ export class AgentSession {
+@@ -2301,11 +2303,41 @@ export class AgentSession {
  
  		const spaceIndex = text.indexOf(" ");
  		const skillName = spaceIndex === -1 ? text.slice(7) : text.slice(7, spaceIndex);
@@ -255,7 +255,7 @@ index 63aa588da..f0897e92f 100644
  		try {
  			const content = readFileSync(skill.filePath, "utf-8");
  			const body = stripFrontmatter(content).trim();
-@@ -2142,6 +2174,7 @@ export class AgentSession {
+@@ -2341,6 +2373,7 @@ export class AgentSession {
  		if (!processedInput) return "handled";
  
  		let expandedText = this._expandSkillCommand(processedInput.text);
@@ -264,75 +264,75 @@ index 63aa588da..f0897e92f 100644
  
  		if (behavior === "steer") {
 diff --git a/packages/coding-agent/src/core/package-manager.ts b/packages/coding-agent/src/core/package-manager.ts
-index b5bb19d74..60383b117 100644
+index 5fd93754e..c1239223b 100644
 --- a/packages/coding-agent/src/core/package-manager.ts
 +++ b/packages/coding-agent/src/core/package-manager.ts
-@@ -43,7 +43,7 @@ import { type GitSource, parseGitUrl } from "../utils/git.ts";
- import { canonicalizePath, isLocalPath, markPathIgnoredByCloudSync, resolvePath } from "../utils/paths.ts";
+@@ -52,7 +52,7 @@ import {
+ } from "../utils/paths.ts";
  import { stripBom } from "../utils/text.ts";
  import { isStdoutTakenOver } from "./output-guard.ts";
 -import { type PiManifest, readPiManifest } from "./pi-manifest.ts";
-+import { type ResourceArrayKey, readPiManifest } from "./pi-manifest.ts";
++import { type PiManifest, type ResourceArrayKey, readPiManifest } from "./pi-manifest.ts";
  import type { PackageSource, SettingsManager } from "./settings-manager.ts";
- import { BUILTIN_PATH_PREFIX } from "./source-info.ts";
+ import { BUILTIN_PATH_PREFIX, getResourcePathKey } from "./source-info.ts";
  
-@@ -71,6 +71,8 @@ export interface PathMetadata {
- 	origin: "package" | "top-level";
+@@ -82,6 +82,8 @@ export interface PathMetadata {
  	baseDir?: string;
+ 	changelogPath?: string;
  	packageRoot?: string;
 +	/** Package namespace (pi.namespace) for name-keyed resources of this package. */
 +	namespace?: string;
  }
  
  export interface ResolvedResource {
-@@ -2217,6 +2219,12 @@ export class DefaultPackageManager implements PackageManager {
- 		filter: PackageFilter | undefined,
- 		metadata: PathMetadata,
- 	): boolean {
-+		// One namespace read per package; carried additively on every resource
-+		// this package registers (consumed by name-keyed loaders only).
-+		const declaredNamespace = readPiManifest(join(packageRoot, "package.json"))?.namespace;
-+		const nsMetadata: PathMetadata =
-+			declaredNamespace !== undefined ? { ...metadata, namespace: declaredNamespace } : metadata;
-+		metadata = nsMetadata;
+@@ -2424,7 +2426,11 @@ export class DefaultPackageManager implements PackageManager {
+ 		} else {
+ 			delete metadata.changelogPath;
+ 		}
+-
++		// Namespace is carried additively on every resource this package
++		// registers (consumed by name-keyed loaders only).
++		if (manifest?.namespace !== undefined) {
++			metadata.namespace = manifest.namespace;
++		}
  		if (filter) {
  			for (const resourceType of RESOURCE_TYPES) {
  				const patterns = filter[resourceType];
-@@ -2235,7 +2243,7 @@ export class DefaultPackageManager implements PackageManager {
- 		const manifest = readPiManifest(join(packageRoot, "package.json"));
- 		if (manifest) {
+@@ -2442,7 +2448,7 @@ export class DefaultPackageManager implements PackageManager {
+ 
+ 		if (manifest && hasManifestResourceFields(manifest)) {
  			for (const resourceType of RESOURCE_TYPES) {
--				const entries = manifest[resourceType as keyof PiManifest];
+-				const entries = manifest[resourceType];
 +				const entries = manifest[resourceType as ResourceArrayKey];
  				this.addManifestEntries(
  					entries,
  					packageRoot,
-@@ -2269,7 +2277,7 @@ export class DefaultPackageManager implements PackageManager {
+@@ -2476,7 +2482,7 @@ export class DefaultPackageManager implements PackageManager {
  		metadata: PathMetadata,
  	): void {
  		const manifest = readPiManifest(join(packageRoot, "package.json"));
--		const entries = manifest?.[resourceType as keyof PiManifest];
+-		const entries = manifest?.[resourceType];
 +		const entries = manifest?.[resourceType as ResourceArrayKey];
  		if (entries) {
  			this.addManifestEntries(entries, packageRoot, resourceType, target, metadata);
  			return;
-@@ -2338,7 +2346,7 @@ export class DefaultPackageManager implements PackageManager {
+@@ -2545,7 +2551,7 @@ export class DefaultPackageManager implements PackageManager {
  		resourceType: ResourceType,
  	): { allFiles: string[]; enabledByManifest: Set<string> } {
  		const manifest = readPiManifest(join(packageRoot, "package.json"));
--		const entries = manifest?.[resourceType as keyof PiManifest];
+-		const entries = manifest?.[resourceType];
 +		const entries = manifest?.[resourceType as ResourceArrayKey];
  		if (entries && entries.length > 0) {
  			const allFiles = this.collectFilesFromManifestEntries(entries, packageRoot, resourceType);
  			const manifestPatterns = entries.filter(isOverridePattern);
 diff --git a/packages/coding-agent/src/core/pi-manifest.ts b/packages/coding-agent/src/core/pi-manifest.ts
-index fd7dd5edb..b19ebfdeb 100644
+index 0dca39385..3fa09f099 100644
 --- a/packages/coding-agent/src/core/pi-manifest.ts
 +++ b/packages/coding-agent/src/core/pi-manifest.ts
-@@ -6,10 +6,15 @@ export interface PiManifest {
- 	skills?: string[];
+@@ -7,10 +7,15 @@ export interface PiManifest {
  	prompts?: string[];
  	themes?: string[];
+ 	changelogPath?: string;
 +	/** Opt-in namespace applied to name-keyed resources loaded from this package. */
 +	namespace?: string;
  }
@@ -345,10 +345,10 @@ index fd7dd5edb..b19ebfdeb 100644
  function isObject(value: unknown): value is Record<string, unknown> {
  	return typeof value === "object" && value !== null && !Array.isArray(value);
  }
-@@ -28,6 +33,9 @@ export function readPiManifest(packageJsonPath: string): PiManifest | null {
- 				manifest[field] = entries;
- 			}
+@@ -35,6 +40,9 @@ export function readPiManifest(packageJsonPath: string): PiManifest | null {
+ 			manifest.changelogPath = changelogPath;
  		}
+ 
 +		if (typeof pkg.pi.namespace === "string") {
 +			manifest.namespace = pkg.pi.namespace;
 +		}
@@ -356,7 +356,7 @@ index fd7dd5edb..b19ebfdeb 100644
  	} catch {
  		return null;
 diff --git a/packages/coding-agent/src/core/prompt-templates.ts b/packages/coding-agent/src/core/prompt-templates.ts
-index f5b21a665..f7979825b 100644
+index 07562f406..19f358610 100644
 --- a/packages/coding-agent/src/core/prompt-templates.ts
 +++ b/packages/coding-agent/src/core/prompt-templates.ts
 @@ -4,6 +4,7 @@ import { CONFIG_DIR_NAME } from "../config.ts";
@@ -378,7 +378,7 @@ index f5b21a665..f7979825b 100644
  }
  
  /**
-@@ -206,6 +211,8 @@ export interface LoadPromptTemplatesOptions {
+@@ -227,6 +232,8 @@ export interface LoadPromptTemplatesOptions {
  	promptPaths: string[];
  	/** Include default prompt directories. */
  	includeDefaults: boolean;
@@ -387,7 +387,7 @@ index f5b21a665..f7979825b 100644
  }
  
  export interface LoadPromptTemplatesResult {
-@@ -224,14 +231,28 @@ export function loadPromptTemplates(options: LoadPromptTemplatesOptions): LoadPr
+@@ -245,14 +252,28 @@ export function loadPromptTemplates(options: LoadPromptTemplatesOptions): LoadPr
  	const resolvedAgentDir = resolvePath(options.agentDir);
  	const promptPaths = options.promptPaths;
  	const includeDefaults = options.includeDefaults;
@@ -417,7 +417,7 @@ index f5b21a665..f7979825b 100644
  	const globalPromptsDir = join(resolvedAgentDir, "prompts");
  	const projectPromptsDir = resolve(resolvedCwd, CONFIG_DIR_NAME, "prompts");
  
-@@ -284,7 +305,7 @@ export function loadPromptTemplates(options: LoadPromptTemplatesOptions): LoadPr
+@@ -305,7 +326,7 @@ export function loadPromptTemplates(options: LoadPromptTemplatesOptions): LoadPr
  			} else if (stats.isFile() && resolvedPath.endsWith(".md")) {
  				const result = loadTemplateFromFile(resolvedPath, getSourceInfo(resolvedPath));
  				if (result.template) {
@@ -426,7 +426,7 @@ index f5b21a665..f7979825b 100644
  				}
  				diagnostics.push(...result.diagnostics);
  			}
-@@ -310,10 +331,21 @@ export function expandPromptTemplate(text: string, templates: PromptTemplate[]):
+@@ -331,10 +352,21 @@ export function expandPromptTemplate(text: string, templates: PromptTemplate[]):
  	const templateName = match[1];
  	const argsString = match[2] ?? "";
  
@@ -451,10 +451,10 @@ index f5b21a665..f7979825b 100644
  
  	return text;
 diff --git a/packages/coding-agent/src/core/resource-loader.ts b/packages/coding-agent/src/core/resource-loader.ts
-index fa877d83c..5baa959ed 100644
+index bb0740e49..6108ddc41 100644
 --- a/packages/coding-agent/src/core/resource-loader.ts
 +++ b/packages/coding-agent/src/core/resource-loader.ts
-@@ -30,7 +30,7 @@ import type { PromptTemplate } from "./prompt-templates.ts";
+@@ -35,7 +35,7 @@ import type { PromptTemplate } from "./prompt-templates.ts";
  import { loadPromptTemplates } from "./prompt-templates.ts";
  import { SettingsManager } from "./settings-manager.ts";
  import type { Skill } from "./skills.ts";
@@ -463,7 +463,7 @@ index fa877d83c..5baa959ed 100644
  import {
  	BUILTIN_PATH_PREFIX,
  	createSourceInfo,
-@@ -825,17 +825,51 @@ export class DefaultResourceLoader implements ResourceLoader {
+@@ -877,17 +877,51 @@ export class DefaultResourceLoader implements ResourceLoader {
  		});
  	}
  
@@ -515,7 +515,7 @@ index fa877d83c..5baa959ed 100644
  		}
  		const resolvedSkills = this.skillsOverride ? this.skillsOverride(skillsResult) : skillsResult;
  		this.skills = resolvedSkills.skills.map((skill) => ({
-@@ -853,16 +887,18 @@ export class DefaultResourceLoader implements ResourceLoader {
+@@ -905,16 +939,18 @@ export class DefaultResourceLoader implements ResourceLoader {
  		if (this.noPromptTemplates && promptPaths.length === 0) {
  			promptsResult = { prompts: [], diagnostics: [] };
  		} else {
@@ -538,7 +538,7 @@ index fa877d83c..5baa959ed 100644
  		}
  		const resolvedPrompts = this.promptsOverride ? this.promptsOverride(promptsResult) : promptsResult;
 diff --git a/packages/coding-agent/src/core/skills.ts b/packages/coding-agent/src/core/skills.ts
-index 744c1395a..f6755e4a6 100644
+index 48df4536b..a064122da 100644
 --- a/packages/coding-agent/src/core/skills.ts
 +++ b/packages/coding-agent/src/core/skills.ts
 @@ -78,6 +78,16 @@ export interface Skill {
@@ -558,7 +558,7 @@ index 744c1395a..f6755e4a6 100644
  }
  
  export interface LoadSkillsResult {
-@@ -391,6 +401,96 @@ function escapeXml(str: string): string {
+@@ -396,6 +406,96 @@ function escapeXml(str: string): string {
  		.replace(/'/g, "&apos;");
  }
  
@@ -655,7 +655,7 @@ index 744c1395a..f6755e4a6 100644
  export interface LoadSkillsOptions {
  	/** Working directory for project-local skills. */
  	cwd: string;
-@@ -400,6 +500,21 @@ export interface LoadSkillsOptions {
+@@ -405,6 +505,21 @@ export interface LoadSkillsOptions {
  	skillPaths: string[];
  	/** Include default skills directories. */
  	includeDefaults: boolean;
@@ -677,7 +677,7 @@ index 744c1395a..f6755e4a6 100644
  }
  
  /**
-@@ -408,6 +523,7 @@ export interface LoadSkillsOptions {
+@@ -413,6 +528,7 @@ export interface LoadSkillsOptions {
   */
  export function loadSkills(options: LoadSkillsOptions): LoadSkillsResult {
  	const { agentDir, skillPaths, includeDefaults } = options;
@@ -685,15 +685,15 @@ index 744c1395a..f6755e4a6 100644
  
  	// Resolve agentDir - if not provided, use default from config
  	const resolvedCwd = resolvePath(options.cwd);
-@@ -420,15 +536,17 @@ export function loadSkills(options: LoadSkillsOptions): LoadSkillsResult {
+@@ -425,15 +541,17 @@ export function loadSkills(options: LoadSkillsOptions): LoadSkillsResult {
  
  	function addSkills(result: LoadSkillsResult) {
  		allDiagnostics.push(...result.diagnostics);
 -		for (const skill of result.skills) {
 +		for (const loadedSkill of result.skills) {
  			// Resolve symlinks to detect duplicate files
--			const realPath = canonicalizePath(skill.filePath);
-+			const realPath = canonicalizePath(loadedSkill.filePath);
+-			const realPath = getResourcePathKey(skill.filePath);
++			const realPath = getResourcePathKey(loadedSkill.filePath);
  
  			// Skip silently if we've already loaded this exact file (via symlink)
  			if (realPathSet.has(realPath)) {
@@ -706,10 +706,10 @@ index 744c1395a..f6755e4a6 100644
  			if (existing) {
  				collisionDiagnostics.push({
 diff --git a/packages/coding-agent/src/modes/interactive/interactive-mode.ts b/packages/coding-agent/src/modes/interactive/interactive-mode.ts
-index 158f59e5f..fbeab4463 100644
+index d8e2390c4..bcfe4a81e 100644
 --- a/packages/coding-agent/src/modes/interactive/interactive-mode.ts
 +++ b/packages/coding-agent/src/modes/interactive/interactive-mode.ts
-@@ -794,6 +794,7 @@ export class InteractiveMode {
+@@ -833,6 +833,7 @@ export class InteractiveMode {
  		this.skillCommands.clear();
  		const skillCommandList: SlashCommand[] = [];
  		if (this.settingsManager.getEnableSkillCommands()) {
@@ -717,7 +717,7 @@ index 158f59e5f..fbeab4463 100644
  			for (const skill of this.session.resourceLoader.getSkills().skills) {
  				const commandName = `skill:${skill.name}`;
  				this.skillCommands.set(commandName, skill.filePath);
-@@ -801,6 +802,15 @@ export class InteractiveMode {
+@@ -840,6 +841,15 @@ export class InteractiveMode {
  					name: commandName,
  					description: this.prefixAutocompleteDescription(skill.description, skill.sourceInfo),
  				});
@@ -768,13 +768,16 @@ index 000000000..3d98b6d30
 +Body two.
 diff --git a/packages/coding-agent/test/fixtures/skills/ns-package/package.json b/packages/coding-agent/test/fixtures/skills/ns-package/package.json
 new file mode 100644
-index 000000000..8c79365f5
+index 000000000..834db142e
 --- /dev/null
 +++ b/packages/coding-agent/test/fixtures/skills/ns-package/package.json
-@@ -0,0 +1,4 @@
+@@ -0,0 +1,7 @@
 +{
 +	"name": "ns-pkg-fixture",
-+	"pi": { "namespace": "solidforge" }
++	"pi": {
++		"namespace": "solidforge"
++	},
++	"private": true
 +}
 diff --git a/packages/coding-agent/test/fixtures/skills/ns-user-dir/user-skill/SKILL.md b/packages/coding-agent/test/fixtures/skills/ns-user-dir/user-skill/SKILL.md
 new file mode 100644
@@ -788,10 +791,10 @@ index 000000000..c93e61fb8
 +---
 +User body.
 diff --git a/packages/coding-agent/test/package-manager.test.ts b/packages/coding-agent/test/package-manager.test.ts
-index a81054bbe..85ae46996 100644
+index 7d01a4ece..7af7f95c1 100644
 --- a/packages/coding-agent/test/package-manager.test.ts
 +++ b/packages/coding-agent/test/package-manager.test.ts
-@@ -2828,4 +2828,71 @@ export default function(api) { api.registerTool({ name: "test", description: "te
+@@ -3188,4 +3188,71 @@ export default function(api) { api.registerTool({ name: "test", description: "te
  			await expect(capturePromise).resolves.toBe("abc123");
  		});
  	});
@@ -864,10 +867,10 @@ index a81054bbe..85ae46996 100644
 +	});
  });
 diff --git a/packages/coding-agent/test/prompt-templates.test.ts b/packages/coding-agent/test/prompt-templates.test.ts
-index eaf59c12a..7339295bb 100644
+index 57e4e7069..9271ba257 100644
 --- a/packages/coding-agent/test/prompt-templates.test.ts
 +++ b/packages/coding-agent/test/prompt-templates.test.ts
-@@ -652,3 +652,111 @@ describe("loadPromptTemplates - diagnostics", () => {
+@@ -700,3 +700,111 @@ describe("loadPromptTemplates - diagnostics", () => {
  		}
  	});
  });
@@ -980,10 +983,10 @@ index eaf59c12a..7339295bb 100644
 +	});
 +});
 diff --git a/packages/coding-agent/test/resource-loader.test.ts b/packages/coding-agent/test/resource-loader.test.ts
-index d996f4b10..6ce2ea75f 100644
+index e68b4cfea..c3e5f855c 100644
 --- a/packages/coding-agent/test/resource-loader.test.ts
 +++ b/packages/coding-agent/test/resource-loader.test.ts
-@@ -1345,4 +1345,167 @@ export default function(pi: ExtensionAPI) {
+@@ -1473,4 +1473,167 @@ export default function(pi: ExtensionAPI) {
  			expect(files.map((f) => f.content)).toEqual(["repo instructions", "src instructions"]);
  		});
  	});
@@ -1379,5 +1382,5 @@ index 039801994..5a57d409a 100644
 +	});
 +});
 -- 
-2.55.0
+2.56.1
 

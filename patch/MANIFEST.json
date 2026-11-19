@@ -3,7 +3,7 @@
 	"patchVersion": "1.0.0-namespace.1",
 	"baseTag": "v1.0.0",
 	"baseSha": "a13d35a742c6ef8462812a28fbe1d8c8b7431c32",
-	"featureCommit": "ec2aa9fb0088c1db6ef4447c8897155d101b8170",
+	"featureCommit": "d0f797001b7f72642a78689c3cdf3e5029faa050",
 	"versionStampCommit": "1304fd39e9228166728debc6de48a8e2c8320e2d",
 	"forkFixCommit": "22c1b5b913cea74e252cb09c940fc2f59838dadd",
 	"forkReleaseTag": "v1.0.0-namespace.1",
