@@ -72,6 +72,11 @@ jobs:
             "refs/tags/v*:refs/tags/v*" || echo ">> WARN: upstream tag fetch failed" >&2
           git fetch --no-tags https://github.com/earendil-works/pi.git main
           UP=$(git rev-parse FETCH_HEAD)
+          # Publish the mirrored upstream tags on every run (plain refs —
+          # GITHUB_TOKEN can push them; identical existing refs are no-ops),
+          # before the nothing-to-sync early exit so new tags land even when
+          # main is current.
+          git push origin "refs/tags/v*:refs/tags/v*" || echo ">> WARN: upstream tag push failed" >&2
           if git merge-base --is-ancestor "$UP" HEAD; then
             echo "main is not behind upstream/main@$UP — nothing to sync"
             exit 0
