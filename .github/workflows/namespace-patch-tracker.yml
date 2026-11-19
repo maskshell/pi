@@ -63,6 +63,13 @@ jobs:
           set -euo pipefail
           git config user.email "pi-namespace-pipeline@users.noreply.github.com"
           git config user.name "pi.namespace pipeline"
+          # Mirror upstream release tags (they point at upstream commits, which
+          # the take-theirs merges already carry, so this only adds refs).
+          # Upstream's check:released-changelogs CI step compares the default
+          # branch changelog against the repo's highest v*.*.* tag; without the
+          # mirrored tags it picks a fork namespace tag and fails spuriously.
+          git fetch --no-tags https://github.com/earendil-works/pi.git \
+            "refs/tags/v*:refs/tags/v*" || echo ">> WARN: upstream tag fetch failed" >&2
           git fetch --no-tags https://github.com/earendil-works/pi.git main
           UP=$(git rev-parse FETCH_HEAD)
           if git merge-base --is-ancestor "$UP" HEAD; then
