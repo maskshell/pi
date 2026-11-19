@@ -73,7 +73,7 @@ All feature content lives on `namespace-patch` / `package-namespace`.
 Upstream workflows that require upstream-only secrets are carried by the
 mirror but disabled in the fork (they can only fail here): `build-binaries.yml`,
 `publish-model-catalog.yml` (upstream S3 credentials),
-`preview-packages.yml` (upstream-only publish identity). `npm-audit.yml` stays
+`preview-packages.yml` and `p2-cloud-bundle.yml` (upstream-only publish identity). `npm-audit.yml` stays
 enabled: its failures are real advisory signals that self-heal when upstream
 bumps the affected dependency.
 
