@@ -1,3 +1,4 @@
+import { getEventListeners } from "node:events";
 import { describe, expect, it, vi } from "vitest";
 import { fauxAssistantMessage } from "../src/providers/faux.ts";
 import { isRetryableAssistantError, type RetryPolicy, retryAssistantCall, retryDelayMs } from "../src/utils/retry.ts";
@@ -140,6 +141,24 @@ describe("provider retry classification", () => {
 		expect(isRetryableAssistantError(fauxAssistantMessage("", { stopReason: "error", errorMessage }))).toBe(true);
 	});
 
+	it.each([
+		// Regression for #12227: gateway mid-stream `event: error` frames without a status code.
+		"The provider is temporarily unavailable. Retry shortly.",
+		"The upstream provider is temporarily unavailable. Try again shortly.",
+		"The provider ended the response before it was complete.",
+		"The connection to the provider was reset. Retry shortly.",
+		"The provider reported a failure while generating the response.",
+	])("matches gateway provider failure wording: %s", (errorMessage) => {
+		expect(isRetryableAssistantError(fauxAssistantMessage("", { stopReason: "error", errorMessage }))).toBe(true);
+	});
+
+	it.each(["Provider unavailable for this model", "The provider is unavailable in your region"])(
+		"does not match lasting provider unavailable wording: %s",
+		(errorMessage) => {
+			expect(isRetryableAssistantError(fauxAssistantMessage("", { stopReason: "error", errorMessage }))).toBe(false);
+		},
+	);
+
 	it("matches gateway wording for a closed connection", () => {
 		// Regression for #12064.
 		const errorMessage = '{"type":"error","error":{"type":"api_error","message":"Connection closed."}}';
@@ -201,6 +220,14 @@ describe("provider retry classification", () => {
 		expect(
 			isRetryableAssistantError(
 				fauxAssistantMessage("", { stopReason: "error", errorMessage: "524 status code (no body)" }),
+			),
+		).toBe(true);
+		expect(
+			isRetryableAssistantError(
+				fauxAssistantMessage("", {
+					stopReason: "error",
+					errorMessage: "525 <!DOCTYPE html><title>SSL handshake failed</title>",
+				}),
 			),
 		).toBe(true);
 		expect(isRetryableAssistantError(fauxAssistantMessage("not an error"))).toBe(false);
@@ -285,19 +312,22 @@ describe("retryAssistantCall", () => {
 		expect(onRetryScheduled.mock.calls.map((call) => call[2])).toEqual([10, 15, 15, 15]);
 	});
 
-	it("stops retrying once a call succeeds", async () => {
+	// Regression for #10506.
+	it("stops retrying once a call succeeds and removes backoff abort listeners", async () => {
+		const controller = new AbortController();
 		let n = 0;
 		const produce = vi.fn(async () => {
 			n++;
-			return n < 3
+			return n < 4
 				? fauxAssistantMessage("", { stopReason: "error", errorMessage: "terminated" })
 				: fauxAssistantMessage("recovered");
 		});
 		const onRetryFinished = vi.fn();
-		const res = await retryAssistantCall(produce, enabled, undefined, { onRetryFinished });
+		const res = await retryAssistantCall(produce, enabled, controller.signal, { onRetryFinished });
 		expect(res.content).toEqual([{ type: "text", text: "recovered" }]);
-		expect(produce).toHaveBeenCalledTimes(3);
-		expect(onRetryFinished).toHaveBeenCalledWith(true, 2);
+		expect(produce).toHaveBeenCalledTimes(4);
+		expect(onRetryFinished).toHaveBeenCalledWith(true, 3);
+		expect(getEventListeners(controller.signal, "abort")).toHaveLength(0);
 	});
 
 	it("reports an aborted retried call as unsuccessful", async () => {
