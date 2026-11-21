@@ -153,6 +153,17 @@ for f, d in loaded.items():
         json.dump(d, open(f, "w"), indent="\t", ensure_ascii=False)
         open(f, "a").write("\n")
         n += 1
+# Keep the PI_AI_VERSION source constant in sync (upstream's
+# scripts/sync-versions.js does this on their side; the stamp must mirror it
+# or identity.test fails: the constant must equal package.json's version).
+import pathlib
+vt = pathlib.Path("packages/ai/src/utils/version.ts")
+if vt.exists():
+    t = vt.read_text()
+    t2 = re.sub(r'PI_AI_VERSION = "[^"]+"', f'PI_AI_VERSION = "{new}"', t)
+    if t2 != t:
+        vt.write_text(t2)
+        print(f"stamped PI_AI_VERSION -> {new}")
 print(f"stamped {n} package.json files (versions + internal deps) -> {new}")
 PY
 npm install --package-lock-only --no-audit --no-fund --registry=https://registry.npmjs.org
