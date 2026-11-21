@@ -12,13 +12,13 @@
 	"upstreamProposal": "https://github.com/earendil-works/pi/issues/8834",
 	"install": {
 		"tierA_npm": "npm install -g pi-namespace-patch (registry.npmjs.org, trusted publishing; registry version X.Y.Z-namespace.N — may exceed the release suffix after burnt-slot re-publishes)",
-		"tierA_tarball": "npm install -g https://github.com/maskshell/pi/releases/download/v1.5.0-namespace.1/earendil-works-pi-coding-agent-1.5.0-namespace.1.tgz",
-		"tierB_source": "clone upstream @ v1.5.0; git am patch/pi-namespace.patch patch/fork-update-banner.patch patch/version-stamp.patch; npm ci; npm run hydrate:model-data; npm run build",
+		"tierA_tarball": "npm install -g https://github.com/maskshell/pi/releases/download/v1.6.0-namespace.1/earendil-works-pi-coding-agent-1.6.0-namespace.1.tgz",
+		"tierB_source": "clone upstream @ v1.6.0; git am patch/pi-namespace.patch patch/fork-update-banner.patch patch/version-stamp.patch; npm ci; npm run hydrate:model-data; npm run build",
 		"tierC_script": "bash apply.sh [target-dir]"
 	},
 	"verification": {
-		"version": "pi --version -> 1.5.0+namespace.1",
-		"tests": "363 passed (skills, prompt-templates, resource-loader, package-manager, version-check)",
+		"version": "pi --version -> 1.6.0+namespace.1",
+		"tests": "369 passed (skills 47, prompt-templates 100, resource-loader 62, package-manager 148, version-check 12 — +6 upstream-added cases vs the 1.5.2 base)",
 		"check": "exit 0 (full chain incl. biome --error-on-warnings, tsgo, shrinkwrap + install-lock); build + lockfiles-public gates green; zero workspace overlays",
 		"consumer": "solidforge-pi master (pi.namespace: solidforge) — https://github.com/maskshell/solidforge-pi"
 	},
