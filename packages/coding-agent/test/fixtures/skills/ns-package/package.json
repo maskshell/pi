@@ -1,4 +1,7 @@
 {
 	"name": "ns-pkg-fixture",
-	"pi": { "namespace": "solidforge" }
+	"pi": {
+		"namespace": "solidforge"
+	},
+	"private": true
 }

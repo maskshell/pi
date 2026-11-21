@@ -1,4 +1,4 @@
-From d0f797001b7f72642a78689c3cdf3e5029faa050 Mon Sep 17 00:00:00 2001
+From b31a524428748650c239fea8de8e30132bef129c Mon Sep 17 00:00:00 2001
 From: Analyser <analyser@gmail.com>
 Date: Sat, 29 Aug 2026 20:24:21 +0800
 Subject: [PATCH] feat(coding-agent): opt-in package namespace (pi.namespace)
@@ -192,7 +192,7 @@ index 19d2bf289..c04c30ba5 100644
  
  Run Pi from a location where the skill is discoverable, then inspect the startup diagnostics and `/skill:name` command. Run `/reload` after editing a skill during an active session.
 diff --git a/packages/coding-agent/src/core/agent-session.ts b/packages/coding-agent/src/core/agent-session.ts
-index f76247d56..0435d4d38 100644
+index 6a89c5b41..cf74ccfd8 100644
 --- a/packages/coding-agent/src/core/agent-session.ts
 +++ b/packages/coding-agent/src/core/agent-session.ts
 @@ -138,6 +138,7 @@ import {
@@ -203,7 +203,7 @@ index f76247d56..0435d4d38 100644
  import type { SlashCommandInfo } from "./slash-commands.ts";
  import { BUILTIN_PATH_PREFIX, createSyntheticSourceInfo, isSyntheticPath, type SourceInfo } from "./source-info.ts";
  import {
-@@ -2220,6 +2221,7 @@ export class AgentSession {
+@@ -2235,6 +2236,7 @@ export class AgentSession {
  		let expandedText = currentText;
  		if (expandPromptTemplates) {
  			expandedText = this._expandSkillCommand(expandedText);
@@ -211,7 +211,7 @@ index f76247d56..0435d4d38 100644
  			expandedText = expandPromptTemplate(expandedText, [...this.promptTemplates]);
  		}
  
-@@ -2301,11 +2303,41 @@ export class AgentSession {
+@@ -2316,11 +2318,41 @@ export class AgentSession {
  
  		const spaceIndex = text.indexOf(" ");
  		const skillName = spaceIndex === -1 ? text.slice(7) : text.slice(7, spaceIndex);
@@ -255,7 +255,7 @@ index f76247d56..0435d4d38 100644
  		try {
  			const content = readFileSync(skill.filePath, "utf-8");
  			const body = stripFrontmatter(content).trim();
-@@ -2341,6 +2373,7 @@ export class AgentSession {
+@@ -2356,6 +2388,7 @@ export class AgentSession {
  		if (!processedInput) return "handled";
  
  		let expandedText = this._expandSkillCommand(processedInput.text);
@@ -264,7 +264,7 @@ index f76247d56..0435d4d38 100644
  
  		if (behavior === "steer") {
 diff --git a/packages/coding-agent/src/core/package-manager.ts b/packages/coding-agent/src/core/package-manager.ts
-index 5fd93754e..c1239223b 100644
+index 8543d012d..de3e70516 100644
 --- a/packages/coding-agent/src/core/package-manager.ts
 +++ b/packages/coding-agent/src/core/package-manager.ts
 @@ -52,7 +52,7 @@ import {
@@ -276,7 +276,7 @@ index 5fd93754e..c1239223b 100644
  import type { PackageSource, SettingsManager } from "./settings-manager.ts";
  import { BUILTIN_PATH_PREFIX, getResourcePathKey } from "./source-info.ts";
  
-@@ -82,6 +82,8 @@ export interface PathMetadata {
+@@ -102,6 +102,8 @@ export interface PathMetadata {
  	baseDir?: string;
  	changelogPath?: string;
  	packageRoot?: string;
@@ -285,7 +285,7 @@ index 5fd93754e..c1239223b 100644
  }
  
  export interface ResolvedResource {
-@@ -2424,7 +2426,11 @@ export class DefaultPackageManager implements PackageManager {
+@@ -2459,7 +2461,11 @@ export class DefaultPackageManager implements PackageManager {
  		} else {
  			delete metadata.changelogPath;
  		}
@@ -298,7 +298,7 @@ index 5fd93754e..c1239223b 100644
  		if (filter) {
  			for (const resourceType of RESOURCE_TYPES) {
  				const patterns = filter[resourceType];
-@@ -2442,7 +2448,7 @@ export class DefaultPackageManager implements PackageManager {
+@@ -2477,7 +2483,7 @@ export class DefaultPackageManager implements PackageManager {
  
  		if (manifest && hasManifestResourceFields(manifest)) {
  			for (const resourceType of RESOURCE_TYPES) {
@@ -307,7 +307,7 @@ index 5fd93754e..c1239223b 100644
  				this.addManifestEntries(
  					entries,
  					packageRoot,
-@@ -2476,7 +2482,7 @@ export class DefaultPackageManager implements PackageManager {
+@@ -2511,7 +2517,7 @@ export class DefaultPackageManager implements PackageManager {
  		metadata: PathMetadata,
  	): void {
  		const manifest = readPiManifest(join(packageRoot, "package.json"));
@@ -316,7 +316,7 @@ index 5fd93754e..c1239223b 100644
  		if (entries) {
  			this.addManifestEntries(entries, packageRoot, resourceType, target, metadata);
  			return;
-@@ -2545,7 +2551,7 @@ export class DefaultPackageManager implements PackageManager {
+@@ -2580,7 +2586,7 @@ export class DefaultPackageManager implements PackageManager {
  		resourceType: ResourceType,
  	): { allFiles: string[]; enabledByManifest: Set<string> } {
  		const manifest = readPiManifest(join(packageRoot, "package.json"));
@@ -451,10 +451,10 @@ index 07562f406..19f358610 100644
  
  	return text;
 diff --git a/packages/coding-agent/src/core/resource-loader.ts b/packages/coding-agent/src/core/resource-loader.ts
-index bb0740e49..6108ddc41 100644
+index 632ceeee1..ebf745287 100644
 --- a/packages/coding-agent/src/core/resource-loader.ts
 +++ b/packages/coding-agent/src/core/resource-loader.ts
-@@ -35,7 +35,7 @@ import type { PromptTemplate } from "./prompt-templates.ts";
+@@ -37,7 +37,7 @@ import type { PromptTemplate } from "./prompt-templates.ts";
  import { loadPromptTemplates } from "./prompt-templates.ts";
  import { SettingsManager } from "./settings-manager.ts";
  import type { Skill } from "./skills.ts";
@@ -463,7 +463,7 @@ index bb0740e49..6108ddc41 100644
  import {
  	BUILTIN_PATH_PREFIX,
  	createSourceInfo,
-@@ -877,17 +877,51 @@ export class DefaultResourceLoader implements ResourceLoader {
+@@ -885,17 +885,51 @@ export class DefaultResourceLoader implements ResourceLoader {
  		});
  	}
  
@@ -515,7 +515,7 @@ index bb0740e49..6108ddc41 100644
  		}
  		const resolvedSkills = this.skillsOverride ? this.skillsOverride(skillsResult) : skillsResult;
  		this.skills = resolvedSkills.skills.map((skill) => ({
-@@ -905,16 +939,18 @@ export class DefaultResourceLoader implements ResourceLoader {
+@@ -913,16 +947,18 @@ export class DefaultResourceLoader implements ResourceLoader {
  		if (this.noPromptTemplates && promptPaths.length === 0) {
  			promptsResult = { prompts: [], diagnostics: [] };
  		} else {
@@ -706,10 +706,10 @@ index 48df4536b..a064122da 100644
  			if (existing) {
  				collisionDiagnostics.push({
 diff --git a/packages/coding-agent/src/modes/interactive/interactive-mode.ts b/packages/coding-agent/src/modes/interactive/interactive-mode.ts
-index d8e2390c4..bcfe4a81e 100644
+index e8b8552b1..b1fe643c4 100644
 --- a/packages/coding-agent/src/modes/interactive/interactive-mode.ts
 +++ b/packages/coding-agent/src/modes/interactive/interactive-mode.ts
-@@ -833,6 +833,7 @@ export class InteractiveMode {
+@@ -885,6 +885,7 @@ export class InteractiveMode {
  		this.skillCommands.clear();
  		const skillCommandList: SlashCommand[] = [];
  		if (this.settingsManager.getEnableSkillCommands()) {
@@ -717,7 +717,7 @@ index d8e2390c4..bcfe4a81e 100644
  			for (const skill of this.session.resourceLoader.getSkills().skills) {
  				const commandName = `skill:${skill.name}`;
  				this.skillCommands.set(commandName, skill.filePath);
-@@ -840,6 +841,15 @@ export class InteractiveMode {
+@@ -892,6 +893,15 @@ export class InteractiveMode {
  					name: commandName,
  					description: this.prefixAutocompleteDescription(skill.description, skill.sourceInfo),
  				});
@@ -791,10 +791,10 @@ index 000000000..c93e61fb8
 +---
 +User body.
 diff --git a/packages/coding-agent/test/package-manager.test.ts b/packages/coding-agent/test/package-manager.test.ts
-index 7d01a4ece..7af7f95c1 100644
+index bf2cc04f4..9e9ed7a0e 100644
 --- a/packages/coding-agent/test/package-manager.test.ts
 +++ b/packages/coding-agent/test/package-manager.test.ts
-@@ -3188,4 +3188,71 @@ export default function(api) { api.registerTool({ name: "test", description: "te
+@@ -3261,4 +3261,71 @@ export default function(api) { api.registerTool({ name: "test", description: "te
  			await expect(capturePromise).resolves.toBe("abc123");
  		});
  	});
