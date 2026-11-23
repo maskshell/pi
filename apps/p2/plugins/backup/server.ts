@@ -1,9 +1,10 @@
-// The server's backup (`src/runtime/backup.ts`): holds the backup remote, uploads the server's own store, gives each
+// The server's backup (`contract.ts`): holds the backup remote, uploads the server's own store, gives each
 // session's worker the remote for its own store (`BackupRemote`: slot bodies streamed through here in chunks), and
 // keeps every store's last reported status. Inert while backup is not configured (`P2_BACKUP_DIR` for a folder,
 // `P2_BACKUP=<name>` for a plugin's target such as `radius`, `BackupTargets`).
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
+import { NodeExecutionEnv } from "@earendil-works/pi-durable/env/node";
 import {
 	type Context,
 	defineFacet,
@@ -17,35 +18,39 @@ import {
 	withoutAbortSignal,
 } from "@p2/app/v1";
 import {
-	BACKUP_TERMINAL,
 	type BackupTarget,
-	BackupUploader,
-	backupFiles,
 	backupTarget,
-	backupTargetKey,
+	FileSystemSyncRemote,
 	LockedFile,
-	type OpenBackupTarget,
-	openFolderRemote,
 	type PutBatchResult,
 	processLogs,
-	SERVER_STORE,
 	type SessionSyncStore,
 	type SyncBody,
 	serverDirectory,
-	sessionStoreName,
 } from "@p2/app/v1/node";
 import { Server, serverOf } from "@p2/app/v1/server";
 import {
+	BACKUP_TERMINAL,
 	Backup,
 	BackupNative,
 	BackupRemote,
 	type BackupStatus,
 	BackupTargets,
 	type BackupUploads,
+	type OpenBackup,
+	type OpenBackupTarget,
+	SERVER_STORE,
+	sessionStoreName,
 } from "./contract.ts";
+import { BackupUploader, backupFiles, backupTargetKey } from "./uploader.ts";
 
 /** An upload whose worker sends nothing for this long is dropped (its body was abandoned). */
 const UPLOAD_IDLE_MS = 60_000;
+
+/** A folder's remote, its paths resolved from `dataDir`. */
+export function openFolderRemote(path: string, dataDir: string): SessionSyncStore {
+	return new FileSystemSyncRemote(new NodeExecutionEnv({ cwd: dataDir }), path);
+}
 
 /** This instance's device ID: `device.json` in the data directory, as logins keep it (made on first use). */
 async function deviceId(dataDir: string): Promise<string> {
@@ -180,7 +185,11 @@ async function openTarget(
 	context: Context,
 ): Promise<OpenBackupTarget> {
 	if (target.kind === "folder")
-		return { remote: openFolderRemote(target.path, dataDir), device: await deviceId(dataDir), server: SERVER_STORE };
+		return {
+			remote: openFolderRemote(target.path, dataDir),
+			device: await deviceId(dataDir),
+			server: SERVER_STORE,
+		};
 	const offered = targets.value.get(target.name) ?? (await offeredWithin(targets, target.name, context));
 	// Not signed in or not reachable yet: the open fails `transient` and Chord retries it with backoff.
 	return offered.open();
@@ -311,6 +320,8 @@ export default defineFacet((host) => {
 				const opened = await openTarget(target, dataDir, targets, context);
 				device.set(opened.device);
 				const uploads = openUploads(opened.remote, opened.device, withoutAbortSignal(context), opened.terminal);
+				// Who the target writes as now; null for a target without accounts (a folder).
+				const account = async (): Promise<string | null> => (await opened.account?.()) ?? null;
 				const uploader = new BackupUploader({
 					store,
 					name: opened.server,
@@ -319,6 +330,7 @@ export default defineFacet((host) => {
 					directory: serverDirectory(dataDir),
 					target: backupTargetKey(target),
 					files: backupFiles(dataDir),
+					account,
 					report: (status) => report(SERVER_STORE, status),
 					...(opened.terminal === undefined ? {} : { terminal: opened.terminal }),
 				});
@@ -329,7 +341,7 @@ export default defineFacet((host) => {
 					(error) => processLogs.append("backup:server", "event", `following commits failed: ${text(error)}`),
 				);
 				processLogs.append("backup", "event", `Backing up to ${describe(target)} as device ${opened.device}`);
-				return { uploads, uploader, stopWatching };
+				return { uploads, account, uploader, stopWatching };
 			},
 			async (opened) => {
 				ended = true;
@@ -342,8 +354,8 @@ export default defineFacet((host) => {
 		// A target offered (its plugin's object activated, loaded or reloaded) after a failed open: try at once.
 		self.retryOn(targets);
 		self.contribute(BackupNative, {
-			get uploads() {
-				return backup.value?.uploads;
+			get backup() {
+				return backup.value;
 			},
 		});
 		return {
@@ -362,11 +374,12 @@ export default defineFacet((host) => {
 		const store = sessionStoreName(principal.session);
 		const backup = self.get(Backup, {});
 		const native = nativeOf(self, BackupNative, "The backup");
-		const uploads = (): BackupUploads => {
-			const open = native().uploads;
-			if (open === undefined) throw new Error("Backup is off");
-			return open;
+		const open = (): OpenBackup => {
+			const opened = native().backup;
+			if (opened === undefined) throw new Error("Backup is off");
+			return opened;
 		};
+		const uploads = (): BackupUploads => open().uploads;
 		return {
 			variant: "worker",
 			members: {
@@ -382,6 +395,7 @@ export default defineFacet((host) => {
 					uploads().abort(store, upload);
 					return null;
 				},
+				account: () => open().account(),
 			},
 		};
 	});

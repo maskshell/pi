@@ -3,20 +3,11 @@
 // Inert while backup is off (the server's `device` is null). The device is the server's: the one it stamps on every
 // slot, which an upload compares with a taken slot's to tell its own lost answer from another machine's upload.
 import { defineFacet, expectVariant, local, untilAborted } from "@p2/app/v1";
-import {
-	BackupUploader,
-	backupFiles,
-	backupTarget,
-	backupTargetKey,
-	isTerminalBackupError,
-	isUrgentCommit,
-	processLogs,
-	sessionDirectory,
-	sessionStoreName,
-} from "@p2/app/v1/node";
+import { backupTarget, processLogs, sessionDirectory } from "@p2/app/v1/node";
 import { harnessOf, workerOf } from "@p2/app/v1/worker";
 import { ChunkedRemote } from "./chunked-remote.ts";
-import { BackupRemote } from "./contract.ts";
+import { BackupRemote, isTerminalBackupError, sessionStoreName } from "./contract.ts";
+import { BackupUploader, backupFiles, backupTargetKey, isUrgentCommit } from "./uploader.ts";
 
 /** The worker's backup of its store, for the worker's life. */
 const StoreBackup = local("p2.store-backup", { version: 1, params: {}, members: {} });
@@ -48,6 +39,12 @@ export default defineFacet((host) => {
 				files: backupFiles(init.dataDir),
 				// What the server's target refuses for good crosses as `BACKUP_TERMINAL`: stop, as the server does.
 				terminal: isTerminalBackupError,
+				// The account the server's target writes as now: asked on every upload, as the server may sign in again.
+				account: (context) =>
+					root(
+						async (inner) => expectVariant(await inner.get(BackupRemote, {}), "worker").account({}, inner),
+						context,
+					),
 				// A status the server misses is replaced by the next one; the failure goes to the session's log.
 				report: (status) =>
 					void root(
