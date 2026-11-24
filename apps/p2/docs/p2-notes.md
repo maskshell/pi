@@ -1351,6 +1351,11 @@ call, hold, method, relay and activation; nothing is measured or walked for it. 
     server's `BackupRemote`, in pieces of 1 MiB; only the server holds the remote). Soon after each commit: 200 ms after
     what a person sent or a finished answer (`isUrgentCommit`), else 5 s; once more as a worker stops. The last seq the
     backup holds is a bookmark file beside each store (`backup/<target>/`).
+  - **Its own state is files, not the store** (owner, 2026-11-23; a deliberate exception to "everything kept is in
+    the store"): a store's bookmark (`<name>.json`) and account (`<name>.account`) are files in `backup/<target>/`
+    beside it, each replaced whole (a temporary file, then a rename). In the store they would be commits: every upload
+    would commit its own bookmark, the next upload would carry that commit, and the uploader would never be idle; and a
+    restored store would bring the old machine's bookmark with it. Written only by the store's owner, as the store is.
   - **Outbox only while backup is on:** turning backup off drops what the outbox held; turned on again, the next upload
     is a full copy of the store after what the backup holds, and the backup goes on in the same history.
   - **Upload answers:** `created`, or `exists` by this server (an answer lost on the way): go on. The remote holds
@@ -2081,9 +2086,14 @@ call, hold, method, relay and activation; nothing is measured or walked for it. 
   contract: a final transcript is `send` (steering while busy), new answers (keys present when voice mode started are
   skipped) stream through `SpeechChunker` (sentences, no code blocks or tables) to `/voice/speak`, played in order.
   While audio plays the microphone is not streamed; pibot's barge-in detector (energy the playback does not explain)
-  only starts streaming it. Owner rule: only words interrupt. The speech service sends interim transcripts
+  only starts streaming it. Its level is relative to the microphone's own noise floor (3.5 times it, at least 0.003, at
+  most pibot's fixed 0.018): a laptop microphone without gain control hears a speaker at arm's length far under 0.018.
+  The microphone runs without the browser's echo canceller while the default output is headphones or earphones (by
+  its label; reopened when the output changes): Chrome's desktop canceller suppresses the speaker while the agent's
+  speech plays. The voice log has the microphone's raw levels (RMS peak and mean, floor, level, residual ratio) about
+  once a second while the agent speaks or someone talks. Owner rule: only words interrupt. The speech service sends interim transcripts
   (sts-server `interim`); the first with a real word (no filler, not the agent's own speech heard back) cuts the speech
   and stops the run at once, also while the agent works silently (`interruption.ts`); a trigger the room never hears as
   words is dropped and the agent goes on. Transcripts without words are never sent; a stop phrase also calls `stop`. A `voice.mode` conversation document turns the `voice` prompt
-  section on (short spoken answers); the switch follows the button. Tests: `voice.test.ts`, `voice-ui.test.ts`
-  (Chromium fake microphone).
+  section on (short spoken answers); the switch follows the button. Tests: `voice.test.ts`, `voice-barge-in.test.ts`,
+  `voice-ui.test.ts` (Chromium fake microphone).
