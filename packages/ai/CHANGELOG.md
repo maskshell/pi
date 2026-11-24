@@ -6,8 +6,15 @@
 
 - Added `compat.supportsStrictMode` to the `google-generative-ai` and `google-vertex` APIs, so Gemini 3+ models served under IDs without the version can use strict tools (`VALIDATED` function calling); unset keeps the model ID detection ([#12321](https://github.com/earendil-works/pi/issues/12321))
 
+### Changed
+
+- Upgraded `@google/genai` from 2.32.0 to 3.6.1. `GoogleApiThinkingLevel` now includes `"XHIGH"` and `ResolvedGoogleThinkingLevel` now includes `"xhigh"`
+
 ### Fixed
 
+- Fixed `xhigh` thinking failing with `Unsupported Google thinking level mapping ... xhigh -> xhigh` before any request on Gemini 4 Hydrogen and Neon in the `google-generative-ai` and `google-vertex` APIs. It is now sent as `thinkingLevel: "XHIGH"`; models that use token budgets use the `high` budget for it ([#12184](https://github.com/earendil-works/pi/issues/12184))
+- Fixed `google-vertex` Gemini 2.5 Flash-Lite getting the Gemini 2.5 Flash thinking budgets (`minimal` sent 128 tokens instead of 512); both Google APIs now share one budget table
+- Fixed Google responses that end with the finish reasons `MISSING_THOUGHT_SIGNATURE`, `MALFORMED_RESPONSE`, `ESCALATION`, `PUP_LIMITED_DISABLED`, or `MODEL_ARMOR` failing with `Unhandled stop reason`; they now end as errors
 - Fixed Gemini 3+ models whose IDs carry a prefix, such as `vendor-gemini-4-argon`, being treated as older Gemini models in the `google-generative-ai` and `google-vertex` APIs: they now get strict tools, tool-call IDs, and images inside function responses ([#12321](https://github.com/earendil-works/pi/issues/12321))
 - Fixed `retryAssistantCall()` retaining an abort listener after each completed backoff, causing listener buildup across repeated retries ([#10506](https://github.com/earendil-works/pi/issues/10506))
 - Fixed the model catalog listing Groq models after Groq shut them down (`llama-3.1-8b-instant`, `llama-3.3-70b-versatile`, `qwen/qwen3.6-27b`): Groq models that models.dev marks deprecated are now skipped
@@ -26,6 +33,7 @@
 - Fixed provider errors reading "request rate increased too quickly", such as OpenAI Codex `slow_down` and Alibaba Qwen throttling, not being retried ([#12240](https://github.com/earendil-works/pi/issues/12240))
 - Fixed `openai-codex` starting GPT-6 requests at `medium` regardless of the selected thinking level. Requests now start at the selected effort and send updates only when it changes ([#12361](https://github.com/earendil-works/pi/issues/12361))
 - Fixed the model catalog still listing `gpt-5-chat-latest` for `openai` and `azure` after OpenAI shut it down on July 23, 2026 ([#12202](https://github.com/earendil-works/pi/issues/12202))
+- Fixed `openai-completions` dropping OpenRouter's `native_finish_reason`, the upstream provider's own finish reason. `rawStopReason` now records it next to `finish_reason`, e.g. `stop.MALFORMED_RESPONSE`, and error messages include it, e.g. `Provider finish_reason: error (native_finish_reason: MALFORMED_FUNCTION_CALL)`. Stop reasons are unchanged ([#11931](https://github.com/earendil-works/pi/issues/11931))
 
 ## [1.6.0] - 2026-11-20
 
