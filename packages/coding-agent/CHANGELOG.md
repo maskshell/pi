@@ -12,6 +12,7 @@
 ### Changed
 
 - Changed the default Mistral model from `devstral-medium-latest` to `mistral-medium-latest`, because Mistral retired Devstral and the model catalog no longer lists it
+- Changed `after_provider_response` to also fire for HTTP error responses (4xx/5xx) and for each retried attempt on OpenAI, Azure OpenAI, Anthropic, and Google models, as it already did for OpenAI Codex, Mistral, Radius, and Amazon Bedrock, so extensions can read the status and `retry-after` of rate-limited requests ([#12376](https://github.com/earendil-works/pi/issues/12376))
 
 ### Fixed
 
@@ -33,6 +34,7 @@
 - Fixed dialogs shown before interactive mode starts, such as the project trust prompt, the missing session folder prompt and first-time setup, reporting no `blocked` program status (OSC 7501). Blocked messages of multi-line dialog titles are now the first line only, for example `Trust project folder?` instead of the folder path and explanation. The project trust prompt and first-time setup report `kind=permission` ([#12439](https://github.com/earendil-works/pi/issues/12439))
 - Fixed GitHub Copilot listing classifier models the account cannot use, such as `microsoft-decision-1` on accounts whose plan does not include it, where every call failed with HTTP 400. After `/login` or the next token refresh, only the decision models in the account's Copilot model catalog are listed ([#12395](https://github.com/earendil-works/pi/issues/12395))
 - Fixed the bash tool on Windows not finding Git for Windows installed outside Program Files and running commands through the WSL launcher `System32\bash.exe` instead. pi now asks the `git.exe` on `PATH` for its installation (`git var GIT_SHELL_PATH`, Git 2.47+) and uses its Git Bash before other `bash.exe` on `PATH` ([#12408](https://github.com/earendil-works/pi/issues/12408))
+- Fixed RPC mode, session loading, and llama.cpp model events rescanning an incomplete line on every chunk, which made large lines, such as messages with images, take time quadratic in their size. llama.cpp model events also accept lone CR line endings and CRLF split across chunks ([#12224](https://github.com/earendil-works/pi/issues/12224))
 
 ## [1.6.0] - 2026-11-20
 
