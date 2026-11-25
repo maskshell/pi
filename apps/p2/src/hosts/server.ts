@@ -418,7 +418,7 @@ export async function startServer(options: ServerOptions = {}): Promise<P2Server
 						name: "chord.telemetry",
 						// Served also while telemetry is off, refusing everyone: a page loaded while it was on (marked to
 						// record) fails `forbidden` at once and stops sending, instead of waiting unbound for a type
-						// nobody serves (`unbound_long`); a worker gets the variant without `ingest`. Nothing is stored.
+						// nobody serves (`unbound_long`); a worker is not granted `ingest`. Nothing is stored.
 						facet: telemetryIngestFacet<P2Principal>({
 							target: telemetry?.telemetry ?? NOTHING_STORED,
 							// Owners' pages only: a guest could open page after page (each its own budget).
@@ -709,7 +709,10 @@ export async function startServer(options: ServerOptions = {}): Promise<P2Server
 	const credentialAccess = async (request: IncomingMessage, ctx: Ctx): Promise<RequestAccess | undefined> => {
 		for (const resolve of (await host.registry(RequestResolvers, ctx)).value.values()) {
 			const access = resolve(request, ctx);
-			if (access?.principal === undefined && access?.origin.relayUser !== undefined)
+			if (
+				access?.principal === undefined &&
+				(access?.origin.relayUser !== undefined || access?.origin.relayGuest !== undefined)
+			)
 				return { principal: await authenticate(request, access.origin, ctx), origin: access.origin };
 			if (access !== undefined) return access;
 		}
@@ -845,8 +848,8 @@ export async function startServer(options: ServerOptions = {}): Promise<P2Server
 					return;
 				}
 				request.resume();
-				// A Radius user is signed in already; owner sign-in is not for them.
-				if (origin.relayUser !== undefined) {
+				// A Radius user or guest is signed in already; owner sign-in is not for them.
+				if (origin.relayUser !== undefined || origin.relayGuest !== undefined) {
 					response.writeHead(403, { "Content-Type": "text/plain; charset=utf-8" });
 					response.end("Nothing on this brain is shared with you. Ask its owner for a share link.\n");
 					return;
@@ -1025,7 +1028,8 @@ function recentErrors(since: number): string[] {
  * the caller is told) or a worker's start (the session's own notice has it).
  */
 function isOwnerNotice(error: HostError): boolean {
-	if (error.kind === "resolve_failed") return false;
+	// A page or worker whose link the heartbeat closed (a sleeping laptop, a lost phone) is no news for the owner.
+	if (error.kind === "resolve_failed" || error.kind === "link_closed") return false;
 	const failure = hostErrorCause(error);
 	return !isChordError(failure, "released") && !isChordError(failure, "forbidden");
 }

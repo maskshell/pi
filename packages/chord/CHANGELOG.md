@@ -2,6 +2,28 @@
 
 ## [Unreleased]
 
+### Breaking Changes
+
+- Remote contracts have one shape for every caller: variants are removed. `remote(name, { version, params, hostAddress, admission?, state, methods, events, flags })`; a member marked `grantable(...)` exists for a caller only if its admission granted it, and `flags: { name: label }` are rights that are no member. Factories return every member (no `{ variant, members }`), grantable state and event members as builders `() => watchable`, called only if granted. A contract with grantable members or flags is served with `admit`, which allows with `allow({ granted: [...], ...data })`; the factory gets `admitted.granted` as a set; a declared `admission` is an `obj(...)` without a field `granted`. References have the plain members, the grantable ones while granted (optional in the types) and `granted`; `ref.variant`, `Held<C>` (use `Reference<C>`) and `RefIn` are removed. `evolve`'s remote edits take no variant argument (`e.state("notes", schema)`, `e.addMethod("add", grantable(method(args, result)))`), and `accepts` tables are flat (`state: { member }`, `events: { member }`). `memberNames(contract)` takes no variant. A call to a grantable method not granted fails `forbidden`. Migration: make what one variant had and another lacked `grantable(...)`, serve with `admit` granting it per caller, check `ref.member !== undefined` (or `ref.granted.has(name)`) instead of `ref.variant`; a contract that had variants starts a new history base (bump its version, drop `accepts` for the old versions).
+- `useVariant(ref, variant)` and `TuiScope.variant(ref, variant)` are replaced by `useLive(ref)` and `TuiScope.live(ref)`: the reference while it is live (and while it rebinds after it was), re-rendering when its grant changes. `VariantRef`, `VariantOf` and `InVariant` are removed (`LiveRef`).
+- The link's `bound` entry carries `granted` (indexes into the version's sorted grantable members and flags) in place of `variant`; remote contracts' fingerprints change.
+
+### Added
+
+- `grantable(member)`, `GrantableName<C>`, `AllowedOf<C>` and flags in remote contracts (slice 15).
+- `deny(reason, message?)`: an admission's denial carries a message as data for the person (`MessageData`), in the `forbidden` error's `details.message` (the denied reference's failure, a call's `forbidden`, a cut call's `forbidden/revoked`). A changed message is a new decision without a rebuild.
+- `MessageData`, `MessageParam` and `MessageSchema` are exported from the package root's data layer as well (still from `/surfaces`).
+- A link the heartbeat closes is reported once through `onError` as `link_closed { reason: "heartbeat", role }` (its holders wait `loading` until another link holds them), and every closed link is counted in `chord.links.closed { reason }` (`local`, `heartbeat`, `protocol`, `peer`).
+
+### Changed
+
+- A reference makes its named queries' handles on first use: a reference to a store with 23 named queries, none read, takes 1.3 KiB instead of 6.4 KiB.
+- A store commit skip-tests only the live reads its writes can concern (the commit index): reads are filed by the values their condition fixes with `eq`/`inArray` and by the keys of their last result. One write to one session's row with 10,000 open reads of other sessions now tests one read instead of 10,000; `chord.query.skips` counts only the reads tested.
+
+### Fixed
+
+- A reference of an older version its provider refuses a member waits unbound (`failed { waiting }`, `contract_mismatch`) also when its object is denied (it showed the denial), and reads nothing from an instance that refuses its version: during a restart whose old attempt refuses it, it shows `loading` and its reads throw `not_ready` until the successor serves it (it showed `live` with the old attempt's values); its named queries throw `not_ready` meanwhile. A failed activation also leaves such holders waiting unbound (they showed the failure).
+
 ## [1.6.1] - 2026-11-25
 
 ### Breaking Changes

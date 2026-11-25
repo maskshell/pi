@@ -1,15 +1,17 @@
 // Admission (slice 14 §2): the decision made about a caller before anything is built or started. A remote type's
-// provider declares it with `admit`, run first in every attempt: it reads data about the caller (references with
-// keyed pins, registries, derives, live queries) and returns a watchable of `allow(value)` or `deny(reason)`; the
-// factory is handed the value. A route asks the same way before it resolves or forwards a hold. This file has the
-// app's types and one `Decision`: what one `admit` declared, what it says now, and the watch its owner follows it
-// with. What follows from a decision is its owner's: an attempt parks, goes on or is sealed (`attempt.ts`,
-// `object.ts`), a route holds back, forwards or releases (`route-admission.ts`).
+// provider declares it with `admit`, run first in every attempt: it reads data about the caller (references with keyed
+// pins, registries, derives, live queries) and returns a watchable of `allow(value)` or `deny(reason)`; the factory is
+// handed the value, whose `granted` names the grantable members and flags the caller gets (slice 15 §1.2). A route asks
+// the same way before it resolves or forwards a hold. This file has the app's types and one `Decision`: what one
+// `admit` declared, what it says now, and the watch its owner follows it with. What follows from a decision is its
+// owner's: an attempt parks, goes on or is sealed (`attempt.ts`, `object.ts`), a route holds back, forwards or releases
+// (`route-admission.ts`).
 
 import { type Context, withAbortSignal } from "../context/index.ts";
-import type { AdmittedOf, Contract, NamedQuery, ParamsOf } from "../contracts/index.ts";
-import { ChordError, forbidden, type Principal } from "../data/index.ts";
-import { asChordError, canonicalJson, checkParams } from "../data/internal.ts";
+import type { AllowedOf, Contract, NamedQuery, ParamsOf } from "../contracts/index.ts";
+import { NO_GRANTS } from "../contracts/internal.ts";
+import { ChordError, forbidden, type MessageData, type Principal } from "../data/index.ts";
+import { asChordError, canonicalJson, checkParams, isMessageData } from "../data/internal.ts";
 import type { JsonValue } from "../json.ts";
 import type { Registry, RegistryValue } from "../registries/index.ts";
 import type { RegistryWaiter } from "../registries/internal.ts";
@@ -34,10 +36,13 @@ import type { Reader } from "./query-reader.ts";
 import { openReaders, readerSite, rowsReader } from "./read-declarations.ts";
 import { type Binding, type CheckedParams, type Reference, resolveWatchable } from "./reference.ts";
 
-/** An admission's decision: the value the factory is handed about the caller, or a denial with the reason it is shown. */
+/**
+ * An admission's decision: the value the factory is handed about the caller, or a denial with its reason (English, for
+ * logs) and the message the person sees (as data, slice 15 §2).
+ */
 export type Admission<T> =
 	| { readonly kind: "allow"; readonly value: T }
-	| { readonly kind: "deny"; readonly reason: string };
+	| { readonly kind: "deny"; readonly reason: string; readonly message?: MessageData };
 
 /**
  * What `admit` declares with, valid only while it runs: references (`at(key)` on their keyed members), registries,
@@ -54,10 +59,20 @@ export type Admit<C extends Contract, P extends Principal = Principal> = (
 	params: ParamsOf<C>,
 	principal: P,
 	self: AdmitSelf,
-) => Watchable<Admission<AdmittedOf<C>>>;
+) => Watchable<Admission<AllowedOf<C>>>;
 
-/** An allow as a decision keeps it: the same object for as long as the value stays equal (canonical JSON). */
-export type Allowed = { readonly kind: "allow"; readonly value: JsonValue };
+/**
+ * An allow as a decision keeps it: the same object for as long as the value stays equal (canonical JSON, `granted`
+ * sorted and without duplicates). `value` is what the factory is handed (`granted` as a set), `granted` the names.
+ */
+export type Allowed = {
+	readonly kind: "allow";
+	readonly value: JsonValue | AdmittedValue;
+	readonly granted: ReadonlySet<string>;
+};
+
+/** An object's admitted value as its factory gets it: the admitted data, and `granted` as a set. */
+export type AdmittedValue = { readonly [field: string]: unknown; readonly granted: ReadonlySet<string> };
 
 /** A denial as a decision keeps it: the same object, and the same error, for as long as the reason stays. */
 export type Denied = { readonly kind: "deny"; readonly error: ChordError };
@@ -78,21 +93,30 @@ export type DecisionOwner = {
 	readonly caller: Caller;
 	/** The object whose attempt it admits (its references' dependent: cycles, the start barrier); none for a route. */
 	readonly dependent: ChordObject | undefined;
+	/**
+	 * An object's: the names its contract lets an admission grant (grantable members and flags, slice 15 §1.2), against
+	 * which an allowed value is read; none for a route, whose value is passed on as it is.
+	 */
+	readonly grants: readonly string[] | undefined;
 	/** Something it reads changed (a source's state, the decision's value, in that change's batch): check it again. */
 	moved(): void;
 };
 
 /**
- * Allows the caller: `value` is what the factory is handed about it, plain JSON the contract's `admission` schema
- * describes (never validated). Small and rarely changing (a mode, a role): another value rebuilds the caller's object.
+ * Allows the caller: `value` is what the factory is handed about it, plain JSON: the names in `granted` (the grantable
+ * members and flags the caller gets, slice 15 §1.2) and the data the contract's `admission` schema describes (never
+ * validated). Small and rarely changing (a role): another value rebuilds the caller's object.
  */
 export function allow<const T extends JsonValue>(value: T): Admission<T> {
 	return { kind: "allow", value };
 }
 
-/** Denies the caller. `reason` reaches it as the message of its `forbidden` error: it is user-facing. */
-export function deny(reason: string): Admission<never> {
-	return { kind: "deny", reason };
+/**
+ * Denies the caller. `reason` is English, for logs: the message of its `forbidden` error. `message` is what the person
+ * sees, as data their client renders in their language (slice 15 §2): it travels in the error's `details.message`.
+ */
+export function deny(reason: string, message?: MessageData): Admission<never> {
+	return message === undefined ? { kind: "deny", reason } : { kind: "deny", reason, message };
 }
 
 /** A reference a decision declared, bound when `admit` returned. */
@@ -335,12 +359,32 @@ export class Decision implements AdmitSelf, Dependent, RegistryWaiter {
 			const shown = waitingOn(`${label}: its admission`, asChordError(error, label));
 			return { kind: "parked", shown, firstPass: true, cause: shown.cause };
 		}
-		const { kind, value, reason } = (decision ?? {}) as { kind?: unknown; value?: JsonValue; reason?: unknown };
+		const { kind, value, reason, message } = (decision ?? {}) as {
+			kind?: unknown;
+			value?: JsonValue;
+			reason?: unknown;
+			message?: unknown;
+		};
 		if (kind === "allow" && value !== undefined) {
-			return this.#decide(`allow ${canonicalJson(value, context)}`, () => ({ kind: "allow", value }));
+			const { grants } = this.#owner;
+			// A route's value goes on as it is; an object's is read against its contract's grants.
+			const read = grants === undefined ? undefined : grantedOf(value, grants, label);
+			if (read?.kind === "broken") return read;
+			const granted = read?.granted ?? NO_GRANTS;
+			const admitted =
+				read === undefined ? value : { ...(read.normal as { readonly [field: string]: JsonValue }), granted };
+			const key = canonicalJson(read?.normal ?? value, context);
+			return this.#decide(`allow ${key}`, () => ({ kind: "allow", value: admitted, granted }));
 		}
 		if (kind === "deny" && typeof reason === "string") {
-			return this.#decide(`deny ${reason}`, () => ({ kind: "deny", error: forbidden(reason) }));
+			if (message !== undefined && !isMessageData(message, context)) {
+				const error = new Error(`its denial's message is no message as data (MessageSchema): ${reason}`);
+				return { kind: "broken", error: asChordError(error, label) };
+			}
+			// Checked just above. A structured key: a reason ending like a message's JSON is not that message.
+			const details = message === undefined ? undefined : { message: message as MessageData };
+			const key = canonicalJson(details === undefined ? [reason] : [reason, details.message], context);
+			return this.#decide(`deny ${key}`, () => ({ kind: "deny", error: forbidden(reason, details) }));
 		}
 		const error = new Error("its admission's value is neither allow(value) nor deny(reason)");
 		return { kind: "broken", error: asChordError(error, label) };
@@ -363,6 +407,37 @@ export class Decision implements AdmitSelf, Dependent, RegistryWaiter {
 }
 
 /**
+ * An object's allowed value read against the names its contract lets an admission grant (slice 15 §1.2; plugin code,
+ * bundled without type checks): an object whose `granted`, when present, lists only such names. Returns the value with
+ * `granted` sorted and without duplicates (an equal set in another order is the same decision) and the names as a set;
+ * anything else breaks, naming the contract and the name.
+ */
+function grantedOf(
+	value: JsonValue,
+	grants: readonly string[],
+	label: string,
+):
+	| { readonly kind: "read"; readonly normal: JsonValue; readonly granted: ReadonlySet<string> }
+	| Extract<Verdict, { readonly kind: "broken" }> {
+	const broken = (message: string) => ({ kind: "broken" as const, error: asChordError(new Error(message), label) });
+	if (typeof value !== "object" || value === null || Array.isArray(value)) {
+		return broken("its admission's value is an object (allow({ granted, ...data }))");
+	}
+	const { granted: listed, ...data } = value;
+	if (listed === undefined) return { kind: "read", normal: data, granted: NO_GRANTS };
+	if (!Array.isArray(listed)) return broken("its admission's granted is a list of names");
+	for (const name of listed) {
+		if (typeof name !== "string" || !grants.includes(name)) {
+			return broken(`its admission granted ${JSON.stringify(name)}: no grantable member or flag of its contract`);
+		}
+	}
+	const names = [...new Set(listed as string[])].sort();
+	// No names is no grant: `allow({})` and `allow({ granted: [] })` are one decision.
+	if (names.length === 0) return { kind: "read", normal: data, granted: NO_GRANTS };
+	return { kind: "read", normal: { ...data, granted: names }, granted: new Set(names) };
+}
+
+/**
  * Refuses `self.job` in an admitted type's factory (slice 14 §2.1), in an attempt and in staging: work for a person
  * outlives the person's access, so it lives in a `local` store, carries the person in its arguments and asks the
  * person's access again on every run.
@@ -376,8 +451,10 @@ export function refuseAdmittedJob(served: Served, label: string): void {
 
 /**
  * What a denial rejects the calls running for the denied caller with (slice 14 §2.2): `forbidden/revoked`, naming
- * `label` and the denial's reason. The denied object itself shows `denial`, `forbidden` with the reason alone.
+ * `label` and the denial's reason, with its details (the message for the person, slice 15 §2). The denied object
+ * itself shows `denial`, `forbidden` with the reason alone and the same details.
  */
 export function revoked(label: string, denial: ChordError): ChordError {
-	return new ChordError({ code: "forbidden", reason: "revoked", message: `${label}: ${denial.message}` });
+	const { details } = denial;
+	return new ChordError({ code: "forbidden", reason: "revoked", message: `${label}: ${denial.message}`, details });
 }
