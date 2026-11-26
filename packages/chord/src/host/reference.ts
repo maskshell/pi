@@ -26,10 +26,11 @@ import {
 	takesNoArgs,
 } from "../contracts/internal.ts";
 import { ChordError, type FailureCause, type Principal } from "../data/index.ts";
-import { invalid, sameCause } from "../data/internal.ts";
+import { invalid, sameCause, stackless } from "../data/internal.ts";
 import { Keyed, type KeyedSlot, type SealToken, Singleton } from "../documents/internal.ts";
 import type { JsonValue } from "../json.ts";
 import { RETRY_HOPS } from "../link/internal.ts";
+import { appended, NO_ITEMS } from "../lists.ts";
 import { type Batch, Constant, type DeriveSource, Source } from "../state/internal.ts";
 import { storedText } from "../store/text.ts";
 import type { NativeWatchable, Watch, Watchable } from "../watch.ts";
@@ -282,7 +283,8 @@ export class Binding implements Holder, UnboundRequest {
 	/** How long a call made while loading waits: the reference's `readyTimeout`. */
 	readonly #parkTimeout: number;
 	#state: BindingState;
-	readonly #watches = new Set<Watch<JsonValue>>();
+	/** The watches taken through it, ended with it; made by the first. */
+	#watches: Set<Watch<JsonValue>> | undefined;
 	/**
 	 * Aborted when the reference ends: its calls' callers are rejected and their handlers' contexts aborted. Made by the
 	 * first call and dropped at the end, so a released reference keeps no error (whose stack keeps its frames).
@@ -290,12 +292,15 @@ export class Binding implements Holder, UnboundRequest {
 	#calls: AbortController | undefined;
 	/** Calls made while loading; made by the first. */
 	#parked: ParkedCalls | undefined;
-	/** Waits for a state (getters, member watches before the first binding); each checks the state at every change. */
-	readonly #waiters = new Set<Waiter>();
+	/**
+	 * Waits for a state (getters, member watches before the first binding); each checks the state at every change.
+	 * Made by the first.
+	 */
+	#waiters: Set<Waiter> | undefined;
 	/** `ref.state`, made on first access. */
 	#refState: ReferenceState | undefined;
 	/** The keys its object's factory pinned with `ref.member.at(key)`: pinned once bound, released with it. */
-	readonly #ats: KeyedMemberAt[] = [];
+	#ats: readonly KeyedMemberAt[] = NO_ITEMS;
 	/** Its state members as consumers follow them (`ReferenceSource`), by name; each made by its first use. */
 	#sources: Map<string, ReferenceSource> | undefined;
 	/** The keys of its object's keyed members it holds (key watches, `at(key)` pins); made by the first. */
@@ -626,7 +631,7 @@ export class Binding implements Holder, UnboundRequest {
 		} else if (state.kind === "failed") {
 			this.#parked?.reject(state.cause.error);
 		}
-		for (const waiter of [...this.#waiters]) waiter.check();
+		if (this.#waiters !== undefined) for (const waiter of [...this.#waiters]) waiter.check();
 		this.dependent?.dependencyMoved();
 	}
 
@@ -649,6 +654,22 @@ export class Binding implements Holder, UnboundRequest {
 	/** Resolves once `done(state)` holds, checked now and at every change; rejects at its end or `context`'s abort. */
 	until(done: (state: RefState) => boolean, context: Context): Promise<void> {
 		return this.#until((state) => (done(state) ? DONE : WAIT), context);
+	}
+
+	/**
+	 * Calls `moved` at every change of the reference's state from now on, until the returned release or the
+	 * reference's end: `until` for a wait that is never done, without its promise and its abort listener (a decision
+	 * follows each of its references so, slice 14 §2.2, and ends all its follows by one listener). Not called now: its
+	 * caller does that once it kept the release, which that first telling may need. `undefined` for a released
+	 * reference, which tells nothing.
+	 */
+	followState(moved: () => void): (() => void) | undefined {
+		if (this.#state.kind === "released") return undefined;
+		const end = (): void => this.#forget(waiter);
+		const waiter: Waiter = { check: moved, end };
+		this.#waiters ??= new Set();
+		this.#waiters.add(waiter);
+		return end;
 	}
 
 	/**
@@ -849,8 +870,10 @@ export class Binding implements Holder, UnboundRequest {
 			watch.end({ kind: "ended" });
 			throw this.#state.state.error;
 		}
-		this.#watches.add(watch);
-		void watch.closed.then(() => this.#watches.delete(watch));
+		this.#watches ??= new Set();
+		const watches = this.#watches;
+		watches.add(watch);
+		void watch.closed.then(() => watches.delete(watch));
 		return watch;
 	}
 
@@ -863,7 +886,7 @@ export class Binding implements Holder, UnboundRequest {
 			throw new Error(`${this.#name}: ${member}.at(key) is valid only in the factory`);
 		}
 		const at = new KeyedMemberAt(this, member, key);
-		this.#ats.push(at);
+		this.#ats = appended(this.#ats, at);
 		return at;
 	}
 
@@ -948,10 +971,10 @@ export class Binding implements Holder, UnboundRequest {
 		this.#calls = undefined;
 		this.#parked?.reject(error);
 		this.#parked = undefined;
-		for (const watch of this.#watches) watch.end({ kind: "ended" });
+		if (this.#watches !== undefined) for (const watch of this.#watches) watch.end({ kind: "ended" });
 		this.#refState?.released(ended);
 		// Each removes itself; promise reactions run later.
-		for (const waiter of this.#waiters) waiter.end(error);
+		if (this.#waiters !== undefined) for (const waiter of this.#waiters) waiter.end(error);
 		// An ended dependency breaks a parked dependent (it cannot come back).
 		if (previous.kind !== "released") previous.dependent?.dependencyMoved();
 	}
@@ -991,7 +1014,7 @@ export class Binding implements Holder, UnboundRequest {
 		const { promise, resolve, reject } = Promise.withResolvers<void>();
 		const signal = context.abortSignal;
 		const settle = (done: () => void): void => {
-			this.#waiters.delete(waiter);
+			this.#forget(waiter);
 			signal?.removeEventListener("abort", abort);
 			done();
 		};
@@ -1004,11 +1027,20 @@ export class Binding implements Holder, UnboundRequest {
 			end: (error) => settle(() => reject(error)),
 		};
 		const abort = (): void => settle(() => reject(signal?.reason));
+		this.#waiters ??= new Set();
 		this.#waiters.add(waiter);
 		signal?.addEventListener("abort", abort, { once: true });
 		if (signal?.aborted) abort();
 		else waiter.check();
 		return promise;
+	}
+
+	/** `waiter` waits no more; the set goes with its last one (a getter's wait is over once its reference is live). */
+	#forget(waiter: Waiter): void {
+		const waiters = this.#waiters;
+		if (waiters === undefined) return;
+		waiters.delete(waiter);
+		if (waiters.size === 0) this.#waiters = undefined;
 	}
 
 	#watchableState(): ReferenceState {
@@ -1060,7 +1092,7 @@ export class Binding implements Holder, UnboundRequest {
 
 	/** The error of this reference's release by its holder (`released`, no reason). */
 	#released(): ChordError {
-		return new ChordError({ code: "released", message: `${this.#name}: released` });
+		return stackless({ code: "released", message: `${this.#name}: released` });
 	}
 }
 
