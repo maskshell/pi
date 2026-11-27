@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-11-27
+
 ### Breaking Changes
 
 - A named query's argument schema is JSON only: a `bytes()` leaf in `queries(Item, { name: args })` or in a private query's `[args, builder]` is refused at declaration, and a value that is not strict JSON as `isJsonValue` has it (bytes, a function, `undefined`, a non-finite number, an object of a class, an array with more properties than its items) is refused `invalid/args` when a reader opens, also past a schema that checks nothing (readers with equal arguments share one read, keyed by the arguments' canonical JSON; builders read arguments as canonical JSON does: key order immaterial, `-0` is `0`).
